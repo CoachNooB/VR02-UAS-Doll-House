@@ -5336,8 +5336,8 @@ Transform:
   m_GameObject: {fileID: 296760581}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.95, y: 0.9, z: 0}
-  m_LocalScale: {x: 0.18, y: 0.5, z: 0.5}
+  m_LocalPosition: {x: 0, y: 1.1, z: 0}
+  m_LocalScale: {x: 0.22, y: 0.22, z: 0.22}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 377142125}
@@ -5382,7 +5382,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
+  m_Size: {x: 10, y: 9, z: 13}
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!23 &296760585
 MeshRenderer:
@@ -12766,7 +12766,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
+  m_Size: {x: 4, y: 1.6, z: 4}
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!23 &694047231
 MeshRenderer:
@@ -32797,7 +32797,7 @@ MonoBehaviour:
   _jarakRay: 3.5
   _layerInteractable:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 128
   _holdPoint: {fileID: 0}
   _tombolInteraksi: 101
   _tombolLepas: 113
@@ -35922,7 +35922,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 2.4}
   m_SizeDelta: {x: 620, y: 150}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2019001340
