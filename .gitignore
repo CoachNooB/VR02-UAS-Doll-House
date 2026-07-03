@@ -1,0 +1,42 @@
+# Materi kuliah (PDF dosen) — simpan lokal saja, jangan ke repo publik
+materi-kuliah/
+
+# macOS
+.DS_Store
+
+# ===== Unity (berlaku saat Unity project dibuat di folder ini) =====
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]serSettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Visual Studio / Rider / VS Code cache
+.vs/
+.vscode/
+.idea/
+*.csproj
+*.sln
+*.slnx
+*.user
+*.pidb
+*.booproj
+*.svd
+*.userprefs
+
+# Unity crash reports
+sysinfo.txt
+crashlytics-build.properties
+
+# Build artifacts
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# Packages: manifest berisi path mcp-unity lokal — jangan di-push kalau begitu
+# (cek dulu sebelum commit; kalau bersih boleh di-track)
