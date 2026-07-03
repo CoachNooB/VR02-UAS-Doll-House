@@ -1,11 +1,18 @@
 # Konstitusi Proyek — UAS VR 2026 (Soal 2: Rumah Boneka / Wahana Boneka)
 
 > File ini = aturan main waktu Claude bantu garap UAS ini. Dua tujuan yang sama penting:
-> 1. **Prototype JALAN & bisa dijelasin anggota kelompok** — dosen menilai "anggota bisa
->    menjelaskan script & komponen". Kode di luar yang diajarkan = merugikan.
+> 1. **Prototype JALAN & tiap script/komponen bisa dijelasin anggota** — dosen menilai "anggota
+>    bisa menjelaskan script & komponen" (People 7 poin), dan bisa **menunjuk script/komponen MANA
+>    SAJA** di project. Jadi setiap kode yang ikut ke build gameplay harus punya penjelasan sederhana
+>    siap-pakai. Teknik di luar materi aman **hanya** untuk tooling/editor-script yang TIDAK ikut ke
+>    build gameplay; kalau dipakai di runtime, wajib ada penjelasan sederhananya.
 > 2. **SEMUA ajaran dosen terlingkup** — fitur game disusun kreatif supaya tiap teknik yang
 >    sudah diajarkan (P1–P13) kepakai minimal sekali dan bisa ditunjuk saat presentasi.
 >    Coverage materi = prioritas desain, bukan sekadar bonus.
+>
+> **Materi dosen (P1–P13) adalah LANTAI (minimum wajib tercakup), BUKAN plafon.** Boleh melampaui
+> materi demi mempercepat pengerjaan agentic — selama guardrail pelindung nilai di §1 tetap utuh.
+> Detail: lihat blok "PRINSIP: minimum bukan maksimum" di §1.
 
 Referensi resmi "apa yang diajarkan":
 - `dosen-recap/` — salinan script dosen dari https://github.com/calvinsandehang/VR2026RecapOnline
@@ -33,11 +40,37 @@ Referensi resmi "apa yang diajarkan":
 
 ---
 
-## 1. ATURAN UTAMA: pakai HANYA teknik yang diajarkan dosen — tapi pakai SEMUANYA
+## 1. ATURAN UTAMA: materi dosen = LANTAI (minimum wajib), bukan plafon — boleh melampaui demi mempercepat
 
-Batas atas = isi `dosen-recap/` + materi P1–P13. Di dalam batas itu, justru **wajib serakah**:
-tiap teknik diusahakan muncul di game. Kalau ragu sebuah teknik diajarkan atau tidak →
-cek `dosen-recap/` dulu; kalau tetap ragu, tanya Izhar, jangan diam-diam pakai.
+Batas **bawah** = isi `dosen-recap/` + materi P1–P13 **harus tetap terlingkup semua** (coverage §2
+wajib, tidak berubah): tiap teknik diusahakan muncul di game minimal sekali. Di ATAS lantai itu,
+**boleh melampaui** — pakai package/teknik di luar P1–P13 (mis. Unity Splines, `List<>`/`Dictionary`)
+ASAL syarat di blok PRINSIP terpenuhi. Kalau ragu sebuah teknik luar mengancam nilai → pilih versi
+aman atau tanya Izhar, jangan diam-diam pakai yang berisiko.
+
+### PRINSIP: minimum bukan maksimum
+
+1. **Coverage tetap WAJIB & tidak berubah.** Tiap teknik yang diajarkan (P1–P13) HARUS tetap muncul
+   minimal sekali di game — matriks coverage `docs/RENCANA.md` tetap target desain. Inilah makna
+   "minimal yang diajarkan ada".
+2. **Boleh melampaui materi** dengan package/teknik di luar P1–P13 ASAL TIGA syarat: (a) mempermudah
+   workflow agentic (pembangunan/authoring lebih cepat & andal), (b) **tidak ada padanan teknik dosen
+   yang layak** untuk kebutuhan itu (— "mempermudah agentic" saja BUKAN alasan cukup), DAN (c) tidak
+   merusak nilai (guardrail poin 3).
+3. **GUARDRAIL PELINDUNG NILAI = hard rule, TIDAK ikut dilonggarkan:**
+   - Semua **script/komponen yang ikut ke build gameplay** harus punya penjelasan sederhana siap-pakai —
+     dosen bisa menunjuk mana saja (People 7 poin "pemahaman tim"). Teknik luar aman di tooling/editor-script
+     yang tidak ikut ke build; kalau dipakai di runtime, siapkan penjelasannya.
+   - **UI utama WAJIB World Space / Spatial.** Screen Space Overlay utk UI utama = −20.
+   - **WAJIB first-person.** Bukan FP = −20.
+   - **Build TIDAK boleh error besar** (else nilai 0); **WebGL WAJIB ringan** (lag = −5..−15).
+   - **Objective solvable** dari awal sampai end state; fitur sesuai brief Soal 2 (menyimpang = −10..−30).
+   - **Kelompok ≥5.**
+4. **Aturan proses coverage:** sebelum sebuah teknik dosen diganti/ditambah alternatif luar, WAJIB cek
+   teknik dosen aslinya masih muncul ≥1x di game (matriks `docs/RENCANA.md`). **Kalau penggantian
+   menghapus satu-satunya kemunculan teknik dosen → TIDAK BOLEH.**
+5. Semangat: "gas" mempermudah pengerjaan agentic, TAPI nilai (terutama coverage + presentable + WebGL
+   ringan + brief Soal 2) tetap dijaga. Ragu teknik luar mengancam nilai → versi aman / minta acc Izhar.
 
 ### ✅ BOLEH (terbukti diajarkan — sumber di kurung)
 
@@ -110,22 +143,31 @@ cek `dosen-recap/` dulu; kalau tetap ragu, tanya Izhar, jangan diam-diam pakai.
   `Mathf.Clamp/Abs/Sqrt`, `if/else`, array + `.Length`, `bool` flag, guard clause
   (early return), `Debug.Log`, komentar `/// <summary>` (gaya dosen).
 
-### ❌ JANGAN (tidak pernah muncul di materi/script dosen)
+### ⚠️ HINDARI SECARA DEFAULT (di luar materi — lebih susah dijelaskan)
 
-- `List<>`, `Dictionary`, LINQ → pakai **array**.
-- `SceneManager.LoadScene` (1 scene saja), `async/await`, `Invoke`/`InvokeRepeating`
-  (dosen pakai Coroutine/timer, bukan Invoke).
-- Event/delegate custom (`event`, `Action<>`) → kalau butuh event, pakai `UnityEvent`
-  serialized (itu yang diajarkan) atau panggilan method langsung via reference.
+List ini BUKAN larangan mati lagi. Ini "yang perlu hati-hati": secara default hindari (di luar materi,
+lebih repot dijelasin anggota), TAPI **boleh dipakai kalau** memenuhi PRINSIP §1 poin 2 (mempermudah
+agentic + tak ada padanan dosen yang layak + tak merusak nilai) DAN salah satu: kode plumbing/editor-
+authoring yang TIDAK ikut ke build gameplay, ATAU acc eksplisit Izhar per-kasus untuk script runtime.
+Ingat: "mempermudah workflow agentic" saja **bukan** alasan cukup.
+
+- `List<>`, `Dictionary`, LINQ → default pakai **array**; boleh kalau bikin authoring/plumbing lebih andal.
+- `async/await`, `Invoke`/`InvokeRepeating` → default pakai Coroutine/timer (dosen); boleh kalau ada gain authoring nyata.
+- Event/delegate custom (`event`, `Action<>`) → default pakai `UnityEvent` serialized / panggilan method via reference.
 - Interface, inheritance/abstract class sendiri, generics sendiri, ScriptableObject,
   properties `{get;set;}` full selain pola dosen di atas.
 - Design pattern (singleton, observer, event bus, DI, state machine class).
-- New Input System (kode `UnityEngine.InputSystem`).
-- XR Interaction Toolkit / OpenXR / XR Origin — ini "VR" desktop first-person.
-- NavMesh, Timeline, Cinemachine, shader graph custom, post-processing berat (WebGL lag = penalti).
+- New Input System (kode `UnityEngine.InputSystem`) → materi pakai Input API lama.
 
-> Requirement yang KELIHATANNYA butuh teknik terlarang → STOP, tawarkan versi sederhana
-> ke Izhar + jelaskan trade-off. Jangan diam-diam pakai teknik canggih.
+**TETAP DILARANG KERAS (guardrail nilai, bukan sekadar "hindari"):**
+- `SceneManager.LoadScene` — brief = **1 scene saja**, nol gain agentic, risiko "fitur tak sesuai brief" (−10..−30).
+- XR Interaction Toolkit / OpenXR / XR Origin — ini "VR" desktop first-person; XR merusak requirement first-person (−20).
+- NavMesh, Timeline, Cinemachine, shader graph custom, post-processing berat → **hati-hati ekstra**:
+  WebGL WAJIB ringan (lag = −5..−15), jadi hanya kalau ringan & terbukti aman.
+
+> Requirement yang butuh teknik di luar materi → boleh gas kalau memenuhi PRINSIP §1 & aman untuk nilai;
+> kalau berisiko ke guardrail (presentable / World Space / first-person / WebGL / build / brief / coverage)
+> → STOP, tawarkan versi aman ke Izhar + jelaskan trade-off. Jangan diam-diam pakai teknik yang mengancam nilai.
 
 ### Pengecualian yang SUDAH di-acc Izhar (2026-07-03, siap dijelaskan ke dosen)
 
@@ -137,6 +179,13 @@ cek `dosen-recap/` dulu; kalau tetap ragu, tanya Izhar, jangan diam-diam pakai.
 - `AudioSource.Stop()` — pasangan alami `.Play()` (suara roda berhenti di stasiun).
 - Emission glow highlight (`EnableKeyword "_EMISSION"` + `SetColor "_EmissionColor"`,
   intensitas ±0.3) — pola teruji T6 (PELAJARAN-TUGAS6-7 §2).
+- **Unity Splines (`com.unity.splines`)** untuk track kereta — diizinkan, **MENAMBAH (bukan
+  mengganti)** demi authoring jalur melengkung yang lebih cepat/mulus. Syarat keras: waypoint
+  `Vector3.MoveTowards` manual **WAJIB tetap ada & aktif di ≥1 segmen track** sebagai bukti coverage
+  (kereta ikut track = 10 poin, P2/P10) — spline TIDAK boleh menghapus satu-satunya implementasi
+  MoveTowards. Cek `com.unity.splines` tidak bikin WebGL berat. Rekomendasi pemakaian: sebagai **alat
+  authoring** (gambar kurva → sample balik jadi `Transform[]` waypoint; runtime KeretaMover tak berubah)
+  supaya bagian presentasi tetap 100% teknik dosen. Detail: `docs/RENCANA.md` / plan handoff jalur.
 - DITOLAK & sudah dihapus dari kode (jangan dipakai lagi): `Quaternion.Slerp` (padanan:
   geser arah pakai `Vector3.MoveTowards` + `Quaternion.LookRotation`), `Vector3.Distance`
   (padanan: `==` posisi setelah MoveTowards), `AudioSource.PlayOneShot` (padanan: `.Play()`),
