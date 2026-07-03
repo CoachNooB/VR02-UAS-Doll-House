@@ -56,6 +56,9 @@ public class KeretaMover : MonoBehaviour
     private Transform player;             // cache transform player (tag "Player")
     private CharacterController ccPlayer; // CharacterController player (dimatikan selama naik)
     private SimpleCharacterController sccPlayer; // script jalan kaki dosen, dimatikan selama naik
+    private KameraNoleh kameraNoleh;      // kontrol noleh kamera selama naik (di Main Camera)
+    private GameObject titikNaikObjek;    // penunjuk "Naik Kereta" (marker+collider), disembunyikan saat duduk
+    private GameObject labelNaikObjek;    // label melayang "E - Naik Kereta"
     private PusatWahana hub;              // pusat referensi wahana (StatusUI, Ringkasan, Fade)
 
     /// <summary>
@@ -139,6 +142,19 @@ public class KeretaMover : MonoBehaviour
         if (_suaraJalan == null)
         {
             _suaraJalan = GetComponent<AudioSource>();
+        }
+
+        // Penunjuk naik (marker + label) yang disembunyikan saat player sudah duduk.
+        Transform tn = transform.Find("TitikNaik");
+        if (tn != null)
+        {
+            titikNaikObjek = tn.gameObject;
+        }
+
+        Transform ln = transform.Find("UI_LabelNaik");
+        if (ln != null)
+        {
+            labelNaikObjek = ln.gameObject;
         }
 
         totalRute = _jumlahUtama;
@@ -360,6 +376,7 @@ public class KeretaMover : MonoBehaviour
             player = objPlayer.transform;
             ccPlayer = objPlayer.GetComponent<CharacterController>();
             sccPlayer = objPlayer.GetComponent<SimpleCharacterController>();
+            kameraNoleh = objPlayer.GetComponentInChildren<KameraNoleh>();
         }
 
         if (_kursi == null)
@@ -391,6 +408,24 @@ public class KeretaMover : MonoBehaviour
         player.localPosition = Vector3.zero;
         player.localRotation = Quaternion.identity;
         playerNaik = true;
+
+        // Sembunyikan penunjuk naik supaya crosshair tidak nyangkut ke sana; kalau tidak,
+        // tuas berangkat di depan kursi jadi susah dibidik (ketutup collider penunjuk).
+        if (titikNaikObjek != null)
+        {
+            titikNaikObjek.SetActive(false);
+        }
+
+        if (labelNaikObjek != null)
+        {
+            labelNaikObjek.SetActive(false);
+        }
+
+        // Aktifkan noleh kamera supaya penumpang bisa menengok display kiri/kanan.
+        if (kameraNoleh != null)
+        {
+            kameraNoleh.enabled = true;
+        }
 
         KirimStatus("Tarik tuas untuk mulai!");
     }
@@ -479,6 +514,13 @@ public class KeretaMover : MonoBehaviour
             Debug.Log("KeretaMover: TitikTurun null, player turun di tempat.");
         }
 
+        // Matikan noleh kamera dulu (OnDisable-nya mengembalikan kamera lurus)
+        // sebelum kontrol jalan kaki dinyalakan lagi.
+        if (kameraNoleh != null)
+        {
+            kameraNoleh.enabled = false;
+        }
+
         if (ccPlayer != null)
         {
             ccPlayer.enabled = true;
@@ -488,6 +530,17 @@ public class KeretaMover : MonoBehaviour
         if (sccPlayer != null)
         {
             sccPlayer.enabled = true;
+        }
+
+        // Tampilkan lagi penunjuk naik untuk ride berikutnya.
+        if (titikNaikObjek != null)
+        {
+            titikNaikObjek.SetActive(true);
+        }
+
+        if (labelNaikObjek != null)
+        {
+            labelNaikObjek.SetActive(true);
         }
 
         playerNaik = false;
