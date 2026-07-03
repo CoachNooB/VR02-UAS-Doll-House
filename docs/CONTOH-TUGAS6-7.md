@@ -16,10 +16,16 @@ Raycast = "laser" pengecek objek di depan; Trigger = area deteksi tanpa menghala
 AddForce = dorongan. Slide-nya juga men-showcase experience contoh (termasuk **Rumah Boneka
 Dufan** — tema UAS kita).
 
-**Tugas 6 = aplikasi langsung materi P10** ke satu ruangan kecil.
-**Tugas 7 = scale-up**: pola yang sama diperluas jadi course multi-section dengan progression.
+**Riwayat konsep (penting):** Tugas 6 awalnya dikerjakan Izhar sebagai **toko mainan**
+(konsep simpel, aplikasi langsung materi P10). Ketua kelompok (Antonius) kemudian
+**mengganti konsep** jadi **course 4 section** ("Lava Gauntlet") — itulah yang jadi
+deliverable final tugas 6–7; **toko mainan tidak dipakai lagi**. Kontribusi Izhar di
+course: sound design pass + replay loop.
 
-## 2. Tugas 6 — "Toko Mainan" first-person
+Meski di-scrap, toko mainan tetap referensi teknik paling berharga di sini: script-nya
+persis level materi dosen (beda dengan kode course yang banyak di luar konstitusi, lihat §5).
+
+## 2. Toko Mainan (konsep awal T6 — di-scrap, tapi script-nya jadi acuan pola)
 
 Scene: taman → masuk toko → interaksi 6 mainan di meja. 7 requirement terpenuhi + bonus.
 
@@ -37,9 +43,9 @@ Script (7 file, `Assets/Tugas6/` di repo lama): `T6_FirstPersonController`,
 `T6_RaycastInteractor`, `T6_Interactable`, `T6_TriggerZone`, `T6_RigidbodyPusher`,
 `T6_StatusUI`, `T6_UIIkutKamera`. Dokumentasi: `T6_README.md`, `T6_CHECKLIST.md`.
 
-## 3. Tugas 7 — "Volcanic Facility" course
+## 3. Deliverable final tugas 6–7 — "Volcanic Facility / Lava Gauntlet" course (karya ketua)
 
-Scale-up besar: 4 section obstacle course (rotating machinery, pressure plate + gate,
+4 section obstacle course (rotating machinery, pressure plate + gate,
 moving platform + sweeper, final jumps), lava hazard, ≥3 checkpoint (terminal cyan +
 healing + respawn), health system, NPC guide + finish celebration, timer World Space.
 
@@ -62,8 +68,10 @@ Dokumentasi desain: `docs/superpowers/specs/2026-07-02-*.md` di repo lama.
 
 ## 4. Pola yang DITIRU untuk UAS
 
-1. **Scale-up bertahap** — T6 kecil dulu sampai solid, baru diperluas. UAS: bikin 1 zona
-   lengkap (kereta + display + trigger + UI) dulu, baru gandakan jadi 4 zona.
+1. **Mulai kecil sampai solid, baru diperluas** — toko mainan membuktikan semua teknik inti
+   di 1 ruangan sebelum konsep besar. UAS: bikin 1 zona lengkap (kereta + display + trigger
+   + UI) dulu, baru gandakan jadi 4 zona. (Pelajaran organisasi: sepakati konsep bareng
+   ketua DI AWAL — jangan sampai kerjaan di-scrap lagi karena ganti konsep di tengah.)
 2. **Satu script satu tanggung jawab** — 7 script kecil T6 lebih gampang dijelasin anggota
    daripada 1 script raksasa. Nama deskriptif.
 3. **Reuse yang sudah terbukti** — FP controller, raycast interactor, trigger zone T6/T7
