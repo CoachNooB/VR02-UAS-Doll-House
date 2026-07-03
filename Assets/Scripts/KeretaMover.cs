@@ -55,6 +55,7 @@ public class KeretaMover : MonoBehaviour
     private int totalRute;                // total waypoint rute sekarang (29 normal, 32 kalau lewat kiri)
     private Transform player;             // cache transform player (tag "Player")
     private CharacterController ccPlayer; // CharacterController player (dimatikan selama naik)
+    private SimpleCharacterController sccPlayer; // script jalan kaki dosen, dimatikan selama naik
     private PusatWahana hub;              // pusat referensi wahana (StatusUI, Ringkasan, Fade)
 
     /// <summary>
@@ -358,6 +359,7 @@ public class KeretaMover : MonoBehaviour
             }
             player = objPlayer.transform;
             ccPlayer = objPlayer.GetComponent<CharacterController>();
+            sccPlayer = objPlayer.GetComponent<SimpleCharacterController>();
         }
 
         if (_kursi == null)
@@ -366,10 +368,23 @@ public class KeretaMover : MonoBehaviour
             return;
         }
 
+        // Matikan script jalan kaki dosen DULU. Kalau tidak, Update-nya terus memanggil
+        // CharacterController.Move di controller yang sudah nonaktif -> error tiap frame
+        // ("Move called on inactive controller") yang bikin Play mode pause/nge-freeze.
+        if (sccPlayer != null)
+        {
+            sccPlayer.enabled = false;
+        }
+
         if (ccPlayer != null)
         {
             ccPlayer.enabled = false; // dimatikan selama duduk (pengecualian yang di-acc)
         }
+
+        // OnDisable SimpleCharacterController otomatis melepas kursor, jadi dikunci ulang
+        // supaya selama ride kursor tetap terkunci & tidak kelihatan.
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
 
         // Tempelkan player ke kursi supaya ikut gerak kereta.
         player.SetParent(_kursi);
@@ -467,6 +482,12 @@ public class KeretaMover : MonoBehaviour
         if (ccPlayer != null)
         {
             ccPlayer.enabled = true;
+        }
+
+        // Nyalakan lagi kontrol jalan kaki setelah turun dari kereta.
+        if (sccPlayer != null)
+        {
+            sccPlayer.enabled = true;
         }
 
         playerNaik = false;
