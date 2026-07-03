@@ -1,6 +1,9 @@
 # Materi kuliah (PDF dosen) — simpan lokal saja, jangan ke repo publik
 materi-kuliah/
 
+# Config MCP lokal (path mesin Izhar) — jangan di-push
+.mcp.json
+
 # macOS
 .DS_Store
 

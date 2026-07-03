@@ -4,6 +4,9 @@
 > **Coroutine, Animator, Prefab/Spawn, Grab/Drop/Push (P12) boleh & justru diprioritaskan**
 > supaya semua ajaran dosen terlingkup. Rencana ini referensi awal — boleh dirombak saat
 > pengerjaan dimulai.
+>
+> Pengerjaan scene/objek/wiring dilakukan via **MCP Unity tools** (lihat `CLAUDE.md` §3b).
+> Pola implementasi mengacu studi kasus tugas 6–7: `docs/CONTOH-TUGAS6-7.md`.
 
 ## Konsep besar
 

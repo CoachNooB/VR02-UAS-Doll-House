@@ -12,6 +12,11 @@ Referensi resmi "apa yang diajarkan":
   (baca `dosen-recap/README.md` untuk peta script → teknik).
 - `materi-kuliah/` — PDF pertemuan (lokal, tidak di-push).
 - `docs/MATERI.md` — ringkasan materi per pertemuan.
+- `docs/CONTOH-TUGAS6-7.md` — studi kasus tugas 6–7 (repo lama): contoh riil menerapkan
+  materi jadi game — pola yang ditiru & yang tidak.
+- `docs/PELAJARAN-TUGAS6-7.md` — memori teknis pengerjaan tugas 6–7: pola teruji + nilai
+  tuning (glow, volume audio) + jebakan (URP magenta, model ber-rig, LFS) — **baca sebelum
+  mulai membangun scene.**
 
 ---
 
@@ -158,6 +163,33 @@ Penalti besar: build error = 0; bukan first-person = −20; UI utama bukan World
 WebGL lag = −5..−15; kelompok <5 = −30.
 
 ---
+
+## 3b. Workflow MCP Unity
+
+UAS ini dikerjakan lewat **mcp-unity** (server MCP yang mengendalikan Unity Editor):
+scene, GameObject, component, dan wiring Inspector dibangun via MCP tools, bukan diketik
+manual di file .unity.
+
+- Syarat jalan: (1) Unity Editor terbuka dengan project ini, (2) sesi Claude dibuka di folder
+  `VR02-UAS-Doll-House` (config `.mcp.json` project-scope), (3) server MCP di-approve.
+- Package editor: `com.gamelovers.mcp-unity` = **package lokal** `file:/Users/izhardwiputra/mcp-unity`
+  di `Packages/manifest.json`. **Baris ini JANGAN PERNAH di-commit/push** — path lokal bikin
+  error di laptop teman. Guard: `manifest.json` & `packages-lock.json` di-set
+  `git update-index --skip-worktree` (perubahannya tidak terlihat git).
+  - Mau commit perubahan package resmi? Un-skip dulu:
+    `git update-index --no-skip-worktree Packages/manifest.json Packages/packages-lock.json`,
+    hapus baris mcp-unity, commit, tambahkan lagi baris mcp, lalu skip lagi.
+- `.mcp.json` di root repo berisi path lokal — masuk `.gitignore`, jangan di-push.
+- Perubahan scene via MCP tetap tunduk konstitusi bagian 1 (teknik yang boleh/tidak).
+- **Keterbatasan mcp-unity yang sudah terbukti** (detail: `docs/PELAJARAN-TUGAS6-7.md` §4):
+  - Tidak bisa mengisi field reference antar-objek di Inspector (selalu null) → semua script
+    sediakan **fallback auto-find di `Awake`** (`Camera.main`, `GetComponent`,
+    `GetComponentInChildren`, `transform.Find`) di samping field `[SerializeField]` —
+    pola T6 yang terbukti; `GetComponent` di `Awake` memang pola dosen.
+  - `set_transform` pakai koordinat **world**.
+  - Tidak bisa masuk Play mode / lihat Game View → play test selalu manual oleh Izhar
+    (bangun → Play → feedback screenshot → perbaiki, per iterasi kecil).
+  - `create_scene` mengabaikan folder → pindahkan dengan `save_scene saveAs`.
 
 ## 4. Aturan teknis repo
 
