@@ -23,6 +23,9 @@ public class RideStatusUI : MonoBehaviour
     [Header("Audio (opsional)")]
     [SerializeField] private AudioSource _sfxStempel;
 
+    // Canvas panel ini — dimatikan/hidupkan supaya panel hanya tampil saat kereta jalan.
+    private Canvas _canvas;
+
     // Penanda stempel mana saja yang sudah kena di ride ini.
     private bool[] stempelKena = new bool[6];
 
@@ -42,6 +45,9 @@ public class RideStatusUI : MonoBehaviour
     /// </summary>
     private void Awake()
     {
+        // Canvas panel ini, buat menampilkan/menyembunyikan panel (Canvas.enabled).
+        _canvas = GetComponent<Canvas>();
+
         // Fallback: cari teks status dari child bernama "TeksStatus".
         if (_teksStatus == null)
         {
@@ -108,6 +114,22 @@ public class RideStatusUI : MonoBehaviour
     private void Start()
     {
         ResetStempel();
+
+        // Panel status hanya muncul saat kereta jalan → mulai tersembunyi.
+        SetTampil(false);
+    }
+
+    /// <summary>
+    /// Menampilkan / menyembunyikan panel status dengan menyalakan/mematikan Canvas
+    /// (objek tetap aktif supaya SetStatus/TandaiStempel tetap bisa dipanggil).
+    /// Dipanggil KeretaMover: tampil saat MulaiJalan, sembunyi saat turun/selesai.
+    /// </summary>
+    public void SetTampil(bool tampil)
+    {
+        if (_canvas != null)
+        {
+            _canvas.enabled = tampil;
+        }
     }
 
     /// <summary>

@@ -32,16 +32,10 @@ public class Billboard : MonoBehaviour
             return;
         }
 
-        // Arah dari kamera ke label. Label dihadapkan searah vektor ini
-        // supaya sisi depan teks terbaca dari posisi player.
-        Vector3 arah = transform.position - _kamera.position;
-
-        // Guard: LookRotation tidak boleh menerima vektor nol.
-        if (arah == Vector3.zero)
-        {
-            return;
-        }
-
-        transform.rotation = Quaternion.LookRotation(arah);
+        // Samakan rotasi label PERSIS dengan rotasi kamera — pola yang sama dengan
+        // HUDIkutKamera pada UI_HUD_Player, yang teksnya (TeksPrompt) terbukti KEBACA.
+        // Teks label harus child rotasi Y0 (bukan Y180) supaya hasilnya sama seperti
+        // TeksPrompt. Tanpa 180° ekstra: itulah penyebab teks tampak cermin sebelumnya.
+        transform.rotation = _kamera.rotation;
     }
 }

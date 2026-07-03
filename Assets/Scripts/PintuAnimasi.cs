@@ -62,6 +62,23 @@ public class PintuAnimasi : MonoBehaviour
     }
 
     /// <summary>
+    /// Buka kalau sedang tertutup, tutup kalau sedang terbuka. Dipanggil
+    /// ObjekInteraksi mode 7 (tombol E) supaya pintu bisa dibuka/tutup manual
+    /// oleh player, bukan otomatis lewat trigger.
+    /// </summary>
+    public void TogglePintu()
+    {
+        if (_sudahTerbuka)
+        {
+            TutupPintu();
+        }
+        else
+        {
+            BukaPintu();
+        }
+    }
+
+    /// <summary>
     /// Dipanggil oleh ANIMATION EVENT di frame terakhir clip buka — bukan dari
     /// script lain (materi P12: frame tertentu memanggil function public di
     /// script objek yang sama). Di sini bisa dipasang aksi lanjutan.

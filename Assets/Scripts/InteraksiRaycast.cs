@@ -229,7 +229,8 @@ public class InteraksiRaycast : MonoBehaviour
 
         if (objekWahanaDilihat != null)
         {
-            return "Tekan E untuk interaksi";
+            // Label per-objek supaya prompt kontekstual: "Tekan E untuk Naik Kereta", dst.
+            return "Tekan E untuk " + objekWahanaDilihat.Label;
         }
 
         if (rigidbodyDilihat != null)
@@ -359,7 +360,8 @@ public class InteraksiRaycast : MonoBehaviour
             return;
         }
 
-        SetStatus("Tidak ada objek yang bisa didorong");
+        // Tidak ada target dorong: diam saja. Klik kiri juga dipakai untuk mengunci
+        // kursor, jadi klik di udara itu wajar -> jangan spam status yang nyangkut.
     }
 
     /// <summary>

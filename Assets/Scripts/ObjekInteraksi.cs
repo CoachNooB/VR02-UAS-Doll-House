@@ -6,17 +6,27 @@ using UnityEngine;
 /// Mode menentukan aksi saat Interact():
 /// 0 = efek lokal saja (toggle objek / ubah warna / suara),
 /// 1 = naik kereta, 2 = mulai kereta, 3 = pilih jalur kiri panggung S2 (tuas),
-/// 4 = papan info gambar berikutnya, 5 = gambar sebelumnya, 6 = reset semua wahana.
+/// 4 = papan info gambar berikutnya, 5 = gambar sebelumnya, 6 = reset semua wahana,
+/// 7 = buka/tutup pintu (toggle) — pakai _pintuTarget.
 /// Pastikan objek punya Collider supaya kena raycast.
 /// </summary>
 public class ObjekInteraksi : MonoBehaviour
 {
-    [Header("Mode (0 lokal, 1 naik, 2 mulai, 3 jalur kiri, 4 next, 5 prev, 6 reset)")]
-    [Range(0, 6)]
+    [Header("Mode (0 lokal,1 naik,2 mulai,3 kiri,4 next,5 prev,6 reset,7 pintu)")]
+    [Range(0, 7)]
     [SerializeField] private int _mode = 0;
+
+    [Header("Label prompt HUD (mis. \"Naik Kereta\" -> \"Tekan E untuk Naik Kereta\")")]
+    [SerializeField] private string _labelInteraksi = "interaksi";
+
+    /// <summary>Teks yang dipakai HUD untuk menyusun prompt "Tekan E untuk ...".</summary>
+    public string Label => _labelInteraksi;
 
     [Header("Hub Wahana (opsional — auto-find di Awake)")]
     [SerializeField] private PusatWahana _wahana;
+
+    [Header("Mode 7: pintu yang dibuka/tutup toggle")]
+    [SerializeField] private PintuAnimasi _pintuTarget;   // fallback: cari di objek ini / parent
 
     [Header("Highlight saat dilihat")]
     [SerializeField] private Renderer _rendererObjek;        // auto: cari di objek ini / child
@@ -68,6 +78,10 @@ public class ObjekInteraksi : MonoBehaviour
             Transform target = transform.Find("ObjekTarget");
             if (target != null) _objekTarget = target.gameObject;
         }
+
+        // Mode 7: pintu target. Cari di objek ini / anak / parent kalau belum di-drag.
+        if (_pintuTarget == null) _pintuTarget = GetComponentInParent<PintuAnimasi>();
+        if (_pintuTarget == null) _pintuTarget = GetComponentInChildren<PintuAnimasi>();
     }
 
     /// <summary>
@@ -114,6 +128,14 @@ public class ObjekInteraksi : MonoBehaviour
         if (_mode == 0)
         {
             InteraksiLokal();
+            return;
+        }
+
+        // Mode 7: buka/tutup pintu manual (tidak butuh hub)
+        if (_mode == 7)
+        {
+            if (_pintuTarget == null) { LogPeringatan("PintuAnimasi target null"); return; }
+            _pintuTarget.TogglePintu();
             return;
         }
 

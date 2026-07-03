@@ -2,23 +2,24 @@ using UnityEngine;
 
 /// <summary>
 /// Penggerak kereta mini wahana boneka.
-/// Kereta jalan dari waypoint ke waypoint (WP_0..WP_28) memakai Vector3.MoveTowards
-/// (pola dosen P10 MoveToPlayer). Di panggung S2 track bercabang: sisi kiri (WK_0..WK_4)
+/// Kereta jalan dari waypoint ke waypoint (WP_0..WP_77) memakai Vector3.MoveTowards
+/// (pola dosen P10 MoveToPlayer). Di panggung S2 track bercabang: sisi kiri (WK_0..WK_3)
 /// kalau tuas pilihan ditarik, sisi kanan kalau tidak. Kereta berhenti nonton show
 /// di stasiun S3 Horror, dan menukik landai masuk danau di S4 (murni dari posisi waypoint).
-/// Player naik dengan menempel ke kursi (SetParent) dan turun di TitikTurun.
+/// Player naik dengan menempel ke kursi (SetParent), turun otomatis di TitikTurun saat
+/// ride selesai, atau turun manual dengan tombol Q selama duduk & kereta masih diam.
 /// </summary>
 public class KeretaMover : MonoBehaviour
 {
     [Header("Jalur (parent waypoint)")]
-    [SerializeField] private Transform _jalurUtama;    // parent WP_0..WP_28 (fallback: cari "JalurUtama")
-    [SerializeField] private Transform _jalurKiri;     // parent WK_0..WK_4 (fallback: cari "JalurKiri")
-    [SerializeField] private int _jumlahUtama = 29;    // banyak waypoint jalur utama (termasuk sisi kanan S2)
-    [SerializeField] private int _jumlahKiri = 5;      // banyak waypoint sisi kiri panggung S2
+    [SerializeField] private Transform _jalurUtama;    // parent WP_0..WP_77 (fallback: cari "JalurUtama")
+    [SerializeField] private Transform _jalurKiri;     // parent WK_0..WK_3 (fallback: cari "JalurKiri")
+    [SerializeField] private int _jumlahUtama = 78;    // banyak waypoint jalur utama (termasuk sisi kanan S2)
+    [SerializeField] private int _jumlahKiri = 4;      // banyak waypoint sisi kiri panggung S2
 
     [Header("Percabangan panggung S2 (tuas = sisi kiri)")]
-    [SerializeField] private int _indexCabang = 6;     // dari WP ini kereta bisa belok ke WK_0
-    [SerializeField] private int _indexGabung = 9;     // setelah WK terakhir, balik ke WP ini
+    [SerializeField] private int _indexCabang = 23;    // dari WP ini kereta bisa belok ke WK_0
+    [SerializeField] private int _indexGabung = 28;    // setelah WK terakhir, balik ke WP ini
 
     [Header("Kecepatan")]
     [SerializeField] private float _kecepatanNormal = 2.5f;   // kecepatan biasa (unit/detik)
@@ -27,7 +28,7 @@ public class KeretaMover : MonoBehaviour
     [SerializeField] private float _kecepatanBelok = 4f;      // kecepatan geser arah hadap (per detik)
 
     [Header("Berhenti di stasiun (S3 Horror)")]
-    [SerializeField] private int _indexBerhenti = 13;         // WP tempat kereta berhenti nonton show
+    [SerializeField] private int _indexBerhenti = 39;         // WP tempat kereta berhenti nonton show
     [SerializeField] private float _durasiBerhenti = 14f;     // lama berhenti (detik)
 
     [Header("Naik / turun player")]
@@ -44,7 +45,7 @@ public class KeretaMover : MonoBehaviour
     private Transform[] waypointUtama;    // diisi di Awake dari child JalurUtama
     private Transform[] waypointKiri;     // diisi di Awake dari child JalurKiri
     private int indexTujuan = 1;          // waypoint yang sedang dituju (mulai target WP_1, kereta parkir di WP_0)
-    private bool diJalurKiri;             // true = sedang menyusuri WK_0..WK_4 (sisi kiri panggung)
+    private bool diJalurKiri;             // true = sedang menyusuri WK_0..WK_3 (sisi kiri panggung)
     private bool lewatKiri;               // true = tuas pilihan ditarik, belok kiri di percabangan nanti
     private bool sedangBerhenti;          // true = lagi berhenti di stasiun S3
     private bool pelanKarenaZona;         // true = zona lambat menyuruh pelan
@@ -52,13 +53,14 @@ public class KeretaMover : MonoBehaviour
     private bool playerNaik;              // true = player sedang duduk di kursi
     private float timerBerhenti;          // sisa waktu berhenti di stasiun
     private int jumlahDilewati;           // hitungan waypoint yang sudah dilewati (untuk progress bar)
-    private int totalRute;                // total waypoint rute sekarang (29 normal, 32 kalau lewat kiri)
+    private int totalRute;                // total waypoint rute sekarang (78 normal; lewat kiri kurang-lebih sama)
     private Transform player;             // cache transform player (tag "Player")
     private CharacterController ccPlayer; // CharacterController player (dimatikan selama naik)
     private SimpleCharacterController sccPlayer; // script jalan kaki dosen, dimatikan selama naik
     private KameraNoleh kameraNoleh;      // kontrol noleh kamera selama naik (di Main Camera)
     private GameObject titikNaikObjek;    // penunjuk "Naik Kereta" (marker+collider), disembunyikan saat duduk
     private GameObject labelNaikObjek;    // label melayang "E - Naik Kereta"
+    private Collider tuasStartCollider;   // collider tuas berangkat: hanya aktif saat duduk & belum jalan
     private PusatWahana hub;              // pusat referensi wahana (StatusUI, Ringkasan, Fade)
 
     /// <summary>
@@ -157,6 +159,19 @@ public class KeretaMover : MonoBehaviour
             labelNaikObjek = ln.gameObject;
         }
 
+        // Tuas berangkat: collider-nya dimatikan dulu supaya prompt "Berangkat" TIDAK
+        // muncul sebelum player duduk. Nanti diaktifkan di NaikkanPlayer, dimatikan
+        // lagi begitu kereta jalan (MulaiJalan) atau player turun (TurunkanPlayer).
+        Transform tuasT = transform.Find("TuasStart");
+        if (tuasT != null)
+        {
+            tuasStartCollider = tuasT.GetComponent<Collider>();
+        }
+        if (tuasStartCollider != null)
+        {
+            tuasStartCollider.enabled = false;
+        }
+
         totalRute = _jumlahUtama;
     }
 
@@ -166,6 +181,15 @@ public class KeretaMover : MonoBehaviour
     /// </summary>
     private void Update()
     {
+        // Turun manual: hanya saat sudah duduk & kereta masih diam (sebelum berangkat).
+        // Pakai tombol Q supaya tidak bentrok dengan E (E dipakai menarik tuas berangkat).
+        if (playerNaik && !SedangJalan && Input.GetKeyDown(KeyCode.Q))
+        {
+            TurunkanPlayer();
+            KirimStatus("Turun dari kereta.");
+            return;
+        }
+
         // Belum dinyalakan tuas -> diam saja (guard clause).
         if (!SedangJalan)
         {
@@ -300,7 +324,7 @@ public class KeretaMover : MonoBehaviour
             indexTujuan = 0; // mulai dari WK_0
 
             // Rute total berubah: WP antara cabang dan gabung dilewati (skip),
-            // diganti semua WK. Contoh: 29 - 2 + 5 = 32 waypoint.
+            // diganti semua WK. Contoh: 78 - 4 + 4 = 78 waypoint.
             int jumlahDiskip = _indexGabung - _indexCabang - 1;
             totalRute = _jumlahUtama - jumlahDiskip + _jumlahKiri;
 
@@ -427,7 +451,14 @@ public class KeretaMover : MonoBehaviour
             kameraNoleh.enabled = true;
         }
 
-        KirimStatus("Tarik tuas untuk mulai!");
+        // Sekarang player sudah duduk & kereta belum jalan → tuas berangkat aktif
+        // (prompt "Tekan E untuk Berangkat" baru muncul di window ini).
+        if (tuasStartCollider != null)
+        {
+            tuasStartCollider.enabled = true;
+        }
+
+        KirimStatus("Tarik tuas (E) untuk mulai — atau Q untuk turun.");
     }
 
     /// <summary>
@@ -451,6 +482,13 @@ public class KeretaMover : MonoBehaviour
         totalRute = _jumlahUtama;
         arahHadap = transform.forward; // mulai dari arah hadap sekarang biar tidak menyentak
 
+        // Kereta sudah jalan → tuas berangkat dimatikan supaya prompt "Berangkat"
+        // tidak muncul lagi selama ride berlangsung.
+        if (tuasStartCollider != null)
+        {
+            tuasStartCollider.enabled = false;
+        }
+
         if (_suaraJalan != null)
         {
             _suaraJalan.Play();
@@ -459,6 +497,12 @@ public class KeretaMover : MonoBehaviour
         if (hub != null && hub.Fade != null)
         {
             hub.Fade.FadeGelapLaluTerang(); // transisi halus saat ride mulai
+        }
+
+        // Panel status pojok baru muncul begitu kereta benar-benar jalan.
+        if (hub != null && hub.StatusUI != null)
+        {
+            hub.StatusUI.SetTampil(true);
         }
 
         KirimStatus("<color=yellow>Moving</color>");
@@ -501,6 +545,18 @@ public class KeretaMover : MonoBehaviour
         if (!playerNaik || player == null)
         {
             return;
+        }
+
+        // Panel status pojok disembunyikan lagi begitu turun (ride selesai / turun manual).
+        if (hub != null && hub.StatusUI != null)
+        {
+            hub.StatusUI.SetTampil(false);
+        }
+
+        // Player tidak duduk lagi → tuas berangkat dimatikan (prompt "Berangkat" hilang).
+        if (tuasStartCollider != null)
+        {
+            tuasStartCollider.enabled = false;
         }
 
         player.SetParent(null);

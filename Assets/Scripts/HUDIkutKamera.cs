@@ -13,7 +13,8 @@ public class HUDIkutKamera : MonoBehaviour
 
     [Header("Pengaturan Posisi")]
     [SerializeField] private float _jarak = 0.75f;          // jarak HUD di depan kamera
-    [SerializeField] private float _offsetVertikal = -0.27f; // geser ke bawah (minus = bawah layar)
+    [SerializeField] private float _offsetVertikal = -0.27f; // geser atas/bawah (minus = bawah layar)
+    [SerializeField] private float _offsetHorizontal = 0f;   // geser kiri/kanan (minus = kiri, plus = kanan)
 
     private void Awake()
     {
@@ -41,7 +42,8 @@ public class HUDIkutKamera : MonoBehaviour
         // terlihat seperti bar informasi di bagian bawah layar.
         transform.position = _kamera.position
             + _kamera.forward * _jarak
-            + _kamera.up * _offsetVertikal;
+            + _kamera.up * _offsetVertikal
+            + _kamera.right * _offsetHorizontal;
 
         // Samakan rotasi persis dengan kamera (bukan LookRotation)
         // supaya bidang HUD selalu sejajar layar.
