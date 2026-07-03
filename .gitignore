@@ -43,3 +43,7 @@ crashlytics-build.properties
 
 # Packages: manifest berisi path mcp-unity lokal — jangan di-push kalau begitu
 # (cek dulu sebelum commit; kalau bersih boleh di-track)
+
+# OS noise + tooling lokal
+.DS_Store
+ProjectSettings/McpUnitySettings.json

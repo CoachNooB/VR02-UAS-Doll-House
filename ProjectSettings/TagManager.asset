@@ -5,6 +5,7 @@ TagManager:
   serializedVersion: 3
   tags:
   - Hantu
+  - Kereta
   layers:
   - Default
   - TransparentFX

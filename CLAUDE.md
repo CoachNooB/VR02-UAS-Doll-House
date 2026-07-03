@@ -127,6 +127,21 @@ cek `dosen-recap/` dulu; kalau tetap ragu, tanya Izhar, jangan diam-diam pakai.
 > Requirement yang KELIHATANNYA butuh teknik terlarang → STOP, tawarkan versi sederhana
 > ke Izhar + jelaskan trade-off. Jangan diam-diam pakai teknik canggih.
 
+### Pengecualian yang SUDAH di-acc Izhar (2026-07-03, siap dijelaskan ke dosen)
+
+- `transform.SetParent(kursi)` + `CharacterController.enabled=false` — naik/turun kereta
+  (preseden repo lama; cerita: "player nempel ke kereta seperti child object di Hierarchy").
+- `GameObject.Find("Wahana")` / `GameObject.FindWithTag("Player")` — HANYA fallback auto-find
+  di `Awake` (kembaran `transform.Find` lintas-hierarki; field `[SerializeField]` tetap ada;
+  wajib null-guard).
+- `AudioSource.Stop()` — pasangan alami `.Play()` (suara roda berhenti di stasiun).
+- Emission glow highlight (`EnableKeyword "_EMISSION"` + `SetColor "_EmissionColor"`,
+  intensitas ±0.3) — pola teruji T6 (PELAJARAN-TUGAS6-7 §2).
+- DITOLAK & sudah dihapus dari kode (jangan dipakai lagi): `Quaternion.Slerp` (padanan:
+  geser arah pakai `Vector3.MoveTowards` + `Quaternion.LookRotation`), `Vector3.Distance`
+  (padanan: `==` posisi setelah MoveTowards), `AudioSource.PlayOneShot` (padanan: `.Play()`),
+  `Image.raycastTarget` via script (padanan: centang di Inspector).
+
 ---
 
 ## 2. Prinsip coverage materi (yang bikin beda dari attempt sebelumnya)

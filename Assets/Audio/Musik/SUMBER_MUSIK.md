@@ -1,0 +1,17 @@
+# Sumber Musik — FreePD.com (CC0 / Public Domain)
+
+Semua track dari FreePD.com (situs sudah tutup 2024+; file diambil dari arsip Wayback Machine).
+Lisensi: **CC0 1.0 Universal (Public Domain)** — bebas dipakai tanpa atribusi (halaman legal FreePD).
+Tidak ada ffmpeg di mesin, jadi format tetap MP3; beberapa file dipotong byte-level ke ±1.45 MB
+supaya ringan untuk WebGL (MP3 CBR aman dipotong, durasi di header bisa lebih panjang dari isi).
+
+| File | Judul asli | Komposer* | URL asli | Sumber unduh (Wayback) | Catatan |
+|---|---|---|---|---|---|
+| Musik_Lobby.mp3 | Barroom Ballet | Kevin MacLeod | https://freepd.com/music/Barroom%20Ballet.mp3 | https://web.archive.org/web/2023id_/https://freepd.com/music/Barroom%20Ballet.mp3 | Waltz komedi ceria (kategori Comedy). Dipotong ke ±36 dtk. |
+| Musik_S1_Hutan.mp3 | Forest Frolic Loop | (FreePD, kategori World) | https://freepd.com/music/Forest%20Frolic%20Loop.mp3 | https://web.archive.org/web/2023id_/https://freepd.com/music/Forest%20Frolic%20Loop.mp3 | Loop pastoral hutan, utuh 37 dtk. |
+| Musik_S2_KotakMusik.mp3 | A Waltz For Naseem | (FreePD, kategori Misc) | https://freepd.com/music/A%20Waltz%20For%20Naseem.mp3 | https://web.archive.org/web/2023id_/https://freepd.com/music/A%20Waltz%20For%20Naseem.mp3 | Waltz lembut ala kotak musik. Dipotong ke ±90 dtk. |
+| Musik_S3_Horror.mp3 | The Abyss | (FreePD, kategori Horror) | https://freepd.com/music/The%20Abyss.mp3 | https://web.archive.org/web/2023id_/https://freepd.com/music/The%20Abyss.mp3 | Drone creepy. Dipotong ke ±36 dtk. |
+| Musik_S4_BawahLaut.mp3 | Ebbs and Flows | Kevin MacLeod | https://freepd.com/music/Ebbs%20and%20Flows.mp3 | https://web.archive.org/web/2024id_/https://freepd.com/music/Ebbs%20and%20Flows.mp3 | Ambient relaksasi berair/dreamy (kategori Misc/Relaxation, asli 58:54). Dipotong 90 dtk pertama + re-encode 96 kbps (afconvert+lame), ±1.03 MB. |
+| Musik_S5_Angkasa (dipakai section 5 Angkasa).mp3 | Space Ambience | (FreePD, kategori Electronic) | https://freepd.com/music/Space%20Ambience.mp3 | https://web.archive.org/web/2023id_/https://freepd.com/music/Space%20Ambience.mp3 | Ambient luar angkasa. Dipotong ke ±36 dtk. |
+
+\* FreePD banyak memuat karya Kevin MacLeod, Bryan Teoh, Rafael Krux, dll. — semua dirilis CC0 lewat FreePD.
