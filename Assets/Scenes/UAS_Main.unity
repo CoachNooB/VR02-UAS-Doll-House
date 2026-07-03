@@ -38110,6 +38110,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HUDIkutKamera
   _kamera: {fileID: 0}
   _jarak: 1.6
+  _offsetVertikal: -0.27
 --- !u!114 &2118340715
 MonoBehaviour:
   m_ObjectHideFlags: 0
