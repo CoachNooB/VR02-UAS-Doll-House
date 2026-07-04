@@ -22,10 +22,12 @@ public class KeretaMover : MonoBehaviour
     [SerializeField] private int _indexGabung = 28;    // setelah WK terakhir, balik ke WP ini
 
     [Header("Kecepatan")]
-    [SerializeField] private float _kecepatanNormal = 2.5f;   // kecepatan biasa (unit/detik)
-    [SerializeField] private float _kecepatanLambat = 1.2f;   // saat masuk zona lambat (display)
-    [SerializeField] private float _kecepatanKiri = 1.4f;     // saat menyusuri sisi kiri panggung S2
+    [SerializeField] private float _kecepatanNormal = 2.5f;   // kecepatan DASAR saat mulai (gelinding pelan)
+    [SerializeField] private float _kecepatanLambat = 1.2f;   // cap kecepatan di zona lambat (display)
+    [SerializeField] private float _kecepatanKiri = 1.4f;     // cap kecepatan saat menyusuri sisi kiri panggung S2
     [SerializeField] private float _kecepatanBelok = 4f;      // kecepatan geser arah hadap (per detik)
+    [SerializeField] private float _kecepatanMax = 3.5f;      // batas atas saat W ditahan (koridor)
+    [SerializeField] private float _akselerasi = 2.5f;        // laju ramp naik/turun kecepatan (unit/detik^2)
 
     [Header("Berhenti di stasiun (S3 Horror)")]
     [SerializeField] private int _indexBerhenti = 39;         // WP tempat kereta berhenti nonton show
@@ -49,6 +51,7 @@ public class KeretaMover : MonoBehaviour
     private bool lewatKiri;               // true = tuas pilihan ditarik, belok kiri di percabangan nanti
     private bool sedangBerhenti;          // true = lagi berhenti di stasiun S3
     private bool pelanKarenaZona;         // true = zona lambat menyuruh pelan
+    private float kecepatanSaat;          // kecepatan aktual, di-ramp oleh kontrol W/S
     private Vector3 arahHadap = Vector3.forward; // arah hadap kereta, digeser pelan ke arah tujuan
     private bool playerNaik;              // true = player sedang duduk di kursi
     private float timerBerhenti;          // sisa waktu berhenti di stasiun
@@ -226,16 +229,34 @@ public class KeretaMover : MonoBehaviour
             return;
         }
 
-        // Tentukan kecepatan: sisi kiri > zona lambat > normal.
-        float kecepatan = _kecepatanNormal;
+        // Batas kecepatan (cap): cabang > zona lambat > max koridor.
+        float cap = _kecepatanMax;
         if (diJalurKiri)
         {
-            kecepatan = _kecepatanKiri;
+            cap = _kecepatanKiri;
         }
         else if (pelanKarenaZona)
         {
-            kecepatan = _kecepatanLambat;
+            cap = _kecepatanLambat;
         }
+
+        // Kontrol manual W/S: player duduk -> SimpleCharacterController dimatikan -> W/S bebas.
+        // W = ramp naik, S = ramp turun sampai 0 (berhenti total, bisa lanjut lagi dengan W),
+        // tanpa input = coast (tahan kecepatan). Di atas cap (baru masuk zona lambat) -> turun halus.
+        if (Input.GetKey(KeyCode.W))
+        {
+            kecepatanSaat += _akselerasi * Time.deltaTime;
+        }
+        else if (Input.GetKey(KeyCode.S))
+        {
+            kecepatanSaat -= _akselerasi * Time.deltaTime;
+        }
+        if (kecepatanSaat > cap)
+        {
+            kecepatanSaat = Mathf.MoveTowards(kecepatanSaat, cap, _akselerasi * Time.deltaTime);
+        }
+        kecepatanSaat = Mathf.Clamp(kecepatanSaat, 0f, cap);
+        float kecepatan = kecepatanSaat;
 
         // Gerak lurus mendekati waypoint tujuan (pola dosen MoveTowards).
         transform.position = Vector3.MoveTowards(
@@ -251,7 +272,12 @@ public class KeretaMover : MonoBehaviour
         Vector3 arah = (tujuan.position - transform.position).normalized;
         if (arah != Vector3.zero)
         {
-            arahHadap = Vector3.MoveTowards(arahHadap, arah, _kecepatanBelok * Time.deltaTime);
+            // Slerp EKSPONENSIAL (frame-rate independent): arah hadap kontinu mengejar arah
+            // tujuan secara asimtotik, TIDAK "nahan lalu nyentak" seperti MoveTowards yang
+            // clamp saat sampai. Dengan WP rapat -> belokan mulus & immersive (yaw + pitch
+            // gua sama-sama halus).
+            float bobotBelok = 1f - Mathf.Exp(-_kecepatanBelok * Time.deltaTime);
+            arahHadap = Vector3.Slerp(arahHadap, arah, bobotBelok);
             if (arahHadap != Vector3.zero)
             {
                 transform.rotation = Quaternion.LookRotation(arahHadap);
@@ -481,6 +507,7 @@ public class KeretaMover : MonoBehaviour
         jumlahDilewati = 0;
         totalRute = _jumlahUtama;
         arahHadap = transform.forward; // mulai dari arah hadap sekarang biar tidak menyentak
+        kecepatanSaat = _kecepatanNormal; // langsung gelinding pelan; W bikin cepat, S bikin berhenti
 
         // Kereta sudah jalan → tuas berangkat dimatikan supaya prompt "Berangkat"
         // tidak muncul lagi selama ride berlangsung.
@@ -505,7 +532,7 @@ public class KeretaMover : MonoBehaviour
             hub.StatusUI.SetTampil(true);
         }
 
-        KirimStatus("<color=yellow>Moving</color>");
+        KirimStatus("<color=yellow>Jalan! W = cepat, S = rem/berhenti</color>");
         LaporProgress(); // progress mulai dari 0
     }
 
@@ -623,6 +650,7 @@ public class KeretaMover : MonoBehaviour
         jumlahDilewati = 0;
         indexTujuan = 1;
         totalRute = _jumlahUtama;
+        kecepatanSaat = 0f;
 
         if (_suaraJalan != null)
         {

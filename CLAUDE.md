@@ -1,20 +1,16 @@
 # Konstitusi Proyek — UAS VR 2026 (Soal 2: Rumah Boneka / Wahana Boneka)
 
-> File ini = aturan main waktu Claude bantu garap UAS ini. Dua tujuan yang sama penting:
-> 1. **Prototype JALAN & tiap script/komponen bisa dijelasin anggota** — dosen menilai "anggota
->    bisa menjelaskan script & komponen" (People 7 poin), dan bisa **menunjuk script/komponen MANA
->    SAJA** di project. Jadi setiap kode yang ikut ke build gameplay harus punya penjelasan sederhana
->    siap-pakai. Teknik di luar materi aman **hanya** untuk tooling/editor-script yang TIDAK ikut ke
->    build gameplay; kalau dipakai di runtime, wajib ada penjelasan sederhananya.
-> 2. **SEMUA ajaran dosen terlingkup** — fitur game disusun kreatif supaya tiap teknik yang
->    sudah diajarkan (P1–P13) kepakai minimal sekali dan bisa ditunjuk saat presentasi.
->    Coverage materi = prioritas desain, bukan sekadar bonus.
+> File ini = aturan main waktu Claude bantu garap UAS ini.
 >
-> **Materi dosen (P1–P13) adalah LANTAI (minimum wajib tercakup), BUKAN plafon.** Boleh melampaui
-> materi demi mempercepat pengerjaan agentic — selama guardrail pelindung nilai di §1 tetap utuh.
-> Detail: lihat blok "PRINSIP: minimum bukan maksimum" di §1.
+> **UPDATE PENTING (2026-07-04): dosen MEMBEBASKAN semua metode.** Kode TIDAK dievaluasi;
+> kriteria dosen = **KREATIVITAS** experience-nya. Membangun dengan bantuan AI diperbolehkan.
+> Konsekuensi: batasan lama (hanya materi P1–P13, "tiap script harus bisa dijelaskan anggota",
+> hindari List/LINQ/async/pattern, coverage wajib) **DICABUT**. Aturan baru: **BEBAS TEKNIK,
+> JAGA RUBRIK** (§1) — teknik/paket apa pun boleh; fokus ke wahana yang kreatif & jalan mulus;
+> yang tetap dijaga hanya penalti rubrik/brief (first-person, World Space UI utama, WebGL ringan,
+> build no-error, 1 scene, ≥5 orang).
 
-Referensi resmi "apa yang diajarkan":
+Referensi (pola siap-tiru — kini OPSIONAL, bukan batasan):
 - `dosen-recap/` — salinan script dosen dari https://github.com/calvinsandehang/VR2026RecapOnline
   (baca `dosen-recap/README.md` untuk peta script → teknik).
 - `materi-kuliah/` — PDF pertemuan (lokal, tidak di-push).
@@ -40,171 +36,61 @@ Referensi resmi "apa yang diajarkan":
 
 ---
 
-## 1. ATURAN UTAMA: materi dosen = LANTAI (minimum wajib), bukan plafon — boleh melampaui demi mempercepat
+## 1. ATURAN UTAMA: BEBAS TEKNIK, JAGA RUBRIK
 
-Batas **bawah** = isi `dosen-recap/` + materi P1–P13 **harus tetap terlingkup semua** (coverage §2
-wajib, tidak berubah): tiap teknik diusahakan muncul di game minimal sekali. Di ATAS lantai itu,
-**boleh melampaui** — pakai package/teknik di luar P1–P13 (mis. Unity Splines, `List<>`/`Dictionary`)
-ASAL syarat di blok PRINSIP terpenuhi. Kalau ragu sebuah teknik luar mengancam nilai → pilih versi
-aman atau tanya Izhar, jangan diam-diam pakai yang berisiko.
+Dosen tidak menilai kode, hanya **kreativitas** experience. Maka:
 
-### PRINSIP: minimum bukan maksimum
+- **Teknik/paket APA PUN boleh** — `List<>`/`Dictionary`/LINQ, `async/await`, `event`/`Action<>`,
+  interface/inheritance/generics/ScriptableObject, design pattern, package luar (Unity Splines,
+  DOTween, dll), New Input System, Cinemachine, dsb. Tidak ada lagi whitelist/blacklist teknik;
+  tidak ada lagi "materi dosen = lantai" atau "tiap script harus bisa dijelaskan anggota".
+- **Kriteria = KREATIVITAS.** Prioritaskan fitur yang bikin experience terasa hidup & unik. Ada
+  ide kreatif baru → langsung implementasi (tak perlu izin per-teknik). Cuma ide berisiko ke
+  guardrail rubrik di bawah yang perlu hati-hati.
 
-1. **Coverage tetap WAJIB & tidak berubah.** Tiap teknik yang diajarkan (P1–P13) HARUS tetap muncul
-   minimal sekali di game — matriks coverage `docs/RENCANA.md` tetap target desain. Inilah makna
-   "minimal yang diajarkan ada".
-2. **Boleh melampaui materi** dengan package/teknik di luar P1–P13 ASAL TIGA syarat: (a) mempermudah
-   workflow agentic (pembangunan/authoring lebih cepat & andal), (b) **tidak ada padanan teknik dosen
-   yang layak** untuk kebutuhan itu (— "mempermudah agentic" saja BUKAN alasan cukup), DAN (c) tidak
-   merusak nilai (guardrail poin 3).
-3. **GUARDRAIL PELINDUNG NILAI = hard rule, TIDAK ikut dilonggarkan:**
-   - Semua **script/komponen yang ikut ke build gameplay** harus punya penjelasan sederhana siap-pakai —
-     dosen bisa menunjuk mana saja (People 7 poin "pemahaman tim"). Teknik luar aman di tooling/editor-script
-     yang tidak ikut ke build; kalau dipakai di runtime, siapkan penjelasannya.
-   - **UI utama WAJIB World Space / Spatial.** Screen Space Overlay utk UI utama = −20.
-   - **WAJIB first-person.** Bukan FP = −20.
-   - **Build TIDAK boleh error besar** (else nilai 0); **WebGL WAJIB ringan** (lag = −5..−15).
-   - **Objective solvable** dari awal sampai end state; fitur sesuai brief Soal 2 (menyimpang = −10..−30).
-   - **Kelompok ≥5.**
-4. **Aturan proses coverage:** sebelum sebuah teknik dosen diganti/ditambah alternatif luar, WAJIB cek
-   teknik dosen aslinya masih muncul ≥1x di game (matriks `docs/RENCANA.md`). **Kalau penggantian
-   menghapus satu-satunya kemunculan teknik dosen → TIDAK BOLEH.**
-5. Semangat: "gas" mempermudah pengerjaan agentic, TAPI nilai (terutama coverage + presentable + WebGL
-   ringan + brief Soal 2) tetap dijaga. Ragu teknik luar mengancam nilai → versi aman / minta acc Izhar.
+### GUARDRAIL yang TETAP (penalti rubrik/brief — hard rule, TIDAK ikut longgar)
+Ini bukan soal teknik, tapi syarat lulus rubrik/brief Soal 2 (detail §3):
+- **WAJIB first-person** (bukan FP = −20).
+- **UI utama WAJIB World Space / Spatial** (status ride / checklist / info). Overlay utk UI utama
+  = −20; Overlay HANYA untuk meta-UI (fade / vignette / crosshair).
+- **Build TIDAK boleh error besar** (else nilai 0).
+- **WebGL WAJIB ringan** (lag = −5..−15) — ini satu-satunya rem untuk package/efek berat: pakai
+  yang ringan & terbukti; kalau ragu berat (post-processing/shader/NavMesh besar), uji dulu.
+- **1 scene** sesuai brief. `SceneManager.LoadScene` multi-scene = risiko "fitur tak sesuai brief"
+  (−10..−30); butuh transisi → fade / SetActive dalam 1 scene.
+- **Objective solvable** dari awal sampai end state ("Ride Complete").
+- **Kelompok ≥5 orang.**
 
-### ✅ BOLEH (terbukti diajarkan — sumber di kurung)
+### Kini OPSIONAL (dulu wajib)
+- **Coverage materi P1–P13** (matriks `docs/RENCANA.md`) → checklist inspirasi opsional, BUKAN
+  target wajib. Boleh diabaikan kalau ide kreatif menuntut arah lain.
+- **"Kode gaya dosen / bisa dijelaskan anggota"** → tak lagi syarat (kode tak dinilai). Tetap
+  tulis rapi seperlunya demi maintainability lintas-sesi (§5), bukan demi nilai.
 
-**Lifecycle & struktur**
-- `MonoBehaviour`: `Awake`, `Start`, `Update`, `FixedUpdate` (untuk Rigidbody), `OnDestroy`
-  (cleanup listener), `OnDisable`, `OnTriggerEnter/Stay/Exit` (semua dipakai dosen).
-- `[SerializeField] private` + drag di Inspector (gaya utama dosen), `[Header]`, `[Range]`,
-  `[RequireComponent]` (SimpleCharacterController).
-- Property `{ get; private set; }` dan expression-bodied `=> _field;` (P12: Grabbable, Droppable).
-- Method `public` untuk dipanggil Button `On Click()` / script lain (pola dosen).
+### Catatan XR
+Brief = "VR" desktop first-person (keyboard+mouse, WebGL). XR Interaction Toolkit / OpenXR /
+XR Origin tetap **jangan** dipakai — bukan karena "di luar materi", tapi karena merusak
+requirement first-person desktop (−20). Semua teknik non-XR lain: bebas.
 
-**Input (API LAMA saja)**
-- `Input.GetKeyDown/GetKey/GetAxis/GetAxisRaw/GetButtonDown/GetMouseButtonDown`, `KeyCode.*`.
-- Konvensi tombol dosen (P12): **E** grab/interact, **Q** drop, **klik kiri** push, **F** spawn.
-- `Cursor.lockState`, `Cursor.visible` (SimpleCharacterController).
-- ❌ New Input System package: terpasang di project dosen tapi TIDAK pernah dipakai di script — jangan pakai.
+### Pola siap-tiru (opsional — starting point, bukan batasan)
 
-**Gerak & transform**
-- `transform.Translate/Rotate/position/localScale/localRotation`, `Quaternion.Euler`,
-  `Quaternion.LookRotation` (billboard P7), `Vector3.MoveTowards`, `Vector3.ClampMagnitude`,
-  `.normalized`, `Time.deltaTime`, timer float di `Update()`.
-- `CharacterController.Move` + `isGrounded` + gravity manual (SimpleCharacterController —
-  **pakai script dosen ini langsung untuk FP controller**, itu poin plus "sesuai ajaran").
+Butuh titik mulai cepat? Ada pola teruji di `dosen-recap/` + `Assets/Scripts/` (FP controller,
+raycast interaksi, grab/drop/push/spawn, waypoint MoveTowards, Animator/Animation-Event, coroutine,
+World Space UI + billboard). Boleh ditiru kalau pas, boleh diganti pendekatan lain kalau ide kreatif
+menuntut. Nilai tuning teruji (glow ≤0.3, audio, dsb.) & jebakan aset (model ber-rig + Rigidbody =
+meledak; material non-URP = magenta) ada di `docs/PELAJARAN-TUGAS6-7.md`.
 
-**Physics & interaksi**
-- `Physics.Raycast` (semua signature dosen: basic, LayerMask, `Ray`), `RaycastHit`
-  (`hit.collider`, `hit.point`, `hit.collider.attachedRigidbody`), `Debug.DrawRay`.
-- `GetComponent<>`, `TryGetComponent<>`, `GetComponentInParent<>` — pada pola yang dicontohkan
-  dosen (ambil komponen di `Awake`, atau dari `hit.collider` setelah raycast, atau dari
-  `other` di trigger). Untuk reference antar-objek yang sudah pasti, tetap utamakan
-  `[SerializeField]` + drag (lebih gampang dijelasin).
-- Rigidbody: `AddForce`, `AddForceAtPosition` (+ `ForceMode.Impulse`), `MovePosition`,
-  `linearVelocity`/`angularVelocity = Vector3.zero`, `useGravity`, `isKinematic`,
-  `constraints` (`RigidbodyConstraints.FreezeRotation`).
-- Trigger zone: Collider `Is Trigger` + `OnTriggerEnter` + `other.CompareTag("Player")`.
-- Pola P12 lengkap: **Grabbable / Droppable (DropId) / DropZoneHandler (snap point) /
-  Pushable / Spawnable / Spawner** — boleh salin & adaptasi script dosen apa adanya.
-
-**Prefab, spawn, lifetime**
-- Prefab workflow (drag ke Assets/Prefabs), `Instantiate(prefab, pos, rot)`,
-  `Destroy(gameObject)` / `Destroy(gameObject, delay)`, `gameObject.SetActive(true/false)`.
-
-**Coroutine (diajarkan P5!)**
-- `IEnumerator`, `StartCoroutine`, `StopCoroutine`, `yield return null`, simpan reference
-  `private Coroutine x;`. Pola dosen: fade/efek bertahap. Timer `Update()` juga tetap boleh —
-  pakai keduanya di tempat berbeda biar dua-duanya ke-cover (dosen sengaja kasih 2 versi Latihan 5).
-
-**Animasi (diajarkan P11–P12!)**
-- Animation Clip via Animation Window (keyframe position/rotation/scale), loop vs one-shot.
-- **Empty Parent sebagai pivot** (pintu/tuas: animasikan `LeverPivot`, bukan mesh-nya).
-- Animator Controller: state + transition (contoh dosen: `Door.controller`).
-- Dari script: `animator.SetTrigger("...")`, `animator.SetBool("...", bool)`, `animator.speed`.
-- **Animation Event**: frame tertentu memanggil function `public void NamaFunction()` di script
-  objek yang sama (contoh dosen: pintu selesai buka → aktifkan collider/ubah UI).
-- Contoh resmi tema kita di materi P12: display section aktif, boneka idle → bergerak,
-  button/panel bergerak saat di-interact.
-- Animasi via `transform.Rotate/Translate` di `Update()` juga tetap boleh (P2–P4) — campur
-  keduanya supaya materi lama & baru sama-sama kelihatan.
-
-**UI (P3–P7)**
-- `TextMeshProUGUI.text` + rich text `<color=...>`, `Button.onClick.AddListener/RemoveListener`
-  (+ `RemoveListener` di `OnDestroy` — gaya dosen), `Button.interactable`,
-  `Image.sprite/.color/.fillAmount` (type Filled), `Slider`, `Toggle`, `Sprite[]` array.
-- RectTransform anchoring/pivot, Mask, Scroll Rect, Canvas Group, Layout Group (P7).
-- **World Space Canvas** untuk UI utama + billboard, Graphic Raycaster, Event System.
-- `UnityEvent` yang di-serialize di Inspector + `?.Invoke()` (P12: DropZoneHandler).
-
-**Lain-lain**
-- `AudioSource` (`.Play()`, `.volume`), `Renderer.material.color`, `Color` (+ alpha),
-  `Mathf.Clamp/Abs/Sqrt`, `if/else`, array + `.Length`, `bool` flag, guard clause
-  (early return), `Debug.Log`, komentar `/// <summary>` (gaya dosen).
-
-### ⚠️ HINDARI SECARA DEFAULT (di luar materi — lebih susah dijelaskan)
-
-List ini BUKAN larangan mati lagi. Ini "yang perlu hati-hati": secara default hindari (di luar materi,
-lebih repot dijelasin anggota), TAPI **boleh dipakai kalau** memenuhi PRINSIP §1 poin 2 (mempermudah
-agentic + tak ada padanan dosen yang layak + tak merusak nilai) DAN salah satu: kode plumbing/editor-
-authoring yang TIDAK ikut ke build gameplay, ATAU acc eksplisit Izhar per-kasus untuk script runtime.
-Ingat: "mempermudah workflow agentic" saja **bukan** alasan cukup.
-
-- `List<>`, `Dictionary`, LINQ → default pakai **array**; boleh kalau bikin authoring/plumbing lebih andal.
-- `async/await`, `Invoke`/`InvokeRepeating` → default pakai Coroutine/timer (dosen); boleh kalau ada gain authoring nyata.
-- Event/delegate custom (`event`, `Action<>`) → default pakai `UnityEvent` serialized / panggilan method via reference.
-- Interface, inheritance/abstract class sendiri, generics sendiri, ScriptableObject,
-  properties `{get;set;}` full selain pola dosen di atas.
-- Design pattern (singleton, observer, event bus, DI, state machine class).
-- New Input System (kode `UnityEngine.InputSystem`) → materi pakai Input API lama.
-
-**TETAP DILARANG KERAS (guardrail nilai, bukan sekadar "hindari"):**
-- `SceneManager.LoadScene` — brief = **1 scene saja**, nol gain agentic, risiko "fitur tak sesuai brief" (−10..−30).
-- XR Interaction Toolkit / OpenXR / XR Origin — ini "VR" desktop first-person; XR merusak requirement first-person (−20).
-- NavMesh, Timeline, Cinemachine, shader graph custom, post-processing berat → **hati-hati ekstra**:
-  WebGL WAJIB ringan (lag = −5..−15), jadi hanya kalau ringan & terbukti aman.
-
-> Requirement yang butuh teknik di luar materi → boleh gas kalau memenuhi PRINSIP §1 & aman untuk nilai;
-> kalau berisiko ke guardrail (presentable / World Space / first-person / WebGL / build / brief / coverage)
-> → STOP, tawarkan versi aman ke Izhar + jelaskan trade-off. Jangan diam-diam pakai teknik yang mengancam nilai.
-
-### Pengecualian yang SUDAH di-acc Izhar (2026-07-03, siap dijelaskan ke dosen)
-
-- `transform.SetParent(kursi)` + `CharacterController.enabled=false` — naik/turun kereta
-  (preseden repo lama; cerita: "player nempel ke kereta seperti child object di Hierarchy").
-- `GameObject.Find("Wahana")` / `GameObject.FindWithTag("Player")` — HANYA fallback auto-find
-  di `Awake` (kembaran `transform.Find` lintas-hierarki; field `[SerializeField]` tetap ada;
-  wajib null-guard).
-- `AudioSource.Stop()` — pasangan alami `.Play()` (suara roda berhenti di stasiun).
-- Emission glow highlight (`EnableKeyword "_EMISSION"` + `SetColor "_EmissionColor"`,
-  intensitas ±0.3) — pola teruji T6 (PELAJARAN-TUGAS6-7 §2).
-- **Unity Splines (`com.unity.splines`)** untuk track kereta — diizinkan, **MENAMBAH (bukan
-  mengganti)** demi authoring jalur melengkung yang lebih cepat/mulus. Syarat keras: waypoint
-  `Vector3.MoveTowards` manual **WAJIB tetap ada & aktif di ≥1 segmen track** sebagai bukti coverage
-  (kereta ikut track = 10 poin, P2/P10) — spline TIDAK boleh menghapus satu-satunya implementasi
-  MoveTowards. Cek `com.unity.splines` tidak bikin WebGL berat. Rekomendasi pemakaian: sebagai **alat
-  authoring** (gambar kurva → sample balik jadi `Transform[]` waypoint; runtime KeretaMover tak berubah)
-  supaya bagian presentasi tetap 100% teknik dosen. Detail: `docs/RENCANA.md` / plan handoff jalur.
-- DITOLAK & sudah dihapus dari kode (jangan dipakai lagi): `Quaternion.Slerp` (padanan:
-  geser arah pakai `Vector3.MoveTowards` + `Quaternion.LookRotation`), `Vector3.Distance`
-  (padanan: `==` posisi setelah MoveTowards), `AudioSource.PlayOneShot` (padanan: `.Play()`),
-  `Image.raycastTarget` via script (padanan: centang di Inspector).
+**Unity Splines** untuk track kereta = direkomendasikan sebagai alat authoring (gambar kurva →
+bake ke `Transform[]` waypoint; runtime tak berubah). Detail resep: plan/memory jalur.
 
 ---
 
-## 2. Prinsip coverage materi (yang bikin beda dari attempt sebelumnya)
+## 2. Coverage materi P1–P13 = OPSIONAL (dulu wajib, kini bonus)
 
-Saat mendesain fitur, cek `docs/RENCANA.md` bagian "Matriks coverage". Target: tiap baris
-teknik punya minimal satu fitur game yang memakainya. Contoh pemetaan wajar untuk wahana boneka:
-- Grab/Drop + DropId → mini-objective (mis. taruh boneka/tiket di tempatnya sebelum boarding).
-- Spawner + Prefab + Spawnable lifetime → dispenser suvenir/popcorn.
-- Pushable + AddForce → objek fisik di area antre.
-- Animator + Animation Event → pintu wahana, boneka idle→gerak saat kereta lewat.
-- Coroutine → sequence display 3 tahap; timer Update() → progress bar fillAmount.
-- CharacterController dosen → player. Waypoint MoveTowards → kereta.
-
-Fitur boleh kreatif, tapi jangan menambah kompleksitas yang tidak bisa dijelasin anggota.
+Sejak dosen membebaskan metode, matriks coverage `docs/RENCANA.md` **bukan lagi target wajib** —
+turun jadi checklist inspirasi. Kalau fitur kebetulan memakai teknik materi, bagus; tapi tak ada
+kewajiban tiap P1–P13 muncul. Desain didorong **KREATIVITAS + requirement Soal 2 (§3)**, bukan
+coverage. Fitur bebas kompleks — kode tak dinilai, yang penting jalan mulus & WebGL ringan.
 
 ---
 
@@ -244,7 +130,8 @@ manual di file .unity.
     `git update-index --no-skip-worktree Packages/manifest.json Packages/packages-lock.json`,
     hapus baris mcp-unity, commit, tambahkan lagi baris mcp, lalu skip lagi.
 - `.mcp.json` di root repo berisi path lokal — masuk `.gitignore`, jangan di-push.
-- Perubahan scene via MCP tetap tunduk konstitusi bagian 1 (teknik yang boleh/tidak).
+- Perubahan scene via MCP tetap jaga guardrail rubrik §1 (World Space UI utama, WebGL ringan,
+  first-person, dll) — teknik-nya sendiri bebas.
 - **Keterbatasan mcp-unity yang sudah terbukti** (detail: `docs/PELAJARAN-TUGAS6-7.md` §4):
   - Tidak bisa mengisi field reference antar-objek di Inspector (selalu null) → semua script
     sediakan **fallback auto-find di `Awake`** (`Camera.main`, `GetComponent`,
@@ -268,12 +155,14 @@ manual di file .unity.
 
 ---
 
-## 5. Gaya kode (ikuti gaya script dosen)
+## 5. Gaya kode (rapi seperlunya — kode TIDAK dinilai dosen)
 
+Kode tak dievaluasi; ini cuma demi maintainability lintas-sesi (Opus/Fable & Izhar gampang lanjut),
+bukan demi nilai:
 - Satu script = satu tanggung jawab kecil, nama jelas (mis. `KeretaMover`, `DisplayAnimasi`).
-- `[SerializeField] private` dengan prefix underscore: `_statusText` (gaya dosen), `[Header]`
-  untuk rapiin Inspector.
-- Komentar `/// <summary>` Bahasa Indonesia di tiap class & method penting + komentar singkat
-  di logika inti — biar anggota & dosen ngerti.
-- Cleanup listener di `OnDestroy` (pola dosen).
-- Guard clause / early return untuk null-check (pola dosen).
+- `[SerializeField] private` + prefix underscore + `[Header]` — biar Inspector rapi & **MCP gampang
+  set field** (praktik yang menghemat iterasi).
+- Komentar Indonesia secukupnya di logika inti (opsional).
+- Guard clause / early-return null-check + cleanup listener di `OnDestroy` = kebiasaan baik biasa.
+- **TETAP WAJIB (bukan gaya, tapi keterbatasan MCP):** fallback auto-find di `Awake`
+  (`Camera.main` / `GetComponent` / `transform.Find`) karena MCP tak bisa isi reference (§3b).

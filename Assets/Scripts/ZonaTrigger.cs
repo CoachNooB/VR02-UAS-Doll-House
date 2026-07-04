@@ -59,10 +59,22 @@ public class ZonaTrigger : MonoBehaviour
         if (_sfx == null) _sfx = GetComponent<AudioSource>();
     }
 
+    /// <summary>
+    /// Cocok kalau collider yang masuk ber-tag _tagPemicu, ATAU Rigidbody yang menaunginya
+    /// ber-tag itu. Perlu karena KERETA: collider ada di child Bak* (Untagged) sedang tag
+    /// "Kereta" + Rigidbody kinematic ada di ROOT. Player tetap kena via CompareTag langsung.
+    /// </summary>
+    private bool CocokTag(Collider other)
+    {
+        if (other.CompareTag(_tagPemicu)) return true;
+        Rigidbody rb = other.attachedRigidbody;
+        return rb != null && rb.CompareTag(_tagPemicu);
+    }
+
     private void OnTriggerEnter(Collider other)
     {
-        // Guard: hanya bereaksi ke tag yang ditentukan
-        if (!other.CompareTag(_tagPemicu)) return;
+        // Guard: hanya bereaksi ke tag yang ditentukan (collider atau Rigidbody-nya)
+        if (!CocokTag(other)) return;
 
         // Guard: zona sekali pakai yang sudah kepicu tidak jalan lagi
         if (_hanyaSekali && _sudahKepicu) return;
@@ -106,8 +118,8 @@ public class ZonaTrigger : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
-        // Guard: hanya bereaksi ke tag yang ditentukan
-        if (!other.CompareTag(_tagPemicu)) return;
+        // Guard: hanya bereaksi ke tag yang ditentukan (collider atau Rigidbody-nya)
+        if (!CocokTag(other)) return;
 
         // Hanya mode berpasangan yang punya aksi keluar zona
         if (_mode == 1)
