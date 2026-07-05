@@ -222,6 +222,29 @@ public static class WahanaLayout
     }
 
     // ===================================================================
+    //  TABEL NODE CABANG HUTAN S1 (WK2) — loop TERBUKA
+    //  Menyimpang dari jalur utama di ~(30,21), lalu BELOK KANAN (ke selatan)
+    //  membentuk BUSUR SELATAN yang MIRROR busur utara jalur default: melingkari
+    //  display beruang dari sisi selatan (z8..11, jauh dari picnic z16.7 — tidak
+    //  menembus), lalu gabung di ~(42,8) TEPAT di sisi selatan jalur utama (kereta di
+    //  situ sudah menuju selatan → tak ada napak-tilas). Default (utara z21..24) +
+    //  cabang (selatan) bersama-sama mengapit display → dua sudut pandang beda.
+    // ===================================================================
+
+    public static Node[] BuildNodeKiriS1()
+    {
+        return new Node[]
+        {
+            new Node(30f,   Y, 21f,   R),   // WK2_0 ~ dekat CABANG (30,21)
+            new Node(31f,   Y, 16f,   R),   // turun selatan TAPI tetap timur dinding barat (x28)
+            new Node(33f,   Y, 11f,   R),   // busur selatan (mirror busur utara)
+            new Node(37f,   Y, 10f,   R),   // terjauh selatan (jauh dari beruang & dinding z8)
+            new Node(41f,   Y, 10.5f, R),
+            new Node(42f,   Y, 8f,    R),   // WK2_akhir ~ GABUNG (42,8), masuk pintu selatan utama
+        };
+    }
+
+    // ===================================================================
     //  PROFIL KETINGGIAN (untuk node yProfil = true)
     //  Diberikan sebagai milestone jarak-busur pada polyline resample:
     //  - mulai turun di PORTAL (arc-length node Portal)

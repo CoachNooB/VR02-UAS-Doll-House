@@ -358,6 +358,134 @@ public static class WahanaRebuilder
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
     }
 
+    // =====================================================================
+    //  MENU 7 — CABANG HUTAN S1 (SURGICAL, non-destruktif)
+    //  Hanya membuat JalurKiriS1 + WK2_ dan meng-set field cabang-2 KeretaMover.
+    //  TIDAK menyentuh WP utama / shell / ruang temen — aman dijalankan kapan pun,
+    //  tanpa perlu menjalankan menu 3 (Rebuild Layout) yang destruktif.
+    // =====================================================================
+    [MenuItem("Tools/Wahana/7 Cabang S1")]
+    public static void CabangS1()
+    {
+        // Titik split & gabung di jalur utama (dicocokkan ke WP terdekat).
+        Vector3 posSplit = new Vector3(30f, WahanaLayout.YPermukaan, 21f);
+        Vector3 posGabung = new Vector3(42f, WahanaLayout.YPermukaan, 8f);
+
+        // ptsU deterministik (sama persis dengan WP_ existing) untuk cari index.
+        var nodesU = WahanaLayout.BuildNodeUtama();
+        List<Vector3> ptsU = WahanaLayout.Resample(nodesU, true);
+        int idxCabangS1 = WahanaLayout.NearestIndex(ptsU, posSplit);
+        int idxGabungS1 = WahanaLayout.NearestIndex(ptsU, posGabung);
+
+        // Cabang hutan: resample + spawn WK2_ di JalurKiriS1.
+        var nodesK2 = WahanaLayout.BuildNodeKiriS1();
+        List<Vector3> ptsK2 = WahanaLayout.Resample(nodesK2, false);
+        // Cabang S1 seluruhnya datar: paksa Y konstan. Resample polyline TERBUKA bisa
+        // meninggalkan sebagian titik di Y=0 (bidang XZ) -> kereta bob naik-turun via
+        // LookRotation 3D. Datar-kan di sini tanpa mengubah Resample yang dipakai jalur utama.
+        for (int i = 0; i < ptsK2.Count; i++) { var p = ptsK2[i]; p.y = WahanaLayout.YPermukaan; ptsK2[i] = p; }
+        Transform jalurKiriS1 = PastikanJalur("JalurKiriS1");
+        GenerateWaypoint(jalurKiriS1, "WK2_", ptsK2);
+
+        // Set field cabang-2 KeretaMover via SerializedObject (referensi + index).
+        var kereta = CariKomponen<KeretaMover>();
+        if (kereta == null)
+        {
+            Debug.LogError("[Cabang S1] KeretaMover tak ditemukan, field tidak di-set.");
+            return;
+        }
+        var so = new SerializedObject(kereta);
+        so.FindProperty("_jalurKiriS1").objectReferenceValue = jalurKiriS1;
+        so.FindProperty("_jumlahKiriS1").intValue = ptsK2.Count;
+        so.FindProperty("_indexCabangS1").intValue = idxCabangS1;
+        so.FindProperty("_indexGabungS1").intValue = idxGabungS1;
+        so.ApplyModifiedProperties();
+
+        Debug.Log(string.Format(
+            "[Cabang S1] JalurKiriS1: {0} WK2_ | cabang WP_{1} ({2:0.0},{3:0.0}) -> gabung WP_{4} ({5:0.0},{6:0.0})",
+            ptsK2.Count, idxCabangS1, ptsU[idxCabangS1].x, ptsU[idxCabangS1].z,
+            idxGabungS1, ptsU[idxGabungS1].x, ptsU[idxGabungS1].z));
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+    }
+
+    // =====================================================================
+    //  MENU 8 — RAPIKAN POHON S1 (SURGICAL)
+    //  Dorong pohon ring hutan yang menembus jalur (utama S1 + cabang WK2) ke ARAH
+    //  PUSAT display secukupnya sampai lepas (jarak aman), sudut dipertahankan →
+    //  pohon mengelilingi picnic, kereta lewat bersih. Sekalian mendudukkan pohon
+    //  melayang (PohonS1 y=3) ke lantai. Idempotent, tak menyentuh jalur/shell.
+    // =====================================================================
+    [MenuItem("Tools/Wahana/8 Rapikan Pohon S1")]
+    public static void RapikanPohonS1()
+    {
+        Transform disp = CariTransform("UAS_ForestTeddySection");
+        Vector3 cen = disp != null ? disp.position : new Vector3(37.9f, 0f, 16.7f);
+        cen = new Vector3(cen.x, 0f, cen.z);
+
+        // titik jalur yang harus dihindari: WP utama di area S1 + semua WK2 cabang.
+        var ptsU = WahanaLayout.Resample(WahanaLayout.BuildNodeUtama(), true);
+        var ptsK2 = WahanaLayout.Resample(WahanaLayout.BuildNodeKiriS1(), false);
+        var jalur = new List<Vector3>();
+        foreach (var p in ptsU) if (p.x > 26f && p.x < 48f && p.z > 6f && p.z < 27f) jalur.Add(new Vector3(p.x, 0f, p.z));
+        foreach (var p in ptsK2) jalur.Add(new Vector3(p.x, 0f, p.z));
+
+        const float SAFE = 3.0f;   // jarak aman centerline pohon ke jalur (badan kereta + trunk)
+        const float TREE_Y = 0.3f; // dasar pohon di lantai
+
+        int moved = 0, dropped = 0;
+        foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (!IsPohonInstance(t.name)) continue;
+            Vector3 p = t.position;
+            if (p.x < 26f || p.x > 48f || p.z < 6f || p.z > 27f) continue; // hanya area S1
+            Vector3 flat = new Vector3(p.x, 0f, p.z);
+            Vector3 np = p;
+            if (MinDistXZ(jalur, flat) < SAFE)
+            {
+                Vector3 dir = (cen - flat);
+                if (dir.sqrMagnitude < 1e-4f) dir = Vector3.forward; else dir.Normalize();
+                Vector3 cur = flat;
+                for (int s = 0; s < 40 && MinDistXZ(jalur, cur) < SAFE; s++) cur += dir * 0.25f;
+                np = new Vector3(cur.x, TREE_Y, cur.z);
+                moved++;
+            }
+            else if (p.y > 1f) // pohon melayang (PohonS1) tak di jalur -> cukup diturunkan
+            {
+                np = new Vector3(p.x, TREE_Y, p.z);
+                dropped++;
+            }
+            if (np != p)
+            {
+                Undo.RecordObject(t, "Rapikan Pohon S1");
+                t.position = np;
+                EditorUtility.SetDirty(t);
+            }
+        }
+        Debug.Log(string.Format("[Rapikan Pohon S1] {0} pohon didorong keluar jalur (aman {1}u), {2} pohon melayang diturunkan.", moved, SAFE, dropped));
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+    }
+
+    // nama = "Pine_Tree_<n>" / "Fruit_Tree_<n>" / "PohonS1_<n>" (instance pohon, bukan LOD/mesh)
+    private static bool IsPohonInstance(string n)
+    {
+        string[] pre = { "Pine_Tree_", "Fruit_Tree_", "PohonS1_" };
+        foreach (var p in pre)
+            if (n.StartsWith(p) && int.TryParse(n.Substring(p.Length), out _)) return true;
+        return false;
+    }
+
+    private static float MinDistXZ(List<Vector3> pts, Vector3 p)
+    {
+        float best = float.MaxValue;
+        for (int i = 0; i < pts.Count; i++)
+        {
+            float dx = pts[i].x - p.x, dz = pts[i].z - p.z;
+            float d = Mathf.Sqrt(dx * dx + dz * dz);
+            if (d < best) best = d;
+        }
+        return best;
+    }
+
     // #####################################################################
     //  HELPER: SCENE / OBJEK
     // #####################################################################

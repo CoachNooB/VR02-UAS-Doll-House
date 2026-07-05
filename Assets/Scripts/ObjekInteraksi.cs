@@ -8,13 +8,14 @@ using UnityEngine;
 /// 1 = naik kereta, 2 = mulai kereta, 3 = pilih jalur kiri panggung S2 (tuas),
 /// 4 = papan info gambar berikutnya, 5 = gambar sebelumnya, 6 = reset semua wahana,
 /// 7 = buka/tutup pintu (toggle) — pakai _pintuTarget,
-/// 8 = ambil tiket di mesin loket (GerbangTiket kebuka otomatis setelahnya).
+/// 8 = ambil tiket di mesin loket (GerbangTiket kebuka otomatis setelahnya),
+/// 9 = pilih cabang hutan S1 (tuas, kereta nyelip dekat beruang).
 /// Pastikan objek punya Collider supaya kena raycast.
 /// </summary>
 public class ObjekInteraksi : MonoBehaviour
 {
-    [Header("Mode (0 lokal,1 naik,2 mulai,3 kiri,4 next,5 prev,6 reset,7 pintu,8 tiket)")]
-    [Range(0, 8)]
+    [Header("Mode (0 lokal,1 naik,2 mulai,3 kiri,4 next,5 prev,6 reset,7 pintu,8 tiket,9 kiri S1)")]
+    [Range(0, 9)]
     [SerializeField] private int _mode = 0;
 
     [Header("Label prompt HUD (mis. \"Naik Kereta\" -> \"Tekan E untuk Naik Kereta\")")]
@@ -181,6 +182,11 @@ public class ObjekInteraksi : MonoBehaviour
             // Ambil tiket: gerbang tiket (ZonaTrigger _butuhTiket) kebuka otomatis
             // saat player mendekat setelah ini. Guard "sudah punya" ada di hub.
             _wahana.AmbilTiket();
+        }
+        else if (_mode == 9)
+        {
+            if (_wahana.Kereta == null) { LogPeringatan("KeretaMover null"); return; }
+            _wahana.Kereta.PilihCabangS1();
         }
     }
 

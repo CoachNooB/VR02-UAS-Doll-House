@@ -21,6 +21,13 @@ public class KeretaMover : MonoBehaviour
     [SerializeField] private int _indexCabang = 23;    // dari WP ini kereta bisa belok ke WK_0
     [SerializeField] private int _indexGabung = 28;    // setelah WK terakhir, balik ke WP ini
 
+    [Header("Percabangan hutan S1 (tuas = sisi kiri, mepet beruang)")]
+    [SerializeField] private Transform _jalurKiriS1;   // parent WK2_0.. (fallback: cari "JalurKiriS1")
+    [SerializeField] private int _jumlahKiriS1 = 0;    // banyak WK2_ (0 = cabang S1 nonaktif)
+    [SerializeField] private int _indexCabangS1 = 0;   // dari WP ini kereta bisa belok ke WK2_0
+    [SerializeField] private int _indexGabungS1 = 0;   // setelah WK2 terakhir, balik ke WP ini
+    [SerializeField] private float _kecepatanKiriS1 = 1.2f; // cap kecepatan menyusuri cabang hutan S1
+
     [Header("Kecepatan")]
     [SerializeField] private float _kecepatanNormal = 2.5f;   // kecepatan DASAR saat mulai (gelinding pelan)
     [SerializeField] private float _kecepatanLambat = 1.2f;   // cap kecepatan di zona lambat (display)
@@ -46,9 +53,12 @@ public class KeretaMover : MonoBehaviour
     // ----- state internal -----
     private Transform[] waypointUtama;    // diisi di Awake dari child JalurUtama
     private Transform[] waypointKiri;     // diisi di Awake dari child JalurKiri
+    private Transform[] waypointKiriS1;   // diisi di Awake dari child JalurKiriS1 (cabang hutan)
     private int indexTujuan = 1;          // waypoint yang sedang dituju (mulai target WP_1, kereta parkir di WP_0)
     private bool diJalurKiri;             // true = sedang menyusuri WK_0..WK_3 (sisi kiri panggung)
     private bool lewatKiri;               // true = tuas pilihan ditarik, belok kiri di percabangan nanti
+    private bool diJalurKiriS1;           // true = sedang menyusuri WK2_ (cabang hutan S1)
+    private bool lewatKiriS1;             // true = tuas S1 ditarik, belok kiri di cabang hutan nanti
     private bool sedangBerhenti;          // true = lagi berhenti di stasiun S3
     private bool pelanKarenaZona;         // true = zona lambat menyuruh pelan
     private float kecepatanSaat;          // kecepatan aktual, di-ramp oleh kontrol W/S
@@ -128,6 +138,25 @@ public class KeretaMover : MonoBehaviour
         else
         {
             Debug.Log("KeretaMover: JalurKiri tidak ditemukan, cabang kiri tidak aktif.");
+        }
+
+        // Cabang hutan S1: parent WK2_ (fallback cari "JalurKiriS1" di SistemKereta).
+        if (_jalurKiriS1 == null && transform.parent != null)
+        {
+            _jalurKiriS1 = transform.parent.Find("JalurKiriS1");
+        }
+
+        if (_jalurKiriS1 != null && _jumlahKiriS1 > 0)
+        {
+            waypointKiriS1 = new Transform[_jumlahKiriS1];
+            for (int i = 0; i < _jumlahKiriS1; i++)
+            {
+                waypointKiriS1[i] = _jalurKiriS1.Find("WK2_" + i);
+                if (waypointKiriS1[i] == null)
+                {
+                    Debug.Log("KeretaMover: waypoint WK2_" + i + " tidak ditemukan.");
+                }
+            }
         }
 
         if (_kursi == null)
@@ -216,8 +245,10 @@ public class KeretaMover : MonoBehaviour
             return;
         }
 
-        // Pilih array rute yang aktif (utama atau sisi kiri).
-        Transform[] rute = diJalurKiri ? waypointKiri : waypointUtama;
+        // Pilih array rute yang aktif (utama, cabang S2, atau cabang hutan S1).
+        Transform[] rute = waypointUtama;
+        if (diJalurKiri) rute = waypointKiri;
+        else if (diJalurKiriS1) rute = waypointKiriS1;
         if (rute == null || indexTujuan >= rute.Length)
         {
             return;
@@ -234,6 +265,10 @@ public class KeretaMover : MonoBehaviour
         if (diJalurKiri)
         {
             cap = _kecepatanKiri;
+        }
+        else if (diJalurKiriS1)
+        {
+            cap = _kecepatanKiriS1;
         }
         else if (pelanKarenaZona)
         {
@@ -303,7 +338,7 @@ public class KeretaMover : MonoBehaviour
 
         // Sampai stasiun S3 (index gabung < index berhenti, jadi dua rute sama-sama kena):
         // Sequence show dipicu ZonaTrigger terpisah, di sini kereta cuma berhenti.
-        if (!diJalurKiri && indexTujuan == _indexBerhenti)
+        if (!diJalurKiri && !diJalurKiriS1 && indexTujuan == _indexBerhenti)
         {
             sedangBerhenti = true;
             timerBerhenti = _durasiBerhenti;
@@ -315,7 +350,7 @@ public class KeretaMover : MonoBehaviour
         }
 
         // Balik lagi ke WP_0 setelah satu putaran penuh = ride selesai.
-        if (!diJalurKiri && indexTujuan == 0)
+        if (!diJalurKiri && !diJalurKiriS1 && indexTujuan == 0)
         {
             Selesai();
             return;
@@ -340,6 +375,32 @@ public class KeretaMover : MonoBehaviour
                 lewatKiri = false; // tuas "terpakai", ride berikutnya default kanan lagi
                 indexTujuan = _indexGabung;
             }
+            return;
+        }
+
+        if (diJalurKiriS1)
+        {
+            indexTujuan++;
+            if (indexTujuan >= _jumlahKiriS1)
+            {
+                // WK2 terakhir sudah dilewati -> gabung lagi ke jalur utama.
+                diJalurKiriS1 = false;
+                lewatKiriS1 = false;
+                indexTujuan = _indexGabungS1;
+            }
+            return;
+        }
+
+        // Cabang hutan S1 (index lebih kecil dari cabang S2, dicek lebih dulu).
+        if (_jumlahKiriS1 > 0 && indexTujuan == _indexCabangS1 && lewatKiriS1)
+        {
+            diJalurKiriS1 = true;
+            indexTujuan = 0; // mulai dari WK2_0
+
+            int diskipS1 = _indexGabungS1 - _indexCabangS1 - 1;
+            totalRute = _jumlahUtama - diskipS1 + _jumlahKiriS1;
+
+            KirimStatus("<color=yellow>Jalur kiri hutan — dekat beruang!</color>");
             return;
         }
 
@@ -502,6 +563,8 @@ public class KeretaMover : MonoBehaviour
         SedangJalan = true;
         sedangBerhenti = false;
         diJalurKiri = false;
+        diJalurKiriS1 = false;
+        lewatKiriS1 = false;
         timerBerhenti = 0f;
         indexTujuan = 1;          // kereta parkir di WP_0, target pertama WP_1
         jumlahDilewati = 0;
@@ -556,6 +619,21 @@ public class KeretaMover : MonoBehaviour
 
         lewatKiri = true;
         KirimStatus("<color=yellow>Jalur kiri dipilih — balerina menunggu!</color>");
+    }
+
+    /// <summary>
+    /// Pilih cabang hutan S1 (dipanggil ObjekInteraksi TuasPilihanS1, tombol E).
+    /// Kereta baru benar-benar belok saat sampai waypoint percabangan S1.
+    /// </summary>
+    public void PilihCabangS1()
+    {
+        if (lewatKiriS1)
+        {
+            return;
+        }
+
+        lewatKiriS1 = true;
+        KirimStatus("<color=yellow>Jalur kiri hutan dipilih — beruang menanti!</color>");
     }
 
     /// <summary>Zona lambat: kereta pelan supaya penumpang bisa lihat display.</summary>
@@ -652,6 +730,8 @@ public class KeretaMover : MonoBehaviour
         sedangBerhenti = false;
         diJalurKiri = false;
         lewatKiri = false;
+        diJalurKiriS1 = false;
+        lewatKiriS1 = false;
         pelanKarenaZona = false;
         timerBerhenti = 0f;
         jumlahDilewati = 0;

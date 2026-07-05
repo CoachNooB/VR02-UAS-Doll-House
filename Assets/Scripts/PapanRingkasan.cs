@@ -138,11 +138,11 @@ public class PapanRingkasan : MonoBehaviour
         {
             if (semuaKena && bintangEmas)
             {
-                _teksRingkasan.text = "<color=#FFD700>PERFECT RIDE!</color> Stempel 5/5 + Bintang Emas — dua sisi panggung S2 sudah kamu lihat!";
+                _teksRingkasan.text = "<color=#FFD700>PERFECT RIDE!</color> Stempel 5/5 + Bintang Emas — dua jalur hutan beruang sudah kamu lihat!";
             }
             else if (semuaKena)
             {
-                _teksRingkasan.text = "Ride Complete — Stempel 5/5! Tarik tuas di S2 untuk lihat sisi panggung satunya dan raih Bintang Emas.";
+                _teksRingkasan.text = "Ride Complete — Stempel 5/5! Tarik tuas 'Jalur Beruang' di hutan untuk lihat jalur satunya dan raih Bintang Emas.";
             }
             else
             {
