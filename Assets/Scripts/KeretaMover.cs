@@ -509,6 +509,13 @@ public class KeretaMover : MonoBehaviour
         arahHadap = transform.forward; // mulai dari arah hadap sekarang biar tidak menyentak
         kecepatanSaat = _kecepatanNormal; // langsung gelinding pelan; W bikin cepat, S bikin berhenti
 
+        // Tiket hangus begitu berangkat: lampu gerbang balik merah, ride
+        // berikutnya harus ambil tiket lagi di loket.
+        if (hub != null)
+        {
+            hub.PakaiTiket();
+        }
+
         // Kereta sudah jalan → tuas berangkat dimatikan supaya prompt "Berangkat"
         // tidak muncul lagi selama ride berlangsung.
         if (tuasStartCollider != null)

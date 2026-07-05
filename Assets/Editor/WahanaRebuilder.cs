@@ -739,18 +739,26 @@ public static class WahanaRebuilder
                 // tinggi 2.9) jadi span lantaiY..lantaiY+2.9 -> bottom pas di lantai (celah bawah hilang).
                 pintu.transform.position = new Vector3(hit.x, r.lantaiY, hit.z);
                 pintu.transform.rotation = Quaternion.Euler(0f, yRot, 0f);
-                // Center-kan daun: nolkan offset local-X (1.5) supaya daun center di bukaan
-                // (dulu off-center -> nutup separuh). Animasi geser Door_Transform.x, PanelPintu aman.
+                // Center + rapatkan daun supaya NUTUP tanpa celah. Bukaan = 3.2 (S4 3.8);
+                // daun dibuat sedikit lebih besar (bukaan+0.2) di lebar & tinggi, bawah pas di
+                // lantai (localPos.y = setengah tinggi). Lebar <= 4.0 supaya masih kebuka penuh
+                // (animasi geser Door_Transform.x sejauh 4.2 di Pintu_Open.anim).
+                float bukaanPintu = (r.nama == "S4") ? 3.8f : 3.2f;
+                float ukuranDaun = bukaanPintu + 0.2f;
                 var panel = pintu.transform.Find("Door_Transform/PanelPintu");
                 if (panel != null)
-                    panel.localPosition = new Vector3(0f, panel.localPosition.y, panel.localPosition.z);
-                // Kecilin trigger Z_Pintu (warisan lama box ~10x2.6x8 -> pintu kebuka dari jauh,
-                // mis. gua kebuka sejak di S3). Box ~5x4x5 di pintu -> kebuka hanya saat kereta dekat.
+                {
+                    panel.localPosition = new Vector3(0f, ukuranDaun * 0.5f, 0f);
+                    panel.localScale = new Vector3(ukuranDaun, ukuranDaun, 0.12f);
+                }
+                // Trigger Z_Pintu: depth (local-Z = arah jalan) diperdalam jadi 7 supaya
+                // ke-5 collider kereta muat di dalam sepanjang lewat. Anti-kedip utama ada di
+                // ZonaTrigger (counter + tunda-tutup); depth ini cadangan biar buka mulus.
                 var zp = pintu.transform.Find("Z_Pintu");
                 if (zp != null)
                 {
                     zp.localPosition = new Vector3(0f, 1.5f, 0f);
-                    zp.localScale = new Vector3(5f, 4f, 5f);
+                    zp.localScale = new Vector3(5f, 4f, 7f);
                 }
                 sb.AppendLine(string.Format("  Pintu {0} -> {1} (yRot {2:F0})", r.nama, F(hit), yRot));
             }
@@ -1784,7 +1792,6 @@ public static class WahanaRebuilder
             else if (r.nama == "S5")
             {
                 Material bintangEmis = MatLitEmissive(new Color(0.6f, 0.7f, 1f), 0.3f);
-                Material neon = MatLitEmissive(new Color(0.7f, 0.3f, 1f), 0.3f);
                 for (int i = 0; i < 6; i++)
                 {
                     Vector3 p = new Vector3(Mathf.Lerp(r.minX + 1f, r.maxX - 1f, (float)rand.NextDouble()), 2f + (float)rand.NextDouble() * 2.5f, r.minZ + 0.4f);
@@ -1794,8 +1801,8 @@ public static class WahanaRebuilder
                     b.GetComponent<MeshRenderer>().sharedMaterial = bintangEmis;
                     Object.DestroyImmediate(b.GetComponent<Collider>());
                 }
-                // gerbang neon di bukaan keluar
-                BuatBox(root.transform, "GerbangNeonS5", new Vector3(r.maxX - 0.5f, 2.5f, r.Center.z), new Vector3(0.3f, 4f, 4f), neon);
+                // (GerbangNeonS5 dihapus: dulu kotak solid salah posisi nangkring di samping
+                // rel — bukan gerbang beneran.)
             }
         }
         sb.AppendLine("  Shell tematik S1/S2/S3/S5 dibuat.");

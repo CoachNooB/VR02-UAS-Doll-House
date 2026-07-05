@@ -7,13 +7,14 @@ using UnityEngine;
 /// 0 = efek lokal saja (toggle objek / ubah warna / suara),
 /// 1 = naik kereta, 2 = mulai kereta, 3 = pilih jalur kiri panggung S2 (tuas),
 /// 4 = papan info gambar berikutnya, 5 = gambar sebelumnya, 6 = reset semua wahana,
-/// 7 = buka/tutup pintu (toggle) — pakai _pintuTarget.
+/// 7 = buka/tutup pintu (toggle) — pakai _pintuTarget,
+/// 8 = ambil tiket di mesin loket (GerbangTiket kebuka otomatis setelahnya).
 /// Pastikan objek punya Collider supaya kena raycast.
 /// </summary>
 public class ObjekInteraksi : MonoBehaviour
 {
-    [Header("Mode (0 lokal,1 naik,2 mulai,3 kiri,4 next,5 prev,6 reset,7 pintu)")]
-    [Range(0, 7)]
+    [Header("Mode (0 lokal,1 naik,2 mulai,3 kiri,4 next,5 prev,6 reset,7 pintu,8 tiket)")]
+    [Range(0, 8)]
     [SerializeField] private int _mode = 0;
 
     [Header("Label prompt HUD (mis. \"Naik Kereta\" -> \"Tekan E untuk Naik Kereta\")")]
@@ -139,7 +140,7 @@ public class ObjekInteraksi : MonoBehaviour
             return;
         }
 
-        // Mode 1-6 butuh hub PusatWahana
+        // Mode 1-6 & 8 butuh hub PusatWahana
         if (_wahana == null)
         {
             LogPeringatan("hub PusatWahana null");
@@ -174,6 +175,12 @@ public class ObjekInteraksi : MonoBehaviour
         else if (_mode == 6)
         {
             _wahana.ResetSemua();
+        }
+        else if (_mode == 8)
+        {
+            // Ambil tiket: gerbang tiket (ZonaTrigger _butuhTiket) kebuka otomatis
+            // saat player mendekat setelah ini. Guard "sudah punya" ada di hub.
+            _wahana.AmbilTiket();
         }
     }
 

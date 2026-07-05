@@ -32,8 +32,22 @@ public class ZonaTrigger : MonoBehaviour
     [Header("Feedback & perilaku")]
     [SerializeField] private AudioSource _sfx;        // opsional, bunyi tiap zona kepicu
     [SerializeField] private bool _hanyaSekali = false; // true = zona cuma kepicu 1x (sampai ResetZona)
+    [SerializeField] private float _delayTutup = 2f;  // mode 1: jeda tutup setelah collider terakhir keluar
+    [SerializeField] private bool _butuhTiket = false; // mode 1: gerbang cuma kebuka kalau player sudah AmbilTiket
 
     private bool _sudahKepicu; // flag buat _hanyaSekali, direset lewat ResetZona()
+
+    // mode 1: berapa collider ber-tag pemicu yang sedang di dalam zona. KERETA punya
+    // banyak collider anak (BakLantai/Depan/Belakang/Kiri/Kanan) yang semua share
+    // Rigidbody ber-tag "Kereta", jadi tiap-tiap-nya memicu Enter/Exit sendiri. Pintu
+    // baru menutup saat SEMUA collider sudah keluar (counter 0) + jeda _delayTutup —
+    // supaya tidak kedip buka-tutup-buka saat kereta panjang / rel melikuk.
+    private int _dalamZona;
+
+    private void OnEnable()
+    {
+        _dalamZona = 0; // reset aman kalau scene reload / komponen dimatikan-nyalakan
+    }
 
     private void Awake()
     {
@@ -80,8 +94,23 @@ public class ZonaTrigger : MonoBehaviour
         if (_hanyaSekali && _sudahKepicu) return;
         _sudahKepicu = true;
 
-        // Feedback audio berlaku semua mode (opsional)
-        if (_sfx != null) _sfx.Play();
+        // Gerbang tiket (mode 1 + _butuhTiket): belum punya tiket -> TOLAK.
+        // Counter tetap dihitung (biar Exit seimbang), _sfx dipakai sebagai buzzer
+        // penolakan, pintu tidak dibuka. Setelah AmbilTiket, masuk lagi = kebuka.
+        // Buzzer TIDAK bunyi kalau pintu memang sedang terbuka (kasus player keluar
+        // dari dalam: zona sisi-dalam yang membukakan, sisi-luar jangan protes).
+        if (_mode == 1 && _butuhTiket && (_wahana == null || !_wahana.PunyaTiket))
+        {
+            _dalamZona++;
+            bool pintuLagiTerbuka = _pintu != null && _pintu.TerbukaSekarang;
+            if (_sfx != null && !pintuLagiTerbuka) _sfx.Play();
+            return;
+        }
+
+        // Feedback audio berlaku semua mode (opsional). Untuk gerbang tiket _sfx =
+        // buzzer PENOLAKAN (dimainkan di guard atas) — sukses tidak perlu bunyi ini
+        // (pintu sudah punya suara buka sendiri di PintuAnimasi).
+        if (_sfx != null && !(_mode == 1 && _butuhTiket)) _sfx.Play();
 
         if (_mode == 0)
         {
@@ -90,7 +119,9 @@ public class ZonaTrigger : MonoBehaviour
         }
         else if (_mode == 1)
         {
+            _dalamZona++;                  // satu collider kereta lagi masuk zona
             if (_pintu == null) { LogPeringatan("PintuAnimasi null"); return; }
+            _pintu.BatalTutup();           // batalkan tutup terjadwal (kereta masih di sini)
             _pintu.BukaPintu();
         }
         else if (_mode == 2)
@@ -124,7 +155,10 @@ public class ZonaTrigger : MonoBehaviour
         // Hanya mode berpasangan yang punya aksi keluar zona
         if (_mode == 1)
         {
-            if (_pintu != null) _pintu.TutupPintu();
+            _dalamZona = Mathf.Max(0, _dalamZona - 1); // clamp: Exit bisa kepicu tanpa Enter
+            // Tutup hanya kalau SEMUA collider kereta sudah keluar, dan tunda sedikit
+            // supaya lekukan rel yang bikin collider keluar-masuk sesaat tidak menutup dini.
+            if (_dalamZona == 0 && _pintu != null) _pintu.TutupTertunda(_delayTutup);
         }
         else if (_mode == 2)
         {

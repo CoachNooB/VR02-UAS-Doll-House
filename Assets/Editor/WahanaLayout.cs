@@ -116,12 +116,11 @@ public static class WahanaLayout
             new Node(42f,  Y, 10f,   R),   // bracket dalam
             new Node(42f,  Y, 6f,    R),   // (dinding Z8 di antara 10..6 -> tegak lurus @x42)
 
-            // korid.B (S-curve panjang di area terbuka)
+            // korid.B (kurva lembut ke selatan; dulu weave 4 node dgn segmen 1u yang
+            // bikin fillet ke-clamp mini -> matah. Kini masuk segaris x45 ke bracket.)
             new Node(41f,  Y, 2f,    K),
-            new Node(44f,  Y, -3f,   K),
-            new Node(48f,  Y, -7f,   K),
-            new Node(46f,  Y, -11f,  K),
-            new Node(45f,  Y, -11f,  K),   // bracket luar S2
+            new Node(44f,  Y, -2f,   K),
+            new Node(45f,  Y, -6f,   K),   // segaris x45 dgn bracket -> belokan besar, masuk lurus
 
             // S2 utama (kanan panggung; CABANG masuk, GABUNG sebelum keluar)
             new Node(45f,  Y, -17f,  R, Marker.Cabang),  // (dinding Z-14 di antara -11..-17 -> tegak lurus @x45); CABANG
@@ -133,12 +132,11 @@ public static class WahanaLayout
             new Node(36f,  Y, -22f,  R),   // bracket dalam
             new Node(32f,  Y, -22f,  R),   // (dinding X34 di antara 36..32 -> tegak lurus @z-22)
 
-            // korid.C (zigzag lebar turun ke selatan)
+            // korid.C (diagonal lembut turun ke selatan; dulu weave flip-arah -> matah)
             new Node(29f,  Y, -25f,  K),
-            new Node(26f,  Y, -29f,  K),
-            new Node(27f,  Y, -34f,  K),
-            new Node(22f,  Y, -37f,  K),
-            new Node(19f,  Y, -41f,  K),
+            new Node(26f,  Y, -30f,  K),
+            new Node(23f,  Y, -36f,  K),
+            new Node(20f,  Y, -42f,  K),
             new Node(17f,  Y, -48f,  K),   // bracket luar S3
             new Node(13f,  Y, -48f,  R),   // (dinding X15 di antara 17..13 -> tegak lurus @z-48)
 
@@ -195,14 +193,11 @@ public static class WahanaLayout
             new Node(-30f, Y, 16f,   R),   // bracket dalam S5
             new Node(-26f, Y, 16f,   R),   // (dinding X-28 di antara -30..-26 -> tegak lurus @z16)
 
-            // korid.F (pulang, weave kebun). MASUK lobby tegak lurus lewat bukaan BARAT
-            // (dinding X=-5, bukaan z20.5..23.5) -> node kolinear z22.
+            // korid.F (pulang, S lembut; dulu weave 6 node flip-arah -> matah).
+            // MASUK lobby tegak lurus lewat bukaan BARAT (dinding X=-5, z20.5..23.5).
             new Node(-22f, Y, 14f,   K),
-            new Node(-18f, Y, 17f,   K),
-            new Node(-20f, Y, 21f,   K),
-            new Node(-15f, Y, 20f,   K),
-            new Node(-11f, Y, 18f,   K),
-            new Node(-8f,  Y, 20f,   K),
+            new Node(-17f, Y, 16f,   K),
+            new Node(-12f, Y, 20f,   K),
             new Node(-7f,  Y, 22f,   K),   // bracket luar lobby
             new Node(-3f,  Y, 22f,   K),   // (dinding X-5 di antara -7..-3 -> tegak lurus @z22) -> tutup ke WP_0
         };

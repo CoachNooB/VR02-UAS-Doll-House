@@ -22,6 +22,13 @@ public class PusatWahana : MonoBehaviour
     private PintuAnimasi[] _semuaPintu;
     private ZonaTrigger[] _semuaZona;
 
+    // Tiket masuk wahana: diambil di MesinTiket (ObjekInteraksi mode 8), dicek
+    // GerbangTiket (ZonaTrigger mode 1 _butuhTiket). Reset tiap ride baru.
+    private bool _punyaTiket;
+
+    /// <summary>Apakah player sudah mengambil tiket dari loket.</summary>
+    public bool PunyaTiket => _punyaTiket;
+
     // Properti akses cepat untuk script lain (expression-bodied, pola P12)
     public KeretaMover Kereta => _kereta;
     public RideStatusUI StatusUI => _statusUI;
@@ -67,6 +74,26 @@ public class PusatWahana : MonoBehaviour
     }
 
     /// <summary>
+    /// Player mengambil tiket dari loket (dipanggil ObjekInteraksi mode 8).
+    /// GerbangTiket otomatis terbuka setelah ini (dicek ZonaTrigger _butuhTiket).
+    /// </summary>
+    public void AmbilTiket()
+    {
+        if (_punyaTiket) return; // guard: sudah punya, tidak perlu ambil lagi
+        _punyaTiket = true;
+        Debug.Log("[PusatWahana] Tiket diambil — gerbang tiket siap dibuka.");
+    }
+
+    /// <summary>
+    /// Tiket dipakai (hangus) saat kereta BERANGKAT — dipanggil KeretaMover.MulaiJalan.
+    /// Lampu gerbang otomatis balik merah; ride berikutnya harus ambil tiket lagi.
+    /// </summary>
+    public void PakaiTiket()
+    {
+        _punyaTiket = false;
+    }
+
+    /// <summary>
     /// Mengembalikan seluruh wahana ke kondisi awal: kereta balik ke boarding,
     /// stempel dikosongkan, show dihentikan, papan ringkasan disembunyikan,
     /// semua pintu ditutup, dan semua zona siap dipicu lagi.
@@ -97,6 +124,9 @@ public class PusatWahana : MonoBehaviour
                 if (_semuaZona[i] != null) _semuaZona[i].ResetZona();
             }
         }
+
+        // (Tiket TIDAK di-reset di sini — tiket hangus saat kereta BERANGKAT
+        //  lewat PakaiTiket(); tiket yang belum terpakai tetap berlaku.)
 
         Debug.Log("[PusatWahana] Reset semua sistem wahana ke kondisi awal.");
     }

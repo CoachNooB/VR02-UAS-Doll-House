@@ -20,6 +20,9 @@ public class PintuAnimasi : MonoBehaviour
     // Penanda kondisi pintu supaya trigger tidak memicu animasi yang sama dua kali
     private bool _sudahTerbuka = false;
 
+    /// <summary>Apakah pintu sedang terbuka (dipakai ZonaTrigger buat feedback tolak).</summary>
+    public bool TerbukaSekarang => _sudahTerbuka;
+
     /// <summary>
     /// Fallback auto-find: ambil komponen di objek sendiri kalau field
     /// belum diisi di Inspector (pola GetComponent di Awake sesuai materi).
@@ -62,12 +65,37 @@ public class PintuAnimasi : MonoBehaviour
     }
 
     /// <summary>
+    /// Menjadwalkan TutupPintu() setelah `d` detik. Dipakai ZonaTrigger mode 1
+    /// supaya pintu baru menutup beberapa saat SETELAH kereta benar-benar lewat
+    /// (anti-kedip: kereta punya banyak collider + rel melikuk, jadi zona bisa
+    /// keluar-masuk sesaat — jadwal ini dibatalkan BatalTutup() kalau kereta
+    /// masuk lagi sebelum waktunya).
+    /// </summary>
+    public void TutupTertunda(float d)
+    {
+        CancelInvoke(nameof(TutupPintu));
+        Invoke(nameof(TutupPintu), d);
+    }
+
+    /// <summary>
+    /// Membatalkan jadwal tutup yang sedang menunggu (dipanggil saat kereta
+    /// masuk zona lagi, atau saat pintu dibuka manual / direset).
+    /// </summary>
+    public void BatalTutup()
+    {
+        CancelInvoke(nameof(TutupPintu));
+    }
+
+    /// <summary>
     /// Buka kalau sedang tertutup, tutup kalau sedang terbuka. Dipanggil
     /// ObjekInteraksi mode 7 (tombol E) supaya pintu bisa dibuka/tutup manual
     /// oleh player, bukan otomatis lewat trigger.
     /// </summary>
     public void TogglePintu()
     {
+        // Batalkan tutup terjadwal supaya tidak menyeletuk setelah aksi manual.
+        CancelInvoke(nameof(TutupPintu));
+
         if (_sudahTerbuka)
         {
             TutupPintu();
@@ -97,6 +125,9 @@ public class PintuAnimasi : MonoBehaviour
     /// </summary>
     public void ResetPintu()
     {
+        // Batalkan tutup terjadwal dulu supaya tidak menyeletuk setelah reset.
+        CancelInvoke(nameof(TutupPintu));
+
         // Kalau sedang terbuka, mainkan animasi tutup supaya visualnya ikut balik
         if (_sudahTerbuka && _animator != null)
         {
