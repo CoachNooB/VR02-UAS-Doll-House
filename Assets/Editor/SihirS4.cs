@@ -67,8 +67,10 @@ public static class SihirS4
         var quad = WahanaRebuilder.BuatBox(kaca.transform, "Kaca", new Vector3(DindingBaratX, -3.7f, GuaPusat.z),
             new Vector3(0.1f, 5f, 14f), matKaca);
         Object.DestroyImmediate(quad.GetComponent<Collider>()); // kaca tembus pandang, kereta tak nabrak
-        // dinding gelap-samar DI BALIK kaca (barat dari kaca) supaya "di baliknya gelap"
-        var belakang = WahanaRebuilder.BuatBox(kaca.transform, "KacaBelakang", new Vector3(DindingBaratX - 0.6f, -3.7f, GuaPusat.z),
+        // dinding gelap-samar DI BALIK kaca — HARUS lebih barat dari SEMUA posisi siluet
+        // (posJauh = DindingBaratX-3) supaya siluet muncul DI ANTARA kaca dan backing,
+        // bukan ketutup backing (temuan review: backing -0.6 menutupi siluet).
+        var belakang = WahanaRebuilder.BuatBox(kaca.transform, "KacaBelakang", new Vector3(DindingBaratX - 3.6f, -3.7f, GuaPusat.z),
             new Vector3(0.3f, 5.2f, 14.4f), matGelap);
         GameObjectUtility.SetStaticEditorFlags(belakang, StaticEditorFlags.BatchingStatic);
         // frame 4 sisi (amber-gelap)
@@ -832,6 +834,10 @@ public static class SihirS4
         tArr.GetArrayElementAtIndex(0).objectReferenceValue = gn; // GelembungNaik implement IAksiInteraksi
         soP.FindProperty("_cooldown").floatValue = 30f;
         soP.ApplyModifiedProperties();
+        // Robustness: parent kolom gelembung KE pemicu supaya fallback auto-find
+        // PemicuKereta (cari IAksiInteraksi di children) tetap nemu GelembungNaik
+        // seandainya reference _target hilang (temuan review: sibling tak terjangkau fallback).
+        kolom.transform.SetParent(pemicuGo.transform, true);
 
         sb.AppendLine("  Splash keluar-air di " + F(titik) + " (plane riak + PemicuKereta -> GelembungNaik burst + SFX Land).");
     }
