@@ -590,21 +590,13 @@ public static class WahanaRebuilder
         HapusParent("GEN_Kemah_S1");
         var kemahRoot = BuatParent("GEN_Kemah_S1");
 
-        // posisi api: 8 arah radius 2.3 dari pusat picnic, pilih terjauh dari jalur
+        // api unggun di DEPAN picnic (sisi selatan, dekat panel music box "kotak kuning"),
+        // di puncak bukit flat-top y0.7. Dulu algoritma 8-arah malah menaruhnya di belakang.
         Vector3 cen = new Vector3(37.9f, 0f, 16.7f);
         var teddy = CariTransform("UAS_ForestTeddySection");
         if (teddy != null) cen = new Vector3(teddy.position.x, 0f, teddy.position.z);
-        var jalur = JalurS1Flat();
-        Vector3 posApi = cen; float bestD = -1f;
-        for (int a = 0; a < 8; a++)
-        {
-            float rad = a * Mathf.PI / 4f;
-            Vector3 kandidat = cen + new Vector3(Mathf.Cos(rad), 0f, Mathf.Sin(rad)) * 2.3f;
-            float d = MinDistXZ(jalur, kandidat);
-            if (d > bestD) { bestD = d; posApi = kandidat; }
-        }
-        posApi.y = 0.7f; // di puncak bukit piknik flat-top (TINGGI_BUKIT menu 19)
-        sb.AppendLine("  Posisi api: " + F(posApi) + " (jarak jalur " + bestD.ToString("0.0") + "u).");
+        Vector3 posApi = new Vector3(cen.x, 0.7f, cen.z - 2.6f); // ~2.6u di depan (selatan) pusat picnic
+        sb.AppendLine("  Posisi api (depan picnic): " + F(posApi) + ".");
 
         var api = new GameObject("Kemah_Api");
         api.transform.SetParent(kemahRoot.transform, true);
@@ -763,12 +755,18 @@ public static class WahanaRebuilder
             var l = shellLampu.GetComponent<Light>();
             if (l != null)
             {
-                l.color = new Color(0.45f, 0.6f, 1f);
-                l.intensity = 1.5f;   // key moonlight lebih kuat (dulu 1.1 -> flat)
-                l.range = 26f;        // liputi seluruh S1
+                // SPOT nembak ke bawah = pool cahaya terarah (bikin bentuk); dulu Point r26
+                // ngefill rata -> flat. Pool biru di picnic + gelap di tepi = dramatis.
+                l.type = LightType.Spot;
+                l.color = new Color(0.5f, 0.62f, 1f);
+                l.intensity = 3f;
+                l.range = 18f;
+                l.spotAngle = 120f;
+                l.shadows = LightShadows.None;
             }
-            shellLampu.transform.position = new Vector3(38f, 5.5f, 17f); // tinggi = rim dari atas
-            sb.AppendLine("  LampuShell_S1 -> moonlight biru (1.5, r26, y5.5).");
+            shellLampu.transform.position = new Vector3(38f, 5.7f, 17f);
+            shellLampu.transform.rotation = Quaternion.Euler(90f, 0f, 0f); // tembak lurus ke bawah
+            sb.AppendLine("  LampuShell_S1 -> moonlight SPOT biru (3, r18, 120 deg, dari atas).");
         }
         else sb.AppendLine("  (LampuShell_S1 tidak ketemu — moonlight dilewati)");
 
@@ -1358,8 +1356,8 @@ public static class WahanaRebuilder
 
         // ---------- (f) SuasanaZona teal masuk / restore keluar (ambient lebih PEKAT = bayangan berwarna) ----------
         BuatSatuSuasana("GEN_Suasana_S1Masuk", new Vector3(28.6f, 1f, 21f), new Vector3(6f, 6f, 8f), 0,
-            new Color(0.03f, 0.11f, 0.12f), 10f, 45f,
-            new Color(0.05f, 0.16f, 0.18f), new Color(0.04f, 0.13f, 0.15f), new Color(0.02f, 0.08f, 0.10f), sb);
+            new Color(0.02f, 0.07f, 0.08f), 9f, 42f,
+            new Color(0.025f, 0.08f, 0.09f), new Color(0.018f, 0.06f, 0.07f), new Color(0.01f, 0.035f, 0.045f), sb);
         BuatSatuSuasana("GEN_Suasana_S1Keluar", new Vector3(42f, 1f, 7.6f), new Vector3(8f, 6f, 6f), 1,
             Color.black, 10f, 60f, Color.black, Color.black, Color.black, sb);
 
