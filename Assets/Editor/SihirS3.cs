@@ -1106,28 +1106,27 @@ public static class SihirS3
     private static void PasangPemicu(Component pemicu, Component aksi, float cooldown, bool reArm)
     {
         var so = new SerializedObject(pemicu);
-        // coba beberapa nama field yang wajar (kontrak cross-batch)
-        if (!SetPropObj(so, "_aksi", aksi)) SetPropObj(so, "_target", aksi);
+        // PemicuKereta._target = MonoBehaviour[] (array) — isi elemen 0 secara eksplisit.
+        var pArr = so.FindProperty("_target");
+        if (pArr != null && pArr.isArray)
+        {
+            pArr.arraySize = 1;
+            pArr.GetArrayElementAtIndex(0).objectReferenceValue = aksi;
+        }
         SetPropStr(so, "_tagPemicu", "Kereta");
         SetPropFloat(so, "_cooldown", cooldown);
-        SetPropBool(so, "_reArm", reArm);
-        SetPropBool(so, "_reArmable", reArm);
-        SetPropBool(so, "_sekali", !reArm);
+        SetPropBool(so, "_hanyaSekali", !reArm); // nama field riil PemicuKereta
         so.ApplyModifiedProperties();
     }
 
     private static void PasangGoyang(Component goyang, string sumbu, float amplitudo, float tempo)
     {
         var so = new SerializedObject(goyang);
-        // sumbu: coba string "X"/"Z" atau enum int (0=X,1=Y,2=Z)
-        if (!SetPropStr(so, "_sumbu", sumbu))
-        {
-            int idx = sumbu == "X" ? 0 : (sumbu == "Y" ? 1 : 2);
-            SetPropInt(so, "_sumbu", idx);
-        }
+        // GoyangRitmis._sumbu = Vector3 (sumbu goyang lokal)
+        Vector3 vSumbu = sumbu == "X" ? Vector3.right : (sumbu == "Y" ? Vector3.up : Vector3.forward);
+        SetPropVec(so, "_sumbu", vSumbu);
         SetPropFloat(so, "_amplitudo", amplitudo);
         SetPropFloat(so, "_tempo", tempo);
-        SetPropFloat(so, "_kecepatan", tempo);
         so.ApplyModifiedProperties();
     }
 
