@@ -603,7 +603,7 @@ public static class WahanaRebuilder
             float d = MinDistXZ(jalur, kandidat);
             if (d > bestD) { bestD = d; posApi = kandidat; }
         }
-        posApi.y = 0.5f; // di lereng bukit piknik (mound r4 h0.6 dari menu 19; dulu 0.02 di lantai datar)
+        posApi.y = 0.7f; // di puncak bukit piknik flat-top (TINGGI_BUKIT menu 19)
         sb.AppendLine("  Posisi api: " + F(posApi) + " (jarak jalur " + bestD.ToString("0.0") + "u).");
 
         var api = new GameObject("Kemah_Api");
@@ -885,6 +885,7 @@ public static class WahanaRebuilder
 
         var jalur = JalurS1Flat();
         var rand = new System.Random(WahanaLayout.Seed + 19);
+        const float TINGGI_BUKIT = 0.7f; // tinggi puncak bukit piknik = tinggi duduk picnic (dipakai juga menu 17)
 
         Vector3 cen = new Vector3(37.9f, 0f, 16.7f);
         var teddySection = CariTransform("UAS_ForestTeddySection");
@@ -930,26 +931,34 @@ public static class WahanaRebuilder
         }
         sb.AppendLine("  Skala raksasa: " + nScaled + " pohon di-scale (WAJIB re-run menu 15 setelah ini).");
 
-        // ---------- (b) bukit piknik + gundukan + naikkan picnic ----------
+        // ---------- (b) bukit piknik FLAT-TOP + gundukan + snap picnic ke puncak ----------
         var matTanah = MatLit(new Color(0.06f, 0.12f, 0.07f));
-        BuatGundukan(root.transform, "BukitPiknik", new Vector3(cen.x, 0f, cen.z), new Vector3(8f, 1.2f, 8f), matTanah);
+        // Bukit piknik = SILINDER flat-top (top = TINGGI_BUKIT). Dulu dome sphere puncak 0.6
+        // sedang picnic di 0.9 -> melayang. Flat-top + snap absolut = picnic duduk pas.
+        var bukit = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        bukit.name = "BukitPiknik";
+        bukit.transform.SetParent(root.transform, true);
+        bukit.transform.position = new Vector3(cen.x, TINGGI_BUKIT * 0.5f, cen.z);
+        bukit.transform.localScale = new Vector3(9.5f, TINGGI_BUKIT * 0.5f, 9.5f);
+        Object.DestroyImmediate(bukit.GetComponent<Collider>());
+        bukit.GetComponent<MeshRenderer>().sharedMaterial = matTanah;
         BuatGundukan(root.transform, "Gundukan_0", new Vector3(31.5f, 0f, 24.3f), new Vector3(3.5f, 0.7f, 3.5f), matTanah);
         BuatGundukan(root.transform, "Gundukan_1", new Vector3(45.8f, 0f, 22.5f), new Vector3(3.5f, 0.7f, 3.5f), matTanah);
         BuatGundukan(root.transform, "Gundukan_2", new Vector3(29.3f, 0f, 10.5f), new Vector3(3f, 0.6f, 3f), matTanah);
 
-        // naikkan Teddy_Family + Picnic_Set ke puncak bukit (guard idempoten: skip kalau sudah naik)
+        // snap picnic (Teddy_Family + Picnic_Set) TEPAT ke puncak bukit — SET worldY absolut
+        // (idempoten, tak drift walau menu diulang berkali).
         int nNaik = 0;
         if (teddySection != null)
         {
             foreach (var t in teddySection.GetComponentsInChildren<Transform>(true))
             {
                 if (t.name != "Teddy_Family" && t.name != "Picnic_Set") continue;
-                if (t.position.y > 0.55f) continue;
-                t.position += Vector3.up * 0.6f;
+                t.position = new Vector3(t.position.x, TINGGI_BUKIT, t.position.z);
                 nNaik++;
             }
         }
-        sb.AppendLine("  Bukit piknik r4 h0.6 + 3 gundukan; " + nNaik + " grup picnic dinaikkan.");
+        sb.AppendLine("  Bukit piknik flat-top y" + TINGGI_BUKIT + " + 3 gundukan; " + nNaik + " grup picnic di-snap ke puncak.");
 
         // ---------- (c) siluet pohon hitam 2 baris (bohong kedalaman) ----------
         var matSiluet = MatUnlit(new Color(0.008f, 0.012f, 0.02f));
@@ -1071,53 +1080,57 @@ public static class WahanaRebuilder
         // ---------- (e) sungai sihir + kolam + jembatan ----------
         var nodeSungai = new List<Vector3>
         {
-            new Vector3(47.6f, 0f, 13.8f),
-            new Vector3(45.3f, 0f, 13.7f),
-            new Vector3(43.6f, 0f, 14.2f),
-            new Vector3(41.8f, 0f, 14.6f),
-            new Vector3(40.5f, 0f, 13.2f),
-            new Vector3(39.3f, 0f, 12.2f),
+            new Vector3(47.7f, 0f, 15.6f),
+            new Vector3(46.2f, 0f, 14.5f),
+            new Vector3(44.75f, 0f, 13.7f),  // titik silang rel (jembatan di sini)
+            new Vector3(43.1f, 0f, 13.3f),
+            new Vector3(41.5f, 0f, 12.8f),
+            new Vector3(40.1f, 0f, 12.1f),
+            new Vector3(39.1f, 0f, 11.8f),   // masuk kolam
         };
-        // subdivide halus supaya kelokan lembut
         var pathSungai = new List<Vector3>();
         for (int i = 0; i < nodeSungai.Count - 1; i++)
         {
             int langkah = Mathf.CeilToInt(Vector3.Distance(nodeSungai[i], nodeSungai[i + 1]) / 0.4f);
             for (int s = 0; s < langkah; s++)
-            {
                 pathSungai.Add(Vector3.Lerp(nodeSungai[i], nodeSungai[i + 1], s / (float)langkah));
-            }
         }
         pathSungai.Add(nodeSungai[nodeSungai.Count - 1]);
 
-        var matAir = MatUnlit(new Color(0.2f, 0.75f, 0.85f));
-        Mesh meshSungai = MeshPita(pathSungai, 0.9f, 0.02f);
+        // sungai LEBAR + cyan terang; inti tipis lebih terang = kesan aliran cahaya
+        var matAir = MatUnlit(new Color(0.28f, 0.88f, 1f));
+        Mesh meshSungai = MeshPita(pathSungai, 1.9f, 0.04f);
         SimpanMeshAsset(meshSungai, "SIHIR_Sungai");
-        var sungai = new GameObject("Sungai_S1");
-        sungai.transform.SetParent(root.transform, true);
-        sungai.transform.position = Vector3.zero;
-        sungai.AddComponent<MeshFilter>().sharedMesh = meshSungai;
-        var mrSungai = sungai.AddComponent<MeshRenderer>();
-        mrSungai.sharedMaterial = matAir;
-        mrSungai.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        BuatMeshObjek(root.transform, "Sungai_S1", meshSungai, matAir);
+        var matAirInti = MatUnlit(new Color(0.6f, 1f, 1f));
+        Mesh meshInti = MeshPita(pathSungai, 0.7f, 0.06f);
+        SimpanMeshAsset(meshInti, "SIHIR_SungaiInti");
+        BuatMeshObjek(root.transform, "SungaiInti_S1", meshInti, matAirInti);
 
         var kolam = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         kolam.name = "KolamSihir";
         kolam.transform.SetParent(root.transform, true);
-        kolam.transform.position = new Vector3(39.1f, 0.03f, 11.8f);
-        kolam.transform.localScale = new Vector3(2.2f, 0.05f, 2.2f);
+        kolam.transform.position = new Vector3(39.1f, 0.05f, 11.8f);
+        kolam.transform.localScale = new Vector3(2.6f, 0.06f, 2.6f);
         Object.DestroyImmediate(kolam.GetComponent<Collider>());
         kolam.GetComponent<MeshRenderer>().sharedMaterial = matAir;
 
-        // jembatan kayu di persilangan sungai x rel timur (rel leg x~44.75, z13.7)
-        var matKayu = MatLit(new Color(0.32f, 0.20f, 0.10f));
+        // jembatan kayu TERANG + 4 lentera cyan di persilangan rel x sungai (44.75, 13.7)
+        var matKayu = MatLit(new Color(0.45f, 0.32f, 0.18f));
+        var matLenteraJ = MatUnlit(new Color(0.3f, 0.95f, 1f));
         var jembatan = new GameObject("Jembatan_S1");
         jembatan.transform.SetParent(root.transform, true);
         jembatan.transform.position = new Vector3(44.75f, 0f, 13.7f);
-        BuatBoxSihir(jembatan.transform, "Deck", new Vector3(44.75f, 0.35f, 13.7f), new Vector3(2.4f, 0.12f, 3.4f), matKayu);
-        BuatBoxSihir(jembatan.transform, "Pagar_L", new Vector3(43.7f, 0.66f, 13.7f), new Vector3(0.12f, 0.5f, 3.4f), matKayu);
-        BuatBoxSihir(jembatan.transform, "Pagar_R", new Vector3(45.8f, 0.66f, 13.7f), new Vector3(0.12f, 0.5f, 3.4f), matKayu);
-        sb.AppendLine("  Sungai (" + pathSungai.Count + " titik) + kolam + jembatan kayu di (44.75, 13.7).");
+        BuatBoxSihir(jembatan.transform, "Deck", new Vector3(44.75f, 0.44f, 13.7f), new Vector3(2.8f, 0.16f, 3.6f), matKayu);
+        BuatBoxSihir(jembatan.transform, "Pagar_L", new Vector3(43.5f, 0.78f, 13.7f), new Vector3(0.14f, 0.55f, 3.6f), matKayu);
+        BuatBoxSihir(jembatan.transform, "Pagar_R", new Vector3(46.0f, 0.78f, 13.7f), new Vector3(0.14f, 0.55f, 3.6f), matKayu);
+        Vector3[] tiangJ = { new Vector3(43.5f, 0f, 12.1f), new Vector3(46.0f, 0f, 12.1f), new Vector3(43.5f, 0f, 15.3f), new Vector3(46.0f, 0f, 15.3f) };
+        for (int i = 0; i < 4; i++)
+        {
+            BuatBoxSihir(jembatan.transform, "Tiang_" + i, tiangJ[i] + Vector3.up * 0.75f, new Vector3(0.13f, 1.1f, 0.13f), matKayu);
+            BuatBoxSihir(jembatan.transform, "Lentera_" + i, tiangJ[i] + Vector3.up * 1.25f, new Vector3(0.24f, 0.3f, 0.24f), matLenteraJ);
+        }
+        sb.AppendLine("  Sungai LEBAR (" + pathSungai.Count + " titik) + inti terang + kolam + jembatan berlentera.");
 
         // ---------- (f) gapura x2 ----------
         BuatGapura(root.transform, new Vector3(28.8f, 0f, 21f), Vector3.right, "HUTAN BERUANG", matKayu);
@@ -1370,6 +1383,18 @@ public static class WahanaRebuilder
         g.transform.localScale = ukuran;
         Object.DestroyImmediate(g.GetComponent<Collider>());
         g.GetComponent<MeshRenderer>().sharedMaterial = mat;
+    }
+
+    private static GameObject BuatMeshObjek(Transform parent, string nama, Mesh mesh, Material mat)
+    {
+        var g = new GameObject(nama);
+        g.transform.SetParent(parent, true);
+        g.transform.position = Vector3.zero;
+        g.AddComponent<MeshFilter>().sharedMesh = mesh;
+        var mr = g.AddComponent<MeshRenderer>();
+        mr.sharedMaterial = mat;
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        return g;
     }
 
     /// <summary>Siluet pohon hitam (trunk + 3 bola daun gepeng); skip kalau kena jalur. Return 1/0.</summary>
