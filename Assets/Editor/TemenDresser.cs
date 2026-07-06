@@ -12,8 +12,8 @@ using UnityEngine;
 ///   S1 Hutan      <- Harry  : prefab UAS_ForestTeddySection (teddy picnic + show sequence)
 ///   S2 KotakMusik <- Deva   : monster penampil + snowmen penonton (istana boneka, FPS dibuang)
 ///   S3 Horror     <- Halimah: Mat_DarkWall + lampu seram merah/hijau + Boneka Hantu
-///   S4 BawahLaut  <- ikan Floreswa lokal
-///   S5 Angkasa    <- Deva   : alien + spaceship/crystal Mnostva
+///   S4 BawahLaut  <- Dharma : ikan Floreswa (aset) lokal
+///   S5 Angkasa    <- Dimas  : alien + spaceship/crystal Mnostva
 ///
 /// Urutan: jalankan SETELAH Tools/Wahana 3-5. Kalau 3/5 di-re-run, GEN_Temen_* selamat
 /// tapi material dinding S3 (menu 8) harus di-assign ulang -> jalankan menu 8 lagi.
@@ -283,7 +283,7 @@ public static class TemenDresser
     // =====================================================================
     //  MENU 10 — S5 ANGKASA (DEVA: alien + spaceship)
     // =====================================================================
-    [MenuItem("Tools/Wahana/10 Dress Temen S5 (Deva)", false, 73)]
+    [MenuItem("Tools/Wahana/10 Dress Temen S5 (Dimas)", false, 73)]
     public static void DressS5()
     {
         var sb = Mulai("GEN_Temen_S5");
@@ -309,14 +309,14 @@ public static class TemenDresser
             if (g != null) { HapusFisik(g); FlagStatis(g); }
 
         Vector3 masuk = TitikRelMasuk(r, jalur);
-        BuatLabelKredit(parent.transform, "Dibuat oleh: Deva", masuk + Vector3.up * 2.6f);
+        BuatLabelKredit(parent.transform, "Dibuat oleh: Dimas", masuk + Vector3.up * 2.6f);
         Selesai(sb, parent);
     }
 
     // =====================================================================
-    //  MENU 11 — S4 BAWAH LAUT (ikan Floreswa lokal)
+    //  MENU 11 — S4 BAWAH LAUT (ikan Floreswa; kredit Dharma)
     // =====================================================================
-    [MenuItem("Tools/Wahana/11 Dress Temen S4 (Floreswa)", false, 74)]
+    [MenuItem("Tools/Wahana/11 Dress Temen S4 (Dharma)", false, 74)]
     public static void DressS4()
     {
         var sb = Mulai("GEN_Temen_S4");
@@ -341,6 +341,8 @@ public static class TemenDresser
             so.FindProperty("_sudutGoyang").floatValue = 14f;
             so.ApplyModifiedProperties();
         }
+        Vector3 masuk = TitikRelMasuk(r, jalur);
+        BuatLabelKredit(parent.transform, "Dibuat oleh: Dharma", masuk + Vector3.up * 2.6f);
         Selesai(sb, parent);
     }
 
