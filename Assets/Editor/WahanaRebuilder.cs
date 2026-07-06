@@ -1129,17 +1129,22 @@ public static class WahanaRebuilder
         // jembatan kayu TERANG + 4 lentera cyan di persilangan rel x sungai (44.75, 13.7)
         var matKayu = MatLit(new Color(0.45f, 0.32f, 0.18f));
         var matLenteraJ = MatUnlitHDR(new Color(0.3f, 0.95f, 1f), 2.6f);
+        // orient jembatan SEJAJAR rel di titik silang (local Z = arah rel, deck memanjang di jalur)
+        var ptsUJemb = WahanaLayout.Resample(WahanaLayout.BuildNodeUtama(), true);
+        Vector3 silangJemb = new Vector3(44.75f, 0f, 13.7f);
+        Vector3 relDirJemb = RailDirDi(ptsUJemb, silangJemb);
         var jembatan = new GameObject("Jembatan_S1");
         jembatan.transform.SetParent(root.transform, true);
-        jembatan.transform.position = new Vector3(44.75f, 0f, 13.7f);
-        BuatBoxSihir(jembatan.transform, "Deck", new Vector3(44.75f, 0.44f, 13.7f), new Vector3(2.8f, 0.16f, 3.6f), matKayu);
-        BuatBoxSihir(jembatan.transform, "Pagar_L", new Vector3(43.5f, 0.78f, 13.7f), new Vector3(0.14f, 0.55f, 3.6f), matKayu);
-        BuatBoxSihir(jembatan.transform, "Pagar_R", new Vector3(46.0f, 0.78f, 13.7f), new Vector3(0.14f, 0.55f, 3.6f), matKayu);
-        Vector3[] tiangJ = { new Vector3(43.5f, 0f, 12.1f), new Vector3(46.0f, 0f, 12.1f), new Vector3(43.5f, 0f, 15.3f), new Vector3(46.0f, 0f, 15.3f) };
+        jembatan.transform.position = silangJemb;
+        jembatan.transform.rotation = Quaternion.LookRotation(relDirJemb);
+        BuatBoxLokal(jembatan.transform, "Deck", new Vector3(0f, 0.44f, 0f), new Vector3(2.8f, 0.16f, 3.8f), matKayu);
+        BuatBoxLokal(jembatan.transform, "Pagar_L", new Vector3(-1.35f, 0.78f, 0f), new Vector3(0.14f, 0.55f, 3.8f), matKayu);
+        BuatBoxLokal(jembatan.transform, "Pagar_R", new Vector3(1.35f, 0.78f, 0f), new Vector3(0.14f, 0.55f, 3.8f), matKayu);
+        Vector3[] tiangJ = { new Vector3(-1.35f, 0f, -1.75f), new Vector3(1.35f, 0f, -1.75f), new Vector3(-1.35f, 0f, 1.75f), new Vector3(1.35f, 0f, 1.75f) };
         for (int i = 0; i < 4; i++)
         {
-            BuatBoxSihir(jembatan.transform, "Tiang_" + i, tiangJ[i] + Vector3.up * 0.75f, new Vector3(0.13f, 1.1f, 0.13f), matKayu);
-            BuatBoxSihir(jembatan.transform, "Lentera_" + i, tiangJ[i] + Vector3.up * 1.25f, new Vector3(0.24f, 0.3f, 0.24f), matLenteraJ);
+            BuatBoxLokal(jembatan.transform, "Tiang_" + i, tiangJ[i] + Vector3.up * 0.75f, new Vector3(0.13f, 1.1f, 0.13f), matKayu);
+            BuatBoxLokal(jembatan.transform, "Lentera_" + i, tiangJ[i] + Vector3.up * 1.25f, new Vector3(0.24f, 0.3f, 0.24f), matLenteraJ);
         }
         sb.AppendLine("  Sungai LEBAR (" + pathSungai.Count + " titik) + inti terang + kolam + jembatan berlentera.");
 
@@ -1481,6 +1486,33 @@ public static class WahanaRebuilder
         g.transform.localScale = ukuran;
         Object.DestroyImmediate(g.GetComponent<Collider>());
         g.GetComponent<MeshRenderer>().sharedMaterial = mat;
+    }
+
+    /// <summary>Box anak yang IKUT rotasi+posisi parent (local), beda dgn BuatBoxSihir (world axis-aligned).</summary>
+    private static void BuatBoxLokal(Transform parent, string nama, Vector3 localPos, Vector3 ukuran, Material mat)
+    {
+        var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        g.name = nama;
+        g.transform.SetParent(parent, false);
+        g.transform.localPosition = localPos;
+        g.transform.localRotation = Quaternion.identity;
+        g.transform.localScale = ukuran;
+        Object.DestroyImmediate(g.GetComponent<Collider>());
+        g.GetComponent<MeshRenderer>().sharedMaterial = mat;
+    }
+
+    /// <summary>Arah tangen rel (horizontal, ternormalisasi) di titik terdekat dari p pada polyline pts.</summary>
+    private static Vector3 RailDirDi(List<Vector3> pts, Vector3 p)
+    {
+        int best = 0; float bd = float.MaxValue;
+        for (int i = 0; i < pts.Count; i++)
+        {
+            float dx = pts[i].x - p.x, dz = pts[i].z - p.z, d = dx * dx + dz * dz;
+            if (d < bd) { bd = d; best = i; }
+        }
+        int a = (best - 2 + pts.Count) % pts.Count, b = (best + 2) % pts.Count;
+        Vector3 dir = pts[b] - pts[a]; dir.y = 0f;
+        return dir.sqrMagnitude > 1e-6f ? dir.normalized : Vector3.forward;
     }
 
     private static GameObject BuatMeshObjek(Transform parent, string nama, Mesh mesh, Material mat)
