@@ -603,7 +603,7 @@ public static class WahanaRebuilder
             float d = MinDistXZ(jalur, kandidat);
             if (d > bestD) { bestD = d; posApi = kandidat; }
         }
-        posApi.y = 0.02f;
+        posApi.y = 0.5f; // di lereng bukit piknik (mound r4 h0.6 dari menu 19; dulu 0.02 di lantai datar)
         sb.AppendLine("  Posisi api: " + F(posApi) + " (jarak jalur " + bestD.ToString("0.0") + "u).");
 
         var api = new GameObject("Kemah_Api");
@@ -854,6 +854,679 @@ public static class WahanaRebuilder
     {
         m.color = c;
         if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+    }
+
+    // =====================================================================
+    //  MENU 19 — HUTAN SIHIR: DEKOR STATIS (SURGICAL)
+    //  Skala raksasa pohon + bukit piknik + siluet + langit (bintang/bulan/kanopi/
+    //  shaft) + sungai sihir + jembatan + gapura x2 + lantai rumput. Semua statis
+    //  di child GEN_Dressing/HutanSihirS1 -> ikut di-bake menu 14. Idempotent.
+    //  URUTAN WAJIB setelah ini: menu 8 -> 15 (rebake pohon ter-scale) -> 17 -> 14.
+    // =====================================================================
+    [MenuItem("Tools/Wahana/19 S1 Sihir Dekor")]
+    public static void SihirDekorS1()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("=== HUTAN SIHIR S1: DEKOR STATIS ===");
+
+        Transform dressing = CariTransform(P_Dressing);
+        if (dressing == null)
+        {
+            Debug.LogError("[Sihir Dekor] " + P_Dressing + " tidak ditemukan.");
+            return;
+        }
+
+        // idempoten
+        var lama = dressing.Find("HutanSihirS1");
+        if (lama != null) Object.DestroyImmediate(lama.gameObject);
+        var root = new GameObject("HutanSihirS1");
+        root.transform.SetParent(dressing, true);
+        root.transform.position = Vector3.zero;
+
+        var jalur = JalurS1Flat();
+        var rand = new System.Random(WahanaLayout.Seed + 19);
+
+        Vector3 cen = new Vector3(37.9f, 0f, 16.7f);
+        var teddySection = CariTransform("UAS_ForestTeddySection");
+        if (teddySection != null) cen = new Vector3(teddySection.position.x, 0f, teddySection.position.z);
+
+        // ---------- (a) SKALA RAKSASA: pohon dekat jalur menjulang ----------
+        // Target tinggi bergradasi (forced perspective): dekat jalur 5.2u, tengah 4.2u,
+        // pinggir 3.4u. Scale per-POHON (bukan parent) supaya picnic/teddy tidak ikut.
+        int nScaled = 0;
+        Transform env = null;
+        var temenRoot = CariTransform("GEN_Temen_S1");
+        if (temenRoot != null)
+        {
+            foreach (var t in temenRoot.GetComponentsInChildren<Transform>(true))
+            {
+                if (t.name == "Environment") { env = t; break; }
+            }
+        }
+        if (env != null)
+        {
+            // pohon TIDAK direct child Environment (nested di sub-grup) -> scan rekursif;
+            // prefix hanya cocok node AKAR pohon (child LOD bernama PT_* tidak ikut)
+            foreach (var pohon in env.GetComponentsInChildren<Transform>(true))
+            {
+                if (!pohon.name.StartsWith("Pine_Tree_") && !pohon.name.StartsWith("Fruit_Tree_")) continue;
+
+                // tinggi sekarang dari gabungan bounds renderer (LOD overlap tak masalah)
+                var mrs = pohon.GetComponentsInChildren<MeshRenderer>(true);
+                if (mrs.Length == 0) continue;
+                Bounds b = mrs[0].bounds;
+                foreach (var mr in mrs) b.Encapsulate(mr.bounds);
+                float tinggi = b.size.y;
+                if (tinggi < 0.2f) continue;
+
+                float d = MinDistXZ(jalur, new Vector3(pohon.position.x, 0f, pohon.position.z));
+                float target = d < 4f ? 5.2f : (d < 7f ? 4.2f : 3.4f);
+                float faktor = Mathf.Clamp(target / tinggi, 0.8f, 3f);
+                if (Mathf.Abs(faktor - 1f) < 0.07f) continue; // sudah pas (idempoten)
+
+                pohon.localScale = pohon.localScale * faktor;
+                nScaled++;
+            }
+        }
+        sb.AppendLine("  Skala raksasa: " + nScaled + " pohon di-scale (WAJIB re-run menu 15 setelah ini).");
+
+        // ---------- (b) bukit piknik + gundukan + naikkan picnic ----------
+        var matTanah = MatLit(new Color(0.06f, 0.12f, 0.07f));
+        BuatGundukan(root.transform, "BukitPiknik", new Vector3(cen.x, 0f, cen.z), new Vector3(8f, 1.2f, 8f), matTanah);
+        BuatGundukan(root.transform, "Gundukan_0", new Vector3(31.5f, 0f, 24.3f), new Vector3(3.5f, 0.7f, 3.5f), matTanah);
+        BuatGundukan(root.transform, "Gundukan_1", new Vector3(45.8f, 0f, 22.5f), new Vector3(3.5f, 0.7f, 3.5f), matTanah);
+        BuatGundukan(root.transform, "Gundukan_2", new Vector3(29.3f, 0f, 10.5f), new Vector3(3f, 0.6f, 3f), matTanah);
+
+        // naikkan Teddy_Family + Picnic_Set ke puncak bukit (guard idempoten: skip kalau sudah naik)
+        int nNaik = 0;
+        if (teddySection != null)
+        {
+            foreach (var t in teddySection.GetComponentsInChildren<Transform>(true))
+            {
+                if (t.name != "Teddy_Family" && t.name != "Picnic_Set") continue;
+                if (t.position.y > 0.55f) continue;
+                t.position += Vector3.up * 0.6f;
+                nNaik++;
+            }
+        }
+        sb.AppendLine("  Bukit piknik r4 h0.6 + 3 gundukan; " + nNaik + " grup picnic dinaikkan.");
+
+        // ---------- (c) siluet pohon hitam 2 baris (bohong kedalaman) ----------
+        var matSiluet = MatUnlit(new Color(0.008f, 0.012f, 0.02f));
+        int nSiluet = 0;
+        // dinding: N z26, E x48, S z8, W x28; bukaan: masuk x28 z19.4-22.6, keluar z8 x40.4-43.6
+        for (float x = 29.5f; x <= 46.5f; x += 3.1f) // sepanjang dinding N & S
+        {
+            nSiluet += SiluetAman(root.transform, new Vector3(x + Jitter(rand, 0.7f), 0f, 24.9f + Jitter(rand, 0.4f)), 2.9f, jalur, matSiluet, rand);
+            nSiluet += SiluetAman(root.transform, new Vector3(x + Jitter(rand, 0.7f), 0f, 26.6f), 2.2f, jalur, matSiluet, rand); // baris luar (boleh "nembus" dinding visual)
+            if (x < 39f || x > 44.5f) // skip bukaan keluar
+            {
+                nSiluet += SiluetAman(root.transform, new Vector3(x + Jitter(rand, 0.7f), 0f, 9.1f + Jitter(rand, 0.4f)), 2.9f, jalur, matSiluet, rand);
+            }
+        }
+        for (float z = 9.5f; z <= 24.5f; z += 3.3f) // sepanjang dinding E & W
+        {
+            nSiluet += SiluetAman(root.transform, new Vector3(46.9f + Jitter(rand, 0.3f), 0f, z + Jitter(rand, 0.7f)), 2.7f, jalur, matSiluet, rand);
+            if (z < 18.4f || z > 23.6f) // skip bukaan masuk
+            {
+                nSiluet += SiluetAman(root.transform, new Vector3(28.9f + Jitter(rand, 0.3f), 0f, z + Jitter(rand, 0.7f)), 2.7f, jalur, matSiluet, rand);
+            }
+        }
+        sb.AppendLine("  Siluet pohon: " + nSiluet + " batang (2 baris, hitam kebiruan).");
+
+        // ---------- (d) langit: bintang + bulan + kanopi + shaft ----------
+        float plafonY = 6f;
+        var plafon = CariGameObject("Plafon_S1");
+        if (plafon != null) plafonY = plafon.transform.position.y;
+
+        Material matBintang = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/MatBintang.mat");
+        if (matBintang == null) matBintang = MatUnlit(new Color(0.8f, 0.9f, 1f));
+        var langit = new GameObject("Langit");
+        langit.transform.SetParent(root.transform, true);
+        for (int i = 0; i < 40; i++)
+        {
+            var bintang = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            bintang.name = "BintangS1_" + i;
+            bintang.transform.SetParent(langit.transform, true);
+            bintang.transform.position = new Vector3(
+                29f + (float)rand.NextDouble() * 18f,
+                plafonY - 0.12f - (float)rand.NextDouble() * 0.25f,
+                9f + (float)rand.NextDouble() * 16f);
+            bintang.transform.localScale = Vector3.one * (0.06f + (float)rand.NextDouble() * 0.06f);
+            Object.DestroyImmediate(bintang.GetComponent<Collider>());
+            bintang.GetComponent<MeshRenderer>().sharedMaterial = matBintang;
+        }
+        var bulan = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        bulan.name = "BulanS1";
+        bulan.transform.SetParent(langit.transform, true);
+        bulan.transform.position = new Vector3(33f, plafonY - 0.3f, 21f);
+        bulan.transform.localScale = new Vector3(1.4f, 0.1f, 1.4f);
+        Object.DestroyImmediate(bulan.GetComponent<Collider>());
+        bulan.GetComponent<MeshRenderer>().sharedMaterial = MatUnlit(new Color(0.85f, 0.9f, 1f));
+
+        var matKanopi = MatUnlit(new Color(0.004f, 0.008f, 0.012f));
+        Vector3[] posKanopi = { new Vector3(33f, plafonY - 0.5f, 17f), new Vector3(42f, plafonY - 0.6f, 13f), new Vector3(37f, plafonY - 0.45f, 22f) };
+        Vector3[] sklKanopi = { new Vector3(7f, 1.4f, 7f), new Vector3(6f, 1.2f, 6f), new Vector3(5f, 1.1f, 5f) };
+        for (int i = 0; i < posKanopi.Length; i++)
+        {
+            var kanopi = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            kanopi.name = "Kanopi_" + i;
+            kanopi.transform.SetParent(langit.transform, true);
+            kanopi.transform.position = posKanopi[i];
+            kanopi.transform.localScale = sklKanopi[i];
+            Object.DestroyImmediate(kanopi.GetComponent<Collider>());
+            kanopi.GetComponent<MeshRenderer>().sharedMaterial = matKanopi;
+        }
+
+        // terowongan dahan: lengkung gelap DI ATAS rel — penumpang lewat di bawah pohon
+        Vector3[] posDahan = { new Vector3(33f, 3.3f, 22.4f), new Vector3(44.8f, 3.3f, 16f) };
+        Vector3[] arahDahan = { Vector3.forward, Vector3.right }; // melintang tegak lurus arah laju
+        for (int i = 0; i < posDahan.Length; i++)
+        {
+            var dahan = new GameObject("DahanRel_" + i);
+            dahan.transform.SetParent(langit.transform, true);
+            dahan.transform.position = posDahan[i];
+            var batangD = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            batangD.name = "Batang";
+            batangD.transform.SetParent(dahan.transform, true);
+            batangD.transform.position = posDahan[i];
+            batangD.transform.rotation = Quaternion.LookRotation(arahDahan[i]) * Quaternion.Euler(90f, 0f, 0f);
+            batangD.transform.localScale = new Vector3(0.35f, 2.6f, 0.35f);
+            Object.DestroyImmediate(batangD.GetComponent<Collider>());
+            batangD.GetComponent<MeshRenderer>().sharedMaterial = matKanopi;
+            for (int j = -1; j <= 1; j += 2)
+            {
+                var daunD = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                daunD.name = "Daun_" + (j + 1);
+                daunD.transform.SetParent(dahan.transform, true);
+                daunD.transform.position = posDahan[i] + arahDahan[i] * (1.5f * j) + Vector3.up * 0.35f;
+                daunD.transform.localScale = new Vector3(1.7f, 0.9f, 1.7f);
+                Object.DestroyImmediate(daunD.GetComponent<Collider>());
+                daunD.GetComponent<MeshRenderer>().sharedMaterial = matKanopi;
+            }
+        }
+
+        // shaft bulan: pakai clone material kaca (transparan) kalau ada; else skip
+        var matKaca = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/MatKaca.mat");
+        if (matKaca != null)
+        {
+            var matShaft = new Material(matKaca);
+            SetWarna(matShaft, new Color(0.6f, 0.75f, 1f, 0.14f));
+            Vector3[] posShaft = { new Vector3(35f, 3.2f, 22f), new Vector3(44f, 3.2f, 14f) };
+            for (int i = 0; i < posShaft.Length; i++)
+            {
+                var shaft = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                shaft.name = "ShaftBulan_" + i;
+                shaft.transform.SetParent(langit.transform, true);
+                shaft.transform.position = posShaft[i];
+                shaft.transform.rotation = Quaternion.Euler(12f, 0f, 8f);
+                shaft.transform.localScale = new Vector3(0.8f, 2.6f, 0.8f);
+                Object.DestroyImmediate(shaft.GetComponent<Collider>());
+                shaft.GetComponent<MeshRenderer>().sharedMaterial = matShaft;
+            }
+            sb.AppendLine("  Langit: 40 bintang + bulan + 3 kanopi + 2 shaft.");
+        }
+        else sb.AppendLine("  Langit: 40 bintang + bulan + 3 kanopi (MatKaca tak ada, shaft dilewati).");
+
+        // ---------- (e) sungai sihir + kolam + jembatan ----------
+        var nodeSungai = new List<Vector3>
+        {
+            new Vector3(47.6f, 0f, 13.8f),
+            new Vector3(45.3f, 0f, 13.7f),
+            new Vector3(43.6f, 0f, 14.2f),
+            new Vector3(41.8f, 0f, 14.6f),
+            new Vector3(40.5f, 0f, 13.2f),
+            new Vector3(39.3f, 0f, 12.2f),
+        };
+        // subdivide halus supaya kelokan lembut
+        var pathSungai = new List<Vector3>();
+        for (int i = 0; i < nodeSungai.Count - 1; i++)
+        {
+            int langkah = Mathf.CeilToInt(Vector3.Distance(nodeSungai[i], nodeSungai[i + 1]) / 0.4f);
+            for (int s = 0; s < langkah; s++)
+            {
+                pathSungai.Add(Vector3.Lerp(nodeSungai[i], nodeSungai[i + 1], s / (float)langkah));
+            }
+        }
+        pathSungai.Add(nodeSungai[nodeSungai.Count - 1]);
+
+        var matAir = MatUnlit(new Color(0.2f, 0.75f, 0.85f));
+        Mesh meshSungai = MeshPita(pathSungai, 0.9f, 0.02f);
+        SimpanMeshAsset(meshSungai, "SIHIR_Sungai");
+        var sungai = new GameObject("Sungai_S1");
+        sungai.transform.SetParent(root.transform, true);
+        sungai.transform.position = Vector3.zero;
+        sungai.AddComponent<MeshFilter>().sharedMesh = meshSungai;
+        var mrSungai = sungai.AddComponent<MeshRenderer>();
+        mrSungai.sharedMaterial = matAir;
+        mrSungai.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+        var kolam = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        kolam.name = "KolamSihir";
+        kolam.transform.SetParent(root.transform, true);
+        kolam.transform.position = new Vector3(39.1f, 0.03f, 11.8f);
+        kolam.transform.localScale = new Vector3(2.2f, 0.05f, 2.2f);
+        Object.DestroyImmediate(kolam.GetComponent<Collider>());
+        kolam.GetComponent<MeshRenderer>().sharedMaterial = matAir;
+
+        // jembatan kayu di persilangan sungai x rel timur (rel leg x~44.75, z13.7)
+        var matKayu = MatLit(new Color(0.32f, 0.20f, 0.10f));
+        var jembatan = new GameObject("Jembatan_S1");
+        jembatan.transform.SetParent(root.transform, true);
+        jembatan.transform.position = new Vector3(44.75f, 0f, 13.7f);
+        BuatBoxSihir(jembatan.transform, "Deck", new Vector3(44.75f, 0.35f, 13.7f), new Vector3(2.4f, 0.12f, 3.4f), matKayu);
+        BuatBoxSihir(jembatan.transform, "Pagar_L", new Vector3(43.7f, 0.66f, 13.7f), new Vector3(0.12f, 0.5f, 3.4f), matKayu);
+        BuatBoxSihir(jembatan.transform, "Pagar_R", new Vector3(45.8f, 0.66f, 13.7f), new Vector3(0.12f, 0.5f, 3.4f), matKayu);
+        sb.AppendLine("  Sungai (" + pathSungai.Count + " titik) + kolam + jembatan kayu di (44.75, 13.7).");
+
+        // ---------- (f) gapura x2 ----------
+        BuatGapura(root.transform, new Vector3(28.8f, 0f, 21f), Vector3.right, "HUTAN BERUANG", matKayu);
+        BuatGapura(root.transform, new Vector3(42f, 0f, 8.9f), Vector3.back, "SAMPAI JUMPA", matKayu);
+        sb.AppendLine("  Gapura masuk (28.8,21) + keluar (42,8.9) + lentera cyan.");
+
+        // ---------- (g) lantai rumput ----------
+        var texRumput = AssetDatabase.LoadAssetAtPath<Texture2D>(
+            "Assets/Temen/Paket/Polytope Studio/Lowpoly_Environments/Sources/Textures/PT_Grass_01.png");
+        var lantai = CariGameObject("Lantai_S1");
+        if (texRumput != null && lantai != null)
+        {
+            var matRumput = MatLit(new Color(0.5f, 0.6f, 0.5f)); // tint gelap biar tetap malam
+            matRumput.name = "MatRumputS1";
+            matRumput.mainTexture = texRumput;
+            matRumput.mainTextureScale = new Vector2(6f, 5f);
+            lantai.GetComponent<MeshRenderer>().sharedMaterial = matRumput;
+            sb.AppendLine("  Lantai_S1 -> rumput PT_Grass_01 (tiled 6x5, tint malam).");
+        }
+        else sb.AppendLine("  (tekstur rumput / Lantai_S1 tak ketemu — lantai dilewati)");
+
+        FlagStatisRekursif(root, true);
+        Debug.Log(sb.ToString());
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+    }
+
+    // =====================================================================
+    //  MENU 20 — HUTAN SIHIR: GLOW HIDUP (SURGICAL, FASE B)
+    //  Kunang domino + ambient, taman jamur (terbesar di busur cabang = eksklusif),
+    //  lumut glow batang, api flare, SuasanaZona teal, chime. Parent root sendiri
+    //  GEN_SihirHidup_S1 (TIDAK di-bake — semua beranimasi). Idempotent.
+    // =====================================================================
+    [MenuItem("Tools/Wahana/20 S1 Sihir Hidup")]
+    public static void SihirHidupS1()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("=== HUTAN SIHIR S1: GLOW HIDUP ===");
+
+        HapusParent("GEN_SihirHidup_S1");
+        var root = BuatParent("GEN_SihirHidup_S1");
+
+        var jalur = JalurS1Flat();
+        var rand = new System.Random(WahanaLayout.Seed + 20);
+        Vector3 cen = new Vector3(37.9f, 0f, 16.7f);
+        var teddySection = CariTransform("UAS_ForestTeddySection");
+        if (teddySection != null) cen = new Vector3(teddySection.position.x, 0f, teddySection.position.z);
+
+        var matKunang = MatUnlit(new Color(0.75f, 0.95f, 0.4f));
+        var matKaca = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/MatKaca.mat");
+        Material matHalo = null;
+        if (matKaca != null)
+        {
+            matHalo = new Material(matKaca);
+            SetWarna(matHalo, new Color(0.75f, 0.95f, 0.4f, 0.22f));
+        }
+
+        // ---------- (a) kunang DOMINO: 12 besar berbaris koridor masuk -> display ----------
+        var domino = new GameObject("DominoKunang");
+        domino.transform.SetParent(root.transform, true);
+        domino.transform.position = new Vector3(30.5f, 1.2f, 20.5f);
+        Vector3 awal = new Vector3(29.3f, 0f, 20.8f);
+        Vector3 akhir = new Vector3(36.2f, 0f, 18.4f);
+        for (int i = 0; i < 12; i++)
+        {
+            float k = i / 11f;
+            Vector3 pos = Vector3.Lerp(awal, akhir, k);
+            pos += new Vector3(Jitter(rand, 0.8f), 1.4f + (float)rand.NextDouble() * 0.7f, Jitter(rand, 0.8f));
+            BuatKunang(domino.transform, "KunangB_" + i, pos, 0.16f, matKunang, matHalo, rand);
+        }
+        var colDomino = domino.AddComponent<BoxCollider>();
+        colDomino.isTrigger = true;
+        colDomino.size = new Vector3(5f, 3f, 5f);
+        domino.AddComponent<KunangDomino>(); // fallback Awake: parent = dirinya sendiri
+        sb.AppendLine("  Domino: 12 kunang besar ber-halo + trigger di pintu masuk.");
+
+        // ---------- (b) kunang ambient: 20 kecil sebar ----------
+        var ambient = new GameObject("KunangAmbient");
+        ambient.transform.SetParent(root.transform, true);
+        int nAmbient = 0, coba = 0;
+        while (nAmbient < 20 && coba < 200)
+        {
+            coba++;
+            float sudut = (float)(rand.NextDouble() * Mathf.PI * 2.0);
+            float r = 3f + (float)rand.NextDouble() * 6f;
+            Vector3 pos = cen + new Vector3(Mathf.Cos(sudut) * r, 0f, Mathf.Sin(sudut) * r);
+            if (pos.x < 29f || pos.x > 47f || pos.z < 9f || pos.z > 25f) continue;
+            if (MinDistXZ(jalur, pos) < 1.5f) continue;
+            pos.y = 1.2f + (float)rand.NextDouble() * 1.2f;
+            BuatKunang(ambient.transform, "KunangK_" + nAmbient, pos, 0.12f, matKunang, null, rand);
+            nAmbient++;
+        }
+        sb.AppendLine("  Ambient: " + nAmbient + " kunang kecil.");
+
+        // ---------- (c) taman jamur (terbesar mengangkangi busur cabang WK2) ----------
+        var jamurTemplate = CariGameObject("Mushroom_01");
+        var matJamurCyan = MatUnlit(new Color(0.3f, 0.95f, 1f));
+        var matJamurUngu = MatUnlit(new Color(0.65f, 0.4f, 1f));
+        int nJamur = 0;
+        if (jamurTemplate != null)
+        {
+            var taman = new GameObject("TamanJamur");
+            taman.transform.SetParent(root.transform, true);
+            taman.transform.position = new Vector3(37f, 0f, 10f);
+            // busur selatan cabang: titik sepanjang WK2, jamur selang-seling kiri/kanan
+            Vector3[] arc = { new Vector3(33f, 0f, 11f), new Vector3(35f, 0f, 10.3f), new Vector3(37f, 0f, 10f), new Vector3(39f, 0f, 10.2f), new Vector3(41f, 0f, 10.5f) };
+            for (int i = 0; i < arc.Length; i++)
+            {
+                for (int sisi = -1; sisi <= 1; sisi += 2)
+                {
+                    if (nJamur >= 8) break;
+                    Vector3 pos = arc[i] + new Vector3(Jitter(rand, 0.4f), 0f, sisi * (1.4f + (float)rand.NextDouble() * 0.5f));
+                    if (MinDistXZ(jalur, pos) < 1.25f) continue;
+                    nJamur += BuatJamurGlow(taman.transform, "JamurGlow_" + nJamur, pos, jamurTemplate,
+                        (nJamur % 2 == 0) ? matJamurCyan : matJamurUngu, rand);
+                }
+            }
+            // 2 cluster kecil pendukung di jalur utama (foreshadow dari kejauhan)
+            Vector3[] posCluster = { new Vector3(30.8f, 0f, 24.2f), new Vector3(46.2f, 0f, 21.5f) };
+            foreach (var pc in posCluster)
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    Vector3 pos = pc + new Vector3(Jitter(rand, 0.9f), 0f, Jitter(rand, 0.9f));
+                    if (MinDistXZ(jalur, pos) < 1.4f) continue;
+                    nJamur += BuatJamurGlow(taman.transform, "JamurGlow_" + nJamur, pos, jamurTemplate,
+                        (nJamur % 2 == 0) ? matJamurCyan : matJamurUngu, rand);
+                }
+            }
+            // chime sihir di taman jamur
+            var chimeTaman = new GameObject("ChimeTamanJamur");
+            chimeTaman.transform.SetParent(taman.transform, true);
+            chimeTaman.transform.position = new Vector3(37f, 1f, 10f);
+            chimeTaman.AddComponent<UAS_ProceduralChime>(); // RequireComponent otomatis menambah AudioSource 3D
+            chimeTaman.AddComponent<ChimeBerkala>();
+            sb.AppendLine("  Taman jamur: " + nJamur + " jamur glow (terbesar di busur cabang) + chime.");
+        }
+        else sb.AppendLine("  (Mushroom_01 tak ketemu — jamur dilewati)");
+
+        // ---------- (d) lumut glow di 4 batang pohon terdekat jalur ----------
+        var matLumut = MatUnlit(new Color(0.4f, 1f, 0.75f));
+        int nLumut = 0;
+        Transform envLumut = null;
+        var temenRoot = CariTransform("GEN_Temen_S1");
+        if (temenRoot != null)
+        {
+            foreach (var t in temenRoot.GetComponentsInChildren<Transform>(true))
+            {
+                if (t.name == "Environment") { envLumut = t; break; }
+            }
+        }
+        if (envLumut != null)
+        {
+            // urutkan pohon berdasar jarak ke jalur, ambil 4 terdekat (yang >1.2 biar tak nempel rel)
+            var kandidat = new List<Transform>();
+            foreach (var p in envLumut.GetComponentsInChildren<Transform>(true))
+            {
+                if (p.name.StartsWith("Pine_Tree_") || p.name.StartsWith("Fruit_Tree_")) kandidat.Add(p);
+            }
+            kandidat.Sort((a, b) =>
+                MinDistXZ(jalur, new Vector3(a.position.x, 0f, a.position.z))
+                .CompareTo(MinDistXZ(jalur, new Vector3(b.position.x, 0f, b.position.z))));
+            foreach (var pohon in kandidat)
+            {
+                if (nLumut >= 4) break;
+                Vector3 flat = new Vector3(pohon.position.x, 0f, pohon.position.z);
+                float d = MinDistXZ(jalur, flat);
+                if (d < 1.2f) continue;
+                // quad menghadap keluar batang ke arah jalur terdekat
+                Vector3 arah = Vector3.forward;
+                float best = float.MaxValue;
+                foreach (var jp in jalur)
+                {
+                    float dj = (jp - flat).sqrMagnitude;
+                    if (dj < best) { best = dj; arah = (jp - flat).normalized; }
+                }
+                var lumut = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                lumut.name = "LumutGlow_" + nLumut;
+                lumut.transform.SetParent(root.transform, true);
+                lumut.transform.position = flat + arah * 0.28f + Vector3.up * (1.2f + (float)rand.NextDouble() * 0.7f);
+                lumut.transform.rotation = Quaternion.LookRotation(-arah) * Quaternion.Euler(0f, 0f, (float)rand.NextDouble() * 40f - 20f);
+                lumut.transform.localScale = new Vector3(0.5f, 0.85f, 1f);
+                Object.DestroyImmediate(lumut.GetComponent<Collider>());
+                lumut.GetComponent<MeshRenderer>().sharedMaterial = matLumut;
+                nLumut++;
+            }
+        }
+        sb.AppendLine("  Lumut glow: " + nLumut + " batang.");
+
+        // ---------- (e) api flare: trigger di kemah ----------
+        var kemahApi = CariGameObject("Kemah_Api");
+        if (kemahApi != null)
+        {
+            var colApi = kemahApi.GetComponent<BoxCollider>();
+            if (colApi == null) colApi = kemahApi.AddComponent<BoxCollider>();
+            colApi.isTrigger = true;
+            colApi.center = new Vector3(0f, 1f, 0f);
+            colApi.size = new Vector3(7f, 4f, 7f);
+            if (kemahApi.GetComponent<ApiFlare>() == null) kemahApi.AddComponent<ApiFlare>();
+            sb.AppendLine("  ApiFlare terpasang di Kemah_Api (zona 7x4x7).");
+        }
+        else sb.AppendLine("  (Kemah_Api tak ketemu — flare dilewati; jalankan menu 17 dulu)");
+
+        // ---------- (f) SuasanaZona teal masuk / restore keluar ----------
+        BuatSatuSuasana("GEN_Suasana_S1Masuk", new Vector3(28.6f, 1f, 21f), new Vector3(6f, 6f, 8f), 0,
+            new Color(0.02f, 0.08f, 0.09f), 8f, 40f,
+            new Color(0.03f, 0.1f, 0.11f), new Color(0.02f, 0.08f, 0.09f), new Color(0.01f, 0.05f, 0.06f), sb);
+        BuatSatuSuasana("GEN_Suasana_S1Keluar", new Vector3(42f, 1f, 7.6f), new Vector3(8f, 6f, 6f), 1,
+            Color.black, 10f, 60f, Color.black, Color.black, Color.black, sb);
+
+        // ---------- (g) chime denting air di jembatan ----------
+        var chimeJembatan = new GameObject("ChimeJembatan");
+        chimeJembatan.transform.SetParent(root.transform, true);
+        chimeJembatan.transform.position = new Vector3(44.75f, 0.8f, 13.7f);
+        chimeJembatan.AddComponent<UAS_ProceduralChime>();
+        var berkala = chimeJembatan.AddComponent<ChimeBerkala>();
+        var soBerkala = new SerializedObject(berkala);
+        soBerkala.FindProperty("_jedaMin").floatValue = 9f;
+        soBerkala.FindProperty("_jedaMax").floatValue = 16f;
+        soBerkala.ApplyModifiedProperties();
+        sb.AppendLine("  Chime jembatan terpasang.");
+
+        Debug.Log(sb.ToString());
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+    }
+
+    // ---- helper Hutan Sihir ----
+
+    private static float Jitter(System.Random rand, float amp)
+    {
+        return ((float)rand.NextDouble() * 2f - 1f) * amp;
+    }
+
+    private static void BuatGundukan(Transform parent, string nama, Vector3 pos, Vector3 skala, Material mat)
+    {
+        var g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        g.name = nama;
+        g.transform.SetParent(parent, true);
+        g.transform.position = pos; // pusat di lantai -> setengah atas jadi bukit
+        g.transform.localScale = skala;
+        Object.DestroyImmediate(g.GetComponent<Collider>());
+        g.GetComponent<MeshRenderer>().sharedMaterial = mat;
+    }
+
+    private static void BuatBoxSihir(Transform parent, string nama, Vector3 pos, Vector3 ukuran, Material mat)
+    {
+        var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        g.name = nama;
+        g.transform.SetParent(parent, true);
+        g.transform.position = pos;
+        g.transform.localScale = ukuran;
+        Object.DestroyImmediate(g.GetComponent<Collider>());
+        g.GetComponent<MeshRenderer>().sharedMaterial = mat;
+    }
+
+    /// <summary>Siluet pohon hitam (trunk + 3 bola daun gepeng); skip kalau kena jalur. Return 1/0.</summary>
+    private static int SiluetAman(Transform parent, Vector3 pos, float tinggi, List<Vector3> jalur, Material mat, System.Random rand)
+    {
+        if (MinDistXZ(jalur, new Vector3(pos.x, 0f, pos.z)) < 1.8f) return 0;
+        var akar = new GameObject("Siluet");
+        akar.transform.SetParent(parent, true);
+        akar.transform.position = pos;
+        BuatBoxSihir(akar.transform, "Batang", pos + Vector3.up * (tinggi * 0.35f), new Vector3(0.15f, tinggi * 0.7f, 0.15f), mat);
+        float[] dia = { 1.6f, 1.15f, 0.65f };
+        float[] tgi = { 0.5f, 0.72f, 0.92f };
+        for (int i = 0; i < 3; i++)
+        {
+            var daun = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            daun.name = "Daun_" + i;
+            daun.transform.SetParent(akar.transform, true);
+            daun.transform.position = pos + Vector3.up * (tinggi * tgi[i]);
+            daun.transform.localScale = new Vector3(dia[i], dia[i] * 0.55f, dia[i]) * (0.9f + (float)rand.NextDouble() * 0.25f);
+            Object.DestroyImmediate(daun.GetComponent<Collider>());
+            daun.GetComponent<MeshRenderer>().sharedMaterial = mat;
+        }
+        return 1;
+    }
+
+    /// <summary>Kunang: core emissive + halo transparan (opsional) + DisplayAnimasi melayang.</summary>
+    private static void BuatKunang(Transform parent, string nama, Vector3 pos, float ukuran,
+                                   Material matCore, Material matHalo, System.Random rand)
+    {
+        var akar = new GameObject(nama);
+        akar.transform.SetParent(parent, true);
+        akar.transform.position = pos;
+
+        var core = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        core.name = "Core";
+        core.transform.SetParent(akar.transform, false);
+        core.transform.localScale = Vector3.one * ukuran;
+        Object.DestroyImmediate(core.GetComponent<Collider>());
+        core.GetComponent<MeshRenderer>().sharedMaterial = matCore;
+
+        if (matHalo != null)
+        {
+            var halo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            halo.name = "Halo";
+            halo.transform.SetParent(akar.transform, false);
+            halo.transform.localScale = Vector3.one * (ukuran * 3.1f);
+            Object.DestroyImmediate(halo.GetComponent<Collider>());
+            halo.GetComponent<MeshRenderer>().sharedMaterial = matHalo;
+        }
+
+        var da = akar.AddComponent<DisplayAnimasi>();
+        var so = new SerializedObject(da);
+        so.FindProperty("_mode").intValue = 1; // melayang
+        so.FindProperty("_jarakMelayang").floatValue = 0.25f + (float)rand.NextDouble() * 0.35f;
+        so.FindProperty("_kecepatanMelayang").floatValue = 0.18f + (float)rand.NextDouble() * 0.22f;
+        so.ApplyModifiedProperties();
+    }
+
+    /// <summary>Jamur glow: clone template + titik glow denyut di atas tudung. Return 1.</summary>
+    private static int BuatJamurGlow(Transform parent, string nama, Vector3 pos, GameObject template,
+                                     Material matGlow, System.Random rand)
+    {
+        float skala = 1.0f + (float)rand.NextDouble() * 0.8f;
+        var jamur = Object.Instantiate(template, parent);
+        jamur.name = nama;
+        jamur.transform.position = new Vector3(pos.x, template.transform.position.y, pos.z);
+        jamur.transform.rotation = Quaternion.Euler(0f, (float)rand.NextDouble() * 360f, 0f);
+        jamur.transform.localScale = template.transform.localScale * skala;
+        foreach (var col in jamur.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(col);
+        foreach (var mr in jamur.GetComponentsInChildren<MeshRenderer>(true)) mr.enabled = true; // template mungkin ke-bake
+
+        var glow = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        glow.name = "Glow";
+        glow.transform.SetParent(jamur.transform, true);
+        glow.transform.position = jamur.transform.position + Vector3.up * (0.45f * skala);
+        glow.transform.localScale = Vector3.one * 0.22f;
+        Object.DestroyImmediate(glow.GetComponent<Collider>());
+        glow.GetComponent<MeshRenderer>().sharedMaterial = matGlow;
+        var da = glow.AddComponent<DisplayAnimasi>();
+        var so = new SerializedObject(da);
+        so.FindProperty("_mode").intValue = 3; // denyut
+        so.FindProperty("_faktorDenyut").floatValue = 1.25f;
+        so.FindProperty("_kecepatanDenyut").floatValue = 0.12f;
+        so.ApplyModifiedProperties();
+        return 1;
+    }
+
+    /// <summary>Pita datar (sungai) sepanjang path — pola right-vector sama dengan MeshRel.</summary>
+    private static Mesh MeshPita(List<Vector3> path, float lebar, float yOff)
+    {
+        int n = path.Count;
+        var verts = new List<Vector3>();
+        var tris = new List<int>();
+        var rightv = new Vector3[n];
+        for (int i = 0; i < n; i++)
+        {
+            Vector3 t;
+            if (i == 0) t = path[1] - path[0];
+            else if (i == n - 1) t = path[n - 1] - path[n - 2];
+            else t = path[i + 1] - path[i - 1];
+            t.y = 0f;
+            if (t.sqrMagnitude < 1e-6f) t = Vector3.forward;
+            t.Normalize();
+            rightv[i] = new Vector3(t.z, 0f, -t.x);
+        }
+        AddStrip(verts, tris, path, rightv, 0f, lebar * 0.5f, yOff);
+        var mesh = new Mesh();
+        mesh.SetVertices(verts);
+        mesh.SetTriangles(tris, 0);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    /// <summary>Gapura kayu: 2 tiang + palang + papan TextMesh (anti-mirror: LookRotation arah laju) + 2 lentera cyan.</summary>
+    private static void BuatGapura(Transform parent, Vector3 pos, Vector3 arahLaju, string teks, Material matKayu)
+    {
+        var akar = new GameObject("Gapura_" + teks.Replace(" ", ""));
+        akar.transform.SetParent(parent, true);
+        akar.transform.position = pos;
+        akar.transform.rotation = Quaternion.LookRotation(arahLaju);
+        Vector3 kanan = akar.transform.right;
+
+        BuatBoxSihir(akar.transform, "Tiang_L", pos - kanan * 1.9f + Vector3.up * 1.6f, new Vector3(0.35f, 3.2f, 0.35f), matKayu);
+        BuatBoxSihir(akar.transform, "Tiang_R", pos + kanan * 1.9f + Vector3.up * 1.6f, new Vector3(0.35f, 3.2f, 0.35f), matKayu);
+        // palang & papan mengikuti orientasi gapura (bukan axis-aligned)
+        var palang = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        palang.name = "Palang";
+        palang.transform.SetParent(akar.transform, true);
+        palang.transform.position = pos + Vector3.up * 3.1f;
+        palang.transform.rotation = akar.transform.rotation;
+        palang.transform.localScale = new Vector3(4.2f, 0.4f, 0.4f);
+        Object.DestroyImmediate(palang.GetComponent<Collider>());
+        palang.GetComponent<MeshRenderer>().sharedMaterial = matKayu;
+
+        var matLentera = MatUnlit(new Color(0.3f, 0.95f, 1f));
+        BuatBoxSihir(akar.transform, "Lentera_L", pos - kanan * 1.9f + Vector3.up * 2.35f + arahLaju * -0.28f, new Vector3(0.22f, 0.3f, 0.22f), matLentera);
+        BuatBoxSihir(akar.transform, "Lentera_R", pos + kanan * 1.9f + Vector3.up * 2.35f + arahLaju * -0.28f, new Vector3(0.22f, 0.3f, 0.22f), matLentera);
+
+        // papan teks: pola anti-mirror — forward papan = arah laju kereta
+        var papan = new GameObject("PapanTeks");
+        papan.transform.SetParent(akar.transform, true);
+        papan.transform.position = pos + Vector3.up * 2.55f + arahLaju * -0.05f;
+        papan.transform.rotation = Quaternion.LookRotation(arahLaju);
+        var tm = papan.AddComponent<TextMesh>();
+        tm.text = teks;
+        tm.anchor = TextAnchor.MiddleCenter;
+        tm.alignment = TextAlignment.Center;
+        tm.fontSize = 48;
+        tm.characterSize = 0.06f;
+        tm.color = new Color(0.35f, 0.95f, 1f);
+        var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (font != null)
+        {
+            tm.font = font;
+            papan.GetComponent<MeshRenderer>().sharedMaterial = font.material;
+        }
     }
 
     // #####################################################################

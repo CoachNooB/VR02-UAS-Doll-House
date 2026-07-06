@@ -15,6 +15,13 @@ public class LampuFlicker : MonoBehaviour
     [SerializeField] private float _rentangKelip = 0.55f;    // simpangan ± dari dasar
     [SerializeField] private float _kecepatanNoise = 9f;     // laju sampling Perlin
 
+    /// <summary>Intensitas tengah kelip — bisa diubah runtime (dipakai ApiFlare).</summary>
+    public float IntensitasDasar
+    {
+        get { return _intensitasDasar; }
+        set { _intensitasDasar = value; }
+    }
+
     private float _seed; // offset acak supaya dua api tidak kelip serentak
 
     private void Awake()
