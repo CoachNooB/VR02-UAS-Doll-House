@@ -681,11 +681,14 @@ public static class WahanaRebuilder
         lampuGo.transform.position = posApi + Vector3.up * 0.9f;
         var lampu = lampuGo.AddComponent<Light>();
         lampu.type = LightType.Point;
-        lampu.color = new Color(1f, 0.55f, 0.25f);
-        lampu.intensity = 2.2f;
-        lampu.range = 9f;
+        lampu.color = new Color(1f, 0.52f, 0.2f);
+        lampu.intensity = 2.6f;
+        lampu.range = 12f;
         lampu.shadows = LightShadows.None;
-        lampuGo.AddComponent<LampuFlicker>(); // default = dasar 2.2, rentang 0.55, noise 9
+        var flick = lampuGo.AddComponent<LampuFlicker>();
+        var soFlick = new SerializedObject(flick);
+        soFlick.FindProperty("_intensitasDasar").floatValue = 2.6f; // base kelip = intensitas api
+        soFlick.ApplyModifiedProperties();
 
         // suara api (placeholder: BaseAmbience pitch rendah = gemuruh bara; 3D memudar-jarak)
         var clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/SFX/T7_SFX_BaseAmbience.ogg");
@@ -760,14 +763,22 @@ public static class WahanaRebuilder
             var l = shellLampu.GetComponent<Light>();
             if (l != null)
             {
-                l.color = new Color(0.55f, 0.65f, 1f);
-                l.intensity = 1.1f;
-                l.range = 20f;
+                l.color = new Color(0.45f, 0.6f, 1f);
+                l.intensity = 1.5f;   // key moonlight lebih kuat (dulu 1.1 -> flat)
+                l.range = 26f;        // liputi seluruh S1
             }
-            shellLampu.transform.position = new Vector3(38f, 5.2f, 17f);
-            sb.AppendLine("  LampuShell_S1 -> moonlight biru (1.1, r20, y5.2).");
+            shellLampu.transform.position = new Vector3(38f, 5.5f, 17f); // tinggi = rim dari atas
+            sb.AppendLine("  LampuShell_S1 -> moonlight biru (1.5, r26, y5.5).");
         }
         else sb.AppendLine("  (LampuShell_S1 tidak ketemu — moonlight dilewati)");
+
+        // batasi lampu pintu ke area gerbang (hindari overlap >4 lampu di picnic)
+        var pintuLampu = CariGameObject("LampuPintu_S1");
+        if (pintuLampu != null)
+        {
+            var lp = pintuLampu.GetComponent<Light>();
+            if (lp != null) lp.range = 8f;
+        }
 
         Debug.Log(sb.ToString());
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
@@ -953,7 +964,7 @@ public static class WahanaRebuilder
         {
             foreach (var t in teddySection.GetComponentsInChildren<Transform>(true))
             {
-                if (t.name != "Teddy_Family" && t.name != "Picnic_Set") continue;
+                if (t.name != "Teddy_Family" && t.name != "Picnic_Set" && t.name != "Forest_Animals") continue;
                 t.position = new Vector3(t.position.x, TINGGI_BUKIT, t.position.z);
                 nNaik++;
             }
@@ -1333,10 +1344,22 @@ public static class WahanaRebuilder
         }
         else sb.AppendLine("  (Kemah_Api tak ketemu — flare dilewati; jalankan menu 17 dulu)");
 
-        // ---------- (f) SuasanaZona teal masuk / restore keluar ----------
+        // ---------- (e2) lampu sihir cyan: taman jamur BENAR-BENAR menyinari sekitar ----------
+        var lampuSihirGo = new GameObject("LampuSihir_S1");
+        lampuSihirGo.transform.SetParent(root.transform, true);
+        lampuSihirGo.transform.position = new Vector3(37f, 1.6f, 11f);
+        var lsihir = lampuSihirGo.AddComponent<Light>();
+        lsihir.type = LightType.Point;
+        lsihir.color = new Color(0.3f, 0.9f, 1f);
+        lsihir.intensity = 1.7f;
+        lsihir.range = 12f;
+        lsihir.shadows = LightShadows.None;
+        sb.AppendLine("  LampuSihir_S1 cyan (1.7, r12) di taman jamur.");
+
+        // ---------- (f) SuasanaZona teal masuk / restore keluar (ambient lebih PEKAT = bayangan berwarna) ----------
         BuatSatuSuasana("GEN_Suasana_S1Masuk", new Vector3(28.6f, 1f, 21f), new Vector3(6f, 6f, 8f), 0,
-            new Color(0.02f, 0.08f, 0.09f), 8f, 40f,
-            new Color(0.03f, 0.1f, 0.11f), new Color(0.02f, 0.08f, 0.09f), new Color(0.01f, 0.05f, 0.06f), sb);
+            new Color(0.03f, 0.11f, 0.12f), 10f, 45f,
+            new Color(0.05f, 0.16f, 0.18f), new Color(0.04f, 0.13f, 0.15f), new Color(0.02f, 0.08f, 0.10f), sb);
         BuatSatuSuasana("GEN_Suasana_S1Keluar", new Vector3(42f, 1f, 7.6f), new Vector3(8f, 6f, 6f), 1,
             Color.black, 10f, 60f, Color.black, Color.black, Color.black, sb);
 
