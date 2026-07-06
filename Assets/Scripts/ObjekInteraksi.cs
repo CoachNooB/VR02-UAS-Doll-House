@@ -9,13 +9,15 @@ using UnityEngine;
 /// 4 = papan info gambar berikutnya, 5 = gambar sebelumnya, 6 = reset semua wahana,
 /// 7 = buka/tutup pintu (toggle) — pakai _pintuTarget,
 /// 8 = ambil tiket di mesin loket (GerbangTiket kebuka otomatis setelahnya),
-/// 9 = pilih cabang hutan S1 (tuas, kereta nyelip dekat beruang).
+/// 9 = pilih cabang hutan S1 (tuas, kereta nyelip dekat beruang),
+/// 10 = aksi kustom section — panggil IAksiInteraksi di GameObject yang sama
+///      (wind-up S2 / kotak musik S3 / ketuk kaca S4 / encore S5).
 /// Pastikan objek punya Collider supaya kena raycast.
 /// </summary>
 public class ObjekInteraksi : MonoBehaviour
 {
-    [Header("Mode (0 lokal,1 naik,2 mulai,3 kiri,4 next,5 prev,6 reset,7 pintu,8 tiket,9 kiri S1)")]
-    [Range(0, 9)]
+    [Header("Mode (0 lokal,1 naik,2 mulai,3 kiri,4 next,5 prev,6 reset,7 pintu,8 tiket,9 kiri S1,10 kustom)")]
+    [Range(0, 10)]
     [SerializeField] private int _mode = 0;
 
     [Header("Label prompt HUD (mis. \"Naik Kereta\" -> \"Tekan E untuk Naik Kereta\")")]
@@ -138,6 +140,15 @@ public class ObjekInteraksi : MonoBehaviour
         {
             if (_pintuTarget == null) { LogPeringatan("PintuAnimasi target null"); return; }
             _pintuTarget.TogglePintu();
+            return;
+        }
+
+        // Mode 10: aksi kustom section (script IAksiInteraksi di objek yang sama, tidak butuh hub)
+        if (_mode == 10)
+        {
+            IAksiInteraksi aksi = GetComponent<IAksiInteraksi>();
+            if (aksi == null) { LogPeringatan("IAksiInteraksi tidak ditemukan"); return; }
+            aksi.Jalankan();
             return;
         }
 

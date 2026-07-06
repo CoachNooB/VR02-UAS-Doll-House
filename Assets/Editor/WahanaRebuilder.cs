@@ -1561,7 +1561,7 @@ public static class WahanaRebuilder
     }
 
     /// <summary>TextMesh papan penunjuk (anti-mirror: forward = arah laju, teks kebaca dari sisi kereta datang).</summary>
-    private static void BuatTeksPapan(Transform parent, string nama, Vector3 pos, Vector3 arahLaju, string teks, Color warna)
+    internal static void BuatTeksPapan(Transform parent, string nama, Vector3 pos, Vector3 arahLaju, string teks, Color warna)
     {
         var go = new GameObject(nama);
         go.transform.SetParent(parent, true);
@@ -1802,7 +1802,7 @@ public static class WahanaRebuilder
         g.GetComponent<MeshRenderer>().sharedMaterial = mat;
     }
 
-    private static void BuatBoxSihir(Transform parent, string nama, Vector3 pos, Vector3 ukuran, Material mat)
+    internal static void BuatBoxSihir(Transform parent, string nama, Vector3 pos, Vector3 ukuran, Material mat)
     {
         var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
         g.name = nama;
@@ -1814,7 +1814,7 @@ public static class WahanaRebuilder
     }
 
     /// <summary>Box anak yang IKUT rotasi+posisi parent (local), beda dgn BuatBoxSihir (world axis-aligned).</summary>
-    private static void BuatBoxLokal(Transform parent, string nama, Vector3 localPos, Vector3 ukuran, Material mat)
+    internal static void BuatBoxLokal(Transform parent, string nama, Vector3 localPos, Vector3 ukuran, Material mat)
     {
         var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
         g.name = nama;
@@ -1827,7 +1827,7 @@ public static class WahanaRebuilder
     }
 
     /// <summary>Arah tangen rel (horizontal, ternormalisasi) di titik terdekat dari p pada polyline pts.</summary>
-    private static Vector3 RailDirDi(List<Vector3> pts, Vector3 p)
+    internal static Vector3 RailDirDi(List<Vector3> pts, Vector3 p)
     {
         int best = 0; float bd = float.MaxValue;
         for (int i = 0; i < pts.Count; i++)
@@ -1840,7 +1840,7 @@ public static class WahanaRebuilder
         return dir.sqrMagnitude > 1e-6f ? dir.normalized : Vector3.forward;
     }
 
-    private static GameObject BuatMeshObjek(Transform parent, string nama, Mesh mesh, Material mat)
+    internal static GameObject BuatMeshObjek(Transform parent, string nama, Mesh mesh, Material mat)
     {
         var g = new GameObject(nama);
         g.transform.SetParent(parent, true);
@@ -1853,7 +1853,7 @@ public static class WahanaRebuilder
     }
 
     /// <summary>Siluet pohon hitam (trunk + 3 bola daun gepeng); skip kalau kena jalur. Return 1/0.</summary>
-    private static int SiluetAman(Transform parent, Vector3 pos, float tinggi, List<Vector3> jalur, Material mat, System.Random rand)
+    internal static int SiluetAman(Transform parent, Vector3 pos, float tinggi, List<Vector3> jalur, Material mat, System.Random rand)
     {
         if (MinDistXZ(jalur, new Vector3(pos.x, 0f, pos.z)) < 1.8f) return 0;
         var akar = new GameObject("Siluet");
@@ -1876,7 +1876,7 @@ public static class WahanaRebuilder
     }
 
     /// <summary>Kunang: core emissive + halo transparan (opsional) + DisplayAnimasi melayang.</summary>
-    private static void BuatKunang(Transform parent, string nama, Vector3 pos, float ukuran,
+    internal static void BuatKunang(Transform parent, string nama, Vector3 pos, float ukuran,
                                    Material matCore, Material matHalo, bool pakaiTrail, Material matTrail,
                                    System.Random rand)
     {
@@ -1926,7 +1926,7 @@ public static class WahanaRebuilder
     }
 
     /// <summary>Jamur "mewah": mesh Lit+emission (berdimensi) + HALO aura menyelimuti cap. Return 1.</summary>
-    private static int BuatJamurGlow(Transform parent, string nama, Vector3 pos, GameObject template,
+    internal static int BuatJamurGlow(Transform parent, string nama, Vector3 pos, GameObject template,
                                      Material matGlow, Material matHalo, System.Random rand)
     {
         float skala = 1.2f + (float)rand.NextDouble() * 0.7f;
@@ -1967,7 +1967,7 @@ public static class WahanaRebuilder
     }
 
     /// <summary>Pita datar (sungai) sepanjang path — pola right-vector sama dengan MeshRel.</summary>
-    private static Mesh MeshPita(List<Vector3> path, float lebar, float yOff)
+    internal static Mesh MeshPita(List<Vector3> path, float lebar, float yOff)
     {
         int n = path.Count;
         var verts = new List<Vector3>();
@@ -1994,7 +1994,7 @@ public static class WahanaRebuilder
     }
 
     /// <summary>Gapura kayu: 2 tiang + palang + papan TextMesh (anti-mirror: LookRotation arah laju) + 2 lentera cyan.</summary>
-    private static void BuatGapura(Transform parent, Vector3 pos, Vector3 arahLaju, string teks, Material matKayu)
+    internal static void BuatGapura(Transform parent, Vector3 pos, Vector3 arahLaju, string teks, Material matKayu)
     {
         var akar = new GameObject("Gapura_" + teks.Replace(" ", ""));
         akar.transform.SetParent(parent, true);
@@ -2099,7 +2099,7 @@ public static class WahanaRebuilder
         return go;
     }
 
-    private static void HapusParent(string nama)
+    internal static void HapusParent(string nama)
     {
         var go = CariGameObject(nama);
         if (go != null) Object.DestroyImmediate(go);
@@ -2124,7 +2124,7 @@ public static class WahanaRebuilder
     //  HELPER: MATERIAL (URP Lit / Unlit)
     // #####################################################################
 
-    private static Material MatLit(Color c)
+    internal static Material MatLit(Color c)
     {
         var sh = Shader.Find("Universal Render Pipeline/Lit");
         if (sh == null) sh = Shader.Find("Standard");
@@ -2132,7 +2132,7 @@ public static class WahanaRebuilder
         return m;
     }
 
-    private static Material MatLitTransparan(Color c, float alpha)
+    internal static Material MatLitTransparan(Color c, float alpha)
     {
         var m = MatLit(new Color(c.r, c.g, c.b, alpha));
         // set surface Transparent (URP Lit)
@@ -2149,7 +2149,7 @@ public static class WahanaRebuilder
         return m;
     }
 
-    private static Material MatLitEmissive(Color c, float intensitas)
+    internal static Material MatLitEmissive(Color c, float intensitas)
     {
         var m = MatLit(c);
         intensitas = Mathf.Clamp(intensitas, 0f, 0.3f); // playbook: <=0.3
@@ -2159,7 +2159,7 @@ public static class WahanaRebuilder
         return m;
     }
 
-    private static Material MatUnlit(Color c)
+    internal static Material MatUnlit(Color c)
     {
         var sh = Shader.Find("Universal Render Pipeline/Unlit");
         if (sh == null) sh = Shader.Find("Unlit/Color");
@@ -2170,7 +2170,7 @@ public static class WahanaRebuilder
 
     /// <summary>URP Lit + EMISSION HDR: base gelap (kena cahaya = ada BENTUK/gradasi) + emisi
     /// glow yang mekar di Bloom. Untuk objek glow yang mau tetap berdimensi (jamur), bukan blob flat.</summary>
-    private static Material MatGlowLit(Color c, float emis)
+    internal static Material MatGlowLit(Color c, float emis)
     {
         var m = MatLit(new Color(c.r * 0.35f, c.g * 0.35f, c.b * 0.35f));
         m.EnableKeyword("_EMISSION");
@@ -2181,7 +2181,7 @@ public static class WahanaRebuilder
     }
 
     /// <summary>Unlit warna HDR (color*intensitas, komponen bisa &gt;1) supaya MEKAR di Bloom = efek "nyala".</summary>
-    private static Material MatUnlitHDR(Color c, float intensitas)
+    internal static Material MatUnlitHDR(Color c, float intensitas)
     {
         Color hdr = new Color(c.r * intensitas, c.g * intensitas, c.b * intensitas, c.a);
         var m = MatUnlit(c);
@@ -2200,7 +2200,7 @@ public static class WahanaRebuilder
         return m;
     }
 
-    private static void SimpanMaterialAsset(Material m, string namaFile)
+    internal static void SimpanMaterialAsset(Material m, string namaFile)
     {
         string path = GenDir + "/" + namaFile + ".mat";
         AssetDatabase.CreateAsset(m, path);
@@ -3142,7 +3142,7 @@ public static class WahanaRebuilder
         sb.AppendLine("  Bank tanah (mound kubur tube): " + idx + " segmen.");
     }
 
-    private static GameObject BuatBoxRot(Transform parent, string nama, Vector3 pos, Vector3 skala,
+    internal static GameObject BuatBoxRot(Transform parent, string nama, Vector3 pos, Vector3 skala,
                                          Quaternion rot, Material mat)
     {
         var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -3308,7 +3308,7 @@ public static class WahanaRebuilder
     //  MENU 5 HELPER: RAIL / PAGAR / SHELL TEMATIK / PANGGUNG / BINTANG
     // #####################################################################
 
-    private static int BuatRelRibbon(Transform parent, List<Vector3> pts, Material mat,
+    internal static int BuatRelRibbon(Transform parent, List<Vector3> pts, Material mat,
                                      bool closed, string label)
     {
         if (pts.Count < 2) return 0;
@@ -3520,7 +3520,7 @@ public static class WahanaRebuilder
 
     /// <summary>Titik acak dalam ruangan yang JAUH dari jalur kereta (retry, ambil yang
     /// terjauh) supaya prop dekorasi tak nongol di atas rel -> kereta tak nembus prop.</summary>
-    private static Vector3 TitikAcakAman(WahanaLayout.Ruangan r, System.Random rand, float margin,
+    internal static Vector3 TitikAcakAman(WahanaLayout.Ruangan r, System.Random rand, float margin,
                                          List<Vector3> pts, float minJarak)
     {
         Vector3 best = TitikAcakRuangan(r, rand, margin);
@@ -3571,7 +3571,7 @@ public static class WahanaRebuilder
     /// Point light di tiap bukaan PintuKereta_Sx supaya doorway kelihatan terang & dramatis
     /// pas dilewati (S3/S4/S5 ruangannya gelap -> pintu tadinya remang). Warna per-tema.
     /// </summary>
-    private static void BuatLampuPintu(Transform parent, WahanaLayout.Ruangan[] ruangan,
+    internal static void BuatLampuPintu(Transform parent, WahanaLayout.Ruangan[] ruangan,
                                        System.Text.StringBuilder sb)
     {
         var root = new GameObject("LampuPintu");
@@ -3619,7 +3619,7 @@ public static class WahanaRebuilder
     //  HELPER: PRIMITIVE
     // #####################################################################
 
-    private static GameObject BuatBox(Transform parent, string nama, Vector3 pos, Vector3 skala, Material mat)
+    internal static GameObject BuatBox(Transform parent, string nama, Vector3 pos, Vector3 skala, Material mat)
     {
         var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
         go.name = nama;

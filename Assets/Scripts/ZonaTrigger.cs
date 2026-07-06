@@ -90,13 +90,6 @@ public class ZonaTrigger : MonoBehaviour
         // Guard: hanya bereaksi ke tag yang ditentukan (collider atau Rigidbody-nya)
         if (!CocokTag(other)) return;
 
-        // DIAGNOSA SEMENTARA (pintu gua laut): pastikan zona kepicu & _pintu ketemu.
-        if (_mode == 1 && transform.parent != null && transform.parent.name.Contains("Gua"))
-        {
-            Debug.Log("[DIAG-GUA] Zona kepicu oleh '" + other.name + "' | _pintu=" +
-                      (_pintu != null ? "OK" : "NULL"));
-        }
-
         // Guard: zona sekali pakai yang sudah kepicu tidak jalan lagi
         if (_hanyaSekali && _sudahKepicu) return;
         _sudahKepicu = true;
