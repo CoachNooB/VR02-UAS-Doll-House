@@ -40,6 +40,9 @@ public class KeretaMover : MonoBehaviour
     [SerializeField] private int _indexBerhenti = 39;         // WP tempat kereta berhenti nonton show
     [SerializeField] private float _durasiBerhenti = 14f;     // lama berhenti (detik)
 
+    [Header("Berhenti di percabangan S1 (menunggu pilihan tuas)")]
+    [SerializeField] private int _indexBerhentiCabangS1 = 0;  // WP berhenti menunggu pilihan jalur (0 = nonaktif)
+
     [Header("Naik / turun player")]
     [SerializeField] private Transform _kursi;        // tempat duduk player (fallback: child "Kursi")
     [SerializeField] private Transform _titikTurun;   // posisi player setelah ride (fallback: cari "TitikTurun")
@@ -74,6 +77,9 @@ public class KeretaMover : MonoBehaviour
     private GameObject titikNaikObjek;    // penunjuk "Naik Kereta" (marker+collider), disembunyikan saat duduk
     private GameObject labelNaikObjek;    // label melayang "E - Naik Kereta"
     private Collider tuasStartCollider;   // collider tuas berangkat: hanya aktif saat duduk & belum jalan
+    private Collider tuasCabangCollider;  // collider tuas cabang pinggir rel: aktif hanya saat menunggu pilihan
+    private bool menungguPilihan;         // true = berhenti di depan cabang S1, tunggu E (tuas) / W (berangkat)
+    private bool sudahBerhentiCabang;     // true = stop cabang sudah terjadi di ride ini (sekali per ride)
     private PusatWahana hub;              // pusat referensi wahana (StatusUI, Ringkasan, Fade)
 
     /// <summary>
@@ -204,6 +210,19 @@ public class KeretaMover : MonoBehaviour
             tuasStartCollider.enabled = false;
         }
 
+        // Tuas cabang S1 di pinggir rel (di LUAR hierarki kereta) -> cari by name,
+        // pola gating sama dengan tuas berangkat: mati dulu, nyala saat kereta
+        // berhenti menunggu pilihan, mati lagi setelah memilih / berangkat / reset.
+        GameObject objTuasCabang = GameObject.Find("TuasPilihanS1");
+        if (objTuasCabang != null)
+        {
+            tuasCabangCollider = objTuasCabang.GetComponent<Collider>();
+        }
+        if (tuasCabangCollider != null)
+        {
+            tuasCabangCollider.enabled = false;
+        }
+
         totalRute = _jumlahUtama;
     }
 
@@ -243,6 +262,31 @@ public class KeretaMover : MonoBehaviour
                 KirimStatus("Kereta jalan lagi!");
             }
             return;
+        }
+
+        // Berhenti di depan percabangan S1: MENUNGGU INPUT, bukan timer.
+        // E di tuas pinggir rel = pilih Jalur Beruang (PilihCabangS1), W = berangkat
+        // (jalur sesuai pilihan; tanpa tuas = lurus jalur utama).
+        if (menungguPilihan)
+        {
+            if (Input.GetKeyDown(KeyCode.W))
+            {
+                menungguPilihan = false;
+                if (tuasCabangCollider != null)
+                {
+                    tuasCabangCollider.enabled = false; // window pilihan ditutup
+                }
+                kecepatanSaat = _kecepatanNormal; // W-tap tunggal langsung berangkat (pola MulaiJalan)
+                LanjutWaypoint();
+                if (_suaraJalan != null)
+                {
+                    _suaraJalan.Play();
+                }
+                KirimStatus(lewatKiriS1
+                    ? "<color=yellow>Berangkat — belok ke Jalur Beruang!</color>"
+                    : "Berangkat — lanjut jalur utama.");
+            }
+            return; // W/S ramp & MoveTowards tidak jalan selama menunggu; S otomatis no-op
         }
 
         // Pilih array rute yang aktif (utama, cabang S2, atau cabang hutan S1).
@@ -336,6 +380,27 @@ public class KeretaMover : MonoBehaviour
         jumlahDilewati++;
         LaporProgress();
 
+        // Berhenti SEKALI di depan percabangan S1 menunggu pilihan (tuas pinggir rel).
+        // Dicek sebelum stop S3 (index stop cabang jauh lebih awal di rute). Collider
+        // tuas di-gate, jadi normalnya pilihan belum bisa ditarik sebelum berhenti di sini.
+        if (!diJalurKiri && !diJalurKiriS1 && _indexBerhentiCabangS1 > 0
+            && indexTujuan == _indexBerhentiCabangS1 && !sudahBerhentiCabang)
+        {
+            sudahBerhentiCabang = true;
+            menungguPilihan = true;
+            kecepatanSaat = 0f;
+            if (_suaraJalan != null)
+            {
+                _suaraJalan.Stop();
+            }
+            if (tuasCabangCollider != null)
+            {
+                tuasCabangCollider.enabled = true; // window pilihan dibuka
+            }
+            KirimStatus("<color=yellow>Percabangan!</color> Tarik tuas (E) = Jalur Beruang, W = lanjut lurus.");
+            return; // LanjutWaypoint dipanggil saat player menekan W
+        }
+
         // Sampai stasiun S3 (index gabung < index berhenti, jadi dua rute sama-sama kena):
         // Sequence show dipicu ZonaTrigger terpisah, di sini kereta cuma berhenti.
         if (!diJalurKiri && !diJalurKiriS1 && indexTujuan == _indexBerhenti)
@@ -400,7 +465,7 @@ public class KeretaMover : MonoBehaviour
             int diskipS1 = _indexGabungS1 - _indexCabangS1 - 1;
             totalRute = _jumlahUtama - diskipS1 + _jumlahKiriS1;
 
-            KirimStatus("<color=yellow>Jalur kiri hutan — dekat beruang!</color>");
+            KirimStatus("<color=yellow>Jalur Beruang — dekat beruang!</color>");
             return;
         }
 
@@ -565,6 +630,8 @@ public class KeretaMover : MonoBehaviour
         diJalurKiri = false;
         diJalurKiriS1 = false;
         lewatKiriS1 = false;
+        menungguPilihan = false;
+        sudahBerhentiCabang = false; // stop percabangan aktif lagi tiap ride baru
         timerBerhenti = 0f;
         indexTujuan = 1;          // kereta parkir di WP_0, target pertama WP_1
         jumlahDilewati = 0;
@@ -584,6 +651,12 @@ public class KeretaMover : MonoBehaviour
         if (tuasStartCollider != null)
         {
             tuasStartCollider.enabled = false;
+        }
+
+        // Tuas cabang juga dipastikan mati sampai kereta berhenti di percabangan.
+        if (tuasCabangCollider != null)
+        {
+            tuasCabangCollider.enabled = false;
         }
 
         if (_suaraJalan != null)
@@ -633,7 +706,16 @@ public class KeretaMover : MonoBehaviour
         }
 
         lewatKiriS1 = true;
-        KirimStatus("<color=yellow>Jalur kiri hutan dipilih — beruang menanti!</color>");
+
+        // Tuas terkunci setelah memilih: sekali tarik per pemberhentian.
+        if (tuasCabangCollider != null)
+        {
+            tuasCabangCollider.enabled = false;
+        }
+
+        KirimStatus(menungguPilihan
+            ? "<color=yellow>Jalur Beruang dipilih!</color> Tekan W untuk berangkat."
+            : "<color=yellow>Jalur Beruang dipilih — beruang menanti!</color>");
     }
 
     /// <summary>Zona lambat: kereta pelan supaya penumpang bisa lihat display.</summary>
@@ -732,6 +814,8 @@ public class KeretaMover : MonoBehaviour
         lewatKiri = false;
         diJalurKiriS1 = false;
         lewatKiriS1 = false;
+        menungguPilihan = false;
+        sudahBerhentiCabang = false;
         pelanKarenaZona = false;
         timerBerhenti = 0f;
         jumlahDilewati = 0;
@@ -742,6 +826,12 @@ public class KeretaMover : MonoBehaviour
         if (_suaraJalan != null)
         {
             _suaraJalan.Stop();
+        }
+
+        // Tuas cabang kembali non-interaktif sampai stop percabangan ride berikutnya.
+        if (tuasCabangCollider != null)
+        {
+            tuasCabangCollider.enabled = false;
         }
 
         // Parkir lagi di WP_0, badan kereta menghadap WP_1.

@@ -1459,6 +1459,331 @@ public static class WahanaRebuilder
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
     }
 
+    // #####################################################################
+    //  MENU 22: TUAS CABANG S1 PINGGIR REL
+    //  Pindahkan tuas "Jalur Beruang" dari badan kereta ke pinggir rel di depan
+    //  titik cabang + set _indexBerhentiCabangS1 (kereta berhenti menunggu pilihan,
+    //  dua rel terlihat sebelum memilih). Idempotent.
+    // #####################################################################
+    [MenuItem("Tools/Wahana/22 S1 Tuas Cabang Pinggir Rel")]
+    public static void TuasCabangPinggirRel()
+    {
+        var sb = new System.Text.StringBuilder("[Wahana] 22 S1 Tuas Cabang Pinggir Rel:\n");
+
+        var keretaGo = CariGameObject("Kereta");
+        var kereta = keretaGo != null ? keretaGo.GetComponent<KeretaMover>() : null;
+        var jalurGo = CariGameObject("JalurUtama");
+        if (kereta == null || jalurGo == null)
+        {
+            Debug.LogError("[Wahana] Kereta / JalurUtama tidak ditemukan — menu 22 batal.");
+            return;
+        }
+
+        var so = new SerializedObject(kereta);
+        int idxCabang = so.FindProperty("_indexCabangS1").intValue;
+        if (idxCabang <= 4)
+        {
+            Debug.LogError("[Wahana] _indexCabangS1=" + idxCabang + " — jalankan menu 7 Cabang S1 dulu. Menu 22 batal.");
+            return;
+        }
+
+        int idxStop = idxCabang - 4; // ~2 m sebelum split (spacing WP 0.5), masih segmen lurus
+        Transform wpStop = jalurGo.transform.Find("WP_" + idxStop);
+        Transform wpNext = jalurGo.transform.Find("WP_" + (idxStop + 1));
+        if (wpStop == null || wpNext == null)
+        {
+            Debug.LogError("[Wahana] WP_" + idxStop + " / WP_" + (idxStop + 1) + " tidak ada — menu 22 batal.");
+            return;
+        }
+
+        // Idempotent: buang rakitan lama + SEMUA tuas lama (termasuk yang nempel di kereta).
+        HapusParent("GEN_TuasCabang_S1");
+        for (var sisa = CariGameObject("TuasPilihanS1"); sisa != null; sisa = CariGameObject("TuasPilihanS1"))
+        {
+            Object.DestroyImmediate(sisa);
+        }
+
+        // Frame lokal di titik berhenti: dir = arah laju (≈ timur), kanan = selatan = sisi cabang.
+        Vector3 dir = wpNext.position - wpStop.position;
+        dir.y = 0f;
+        dir.Normalize();
+        Vector3 kanan = Vector3.Cross(Vector3.up, dir);
+        Vector3 anchor = wpStop.position;
+        anchor.y = -0.05f; // top tanah (YGround)
+
+        var root = new GameObject("GEN_TuasCabang_S1");
+
+        Material matBatu = MatLit(new Color(0.28f, 0.28f, 0.30f));
+        Material matKayu = MatLit(new Color(0.30f, 0.22f, 0.14f));
+        // Gagang NON-emissive: highlight ObjekInteraksi menimpa _EmissionColor
+        // (emissive bawaan bakal dimatikan permanen begitu tuas selesai dilihat).
+        Material matGagang = MatLit(new Color(1f, 0.62f, 0.18f));
+
+        Vector3 posDasar = anchor + kanan * 1.7f + dir * 0.2f;
+        var dasar = BuatBox(root.transform, "DasarTuas", posDasar + Vector3.up * 0.18f, new Vector3(0.7f, 0.35f, 0.7f), matBatu);
+        var tiang = BuatBox(root.transform, "TiangTuas", posDasar + Vector3.up * 0.75f, new Vector3(0.12f, 0.85f, 0.12f), matKayu);
+
+        // Handle interaksi: nama TETAP "TuasPilihanS1" (KeretaMover.Awake auto-find by name,
+        // collider di-gate: hanya aktif saat kereta berhenti menunggu pilihan).
+        var handle = BuatBox(root.transform, "TuasPilihanS1", posDasar + Vector3.up * 1.35f, new Vector3(0.15f, 0.6f, 0.15f), matGagang);
+        handle.layer = 7; // layer raycast interaksi
+        handle.transform.rotation = Quaternion.LookRotation(dir) * Quaternion.Euler(-20f, 0f, 0f); // condong ke kereta datang
+        var oi = handle.AddComponent<ObjekInteraksi>();
+        var soOi = new SerializedObject(oi);
+        soOi.FindProperty("_mode").intValue = 9;
+        soOi.FindProperty("_labelInteraksi").stringValue = "Jalur Beruang";
+        soOi.ApplyModifiedProperties();
+
+        // Papan penunjuk dua arah menghadap kereta datang (anti-mirror pola BuatGapura).
+        // Pembaca menghadap timur: kanan pembaca = selatan = arah cabang beruang.
+        Vector3 posPapan = anchor + kanan * 1.9f + dir * 0.9f;
+        var tiangPapan = BuatBox(root.transform, "TiangPapan", posPapan + Vector3.up * 0.9f, new Vector3(0.12f, 1.8f, 0.12f), matKayu);
+        var papan = BuatBox(root.transform, "PapanArah", posPapan + Vector3.up * 1.6f, new Vector3(1.9f, 0.8f, 0.06f), matKayu);
+        papan.transform.rotation = Quaternion.LookRotation(dir);
+        BuatTeksPapan(root.transform, "TeksBeruang", posPapan + Vector3.up * 1.78f - dir * 0.06f, dir, "JALUR BERUANG >", new Color(1f, 0.75f, 0.35f));
+        BuatTeksPapan(root.transform, "TeksUtama", posPapan + Vector3.up * 1.44f - dir * 0.06f, dir, "< JALUR UTAMA", new Color(0.35f, 0.95f, 1f));
+
+        // Aksen glow bloom terpisah dari gagang (lentera kecil, pola gapura).
+        BuatBoxSihir(root.transform, "LampuTuas", posPapan + Vector3.up * 2.0f, new Vector3(0.16f, 0.16f, 0.16f), MatUnlitHDR(new Color(0.3f, 0.95f, 1f), 2.6f));
+
+        // Static batch untuk yang diam; gagang & teks TIDAK (pop-scale/highlight runtime).
+        GameObjectUtility.SetStaticEditorFlags(dasar, StaticEditorFlags.BatchingStatic);
+        GameObjectUtility.SetStaticEditorFlags(tiang, StaticEditorFlags.BatchingStatic);
+        GameObjectUtility.SetStaticEditorFlags(tiangPapan, StaticEditorFlags.BatchingStatic);
+        GameObjectUtility.SetStaticEditorFlags(papan, StaticEditorFlags.BatchingStatic);
+
+        so.FindProperty("_indexBerhentiCabangS1").intValue = idxStop;
+        so.ApplyModifiedProperties();
+
+        sb.AppendLine("  Stop pilihan di WP_" + idxStop + " " + F(wpStop.position) + "; tuas di " + F(posDasar) + ".");
+        Debug.Log(sb.ToString());
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+    }
+
+    /// <summary>TextMesh papan penunjuk (anti-mirror: forward = arah laju, teks kebaca dari sisi kereta datang).</summary>
+    private static void BuatTeksPapan(Transform parent, string nama, Vector3 pos, Vector3 arahLaju, string teks, Color warna)
+    {
+        var go = new GameObject(nama);
+        go.transform.SetParent(parent, true);
+        go.transform.position = pos;
+        go.transform.rotation = Quaternion.LookRotation(arahLaju);
+        var tm = go.AddComponent<TextMesh>();
+        tm.text = teks;
+        tm.anchor = TextAnchor.MiddleCenter;
+        tm.alignment = TextAlignment.Center;
+        tm.fontSize = 44;
+        tm.characterSize = 0.045f;
+        tm.color = warna;
+        var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (font != null)
+        {
+            tm.font = font;
+            go.GetComponent<MeshRenderer>().sharedMaterial = font.material;
+        }
+    }
+
+    // #####################################################################
+    //  MENU 23 v3: GERBANG, PALKA & TUTUP GUA LAUT
+    //  Rombak total entrance "GUA LAUT DALAM":
+    //  (a) SATU tulisan — teks lama TMP `PapanPortal` DIHAPUS (bukan cuma disable);
+    //  (b) PALKA REBAH (pintu tanah tidur) ganti pintu berdiri — panel PIPIH (thin-Y)
+    //      warna tanah menggeser ke samping (reuse Pintu.controller) buka lubang descent;
+    //  (c) TUTUP PIT PENUH — isi seluruh celah ground MINUS lubang palka → spiral
+    //      ke-atap, void hilang;  (d) CAUSEWAY tanah di bawah rel approach → rel tak
+    //      melayang, berasa "masuk ke dalam tanah";  (e) trigger BULLETPROOF: zona
+    //      besar overlap SuasanaZona + `_pintu` di-set EKSPLISIT (+ Debug.Log diagnosa
+    //      di ZonaTrigger). Sizing visual DITUNE iteratif. Idempotent.
+    // #####################################################################
+    [MenuItem("Tools/Wahana/23 Gerbang Gua Laut")]
+    public static void GerbangGuaLaut()
+    {
+        var sb = new System.Text.StringBuilder("[Wahana] 23 Gerbang, Palka & Tutup Gua Laut:\n");
+
+        var jalurGo = CariGameObject("JalurUtama");
+        if (jalurGo == null)
+        {
+            Debug.LogError("[Wahana] JalurUtama tidak ditemukan — menu 23 batal.");
+            return;
+        }
+
+        Transform wpA = jalurGo.transform.Find("WP_374");
+        Transform wpB = jalurGo.transform.Find("WP_380");
+        if (wpA == null || wpB == null)
+        {
+            Debug.LogError("[Wahana] WP_374/380 tidak ada — menu 23 batal.");
+            return;
+        }
+
+        var tmplDoor = CariGameObject("PintuKereta_S4"); // template pintu yang animatornya jalan
+        if (tmplDoor == null)
+        {
+            Debug.LogError("[Wahana] PintuKereta_S4 (template pintu) tak ketemu — menu 23 batal.");
+            return;
+        }
+
+        Vector3 arahLaju = wpB.position - wpA.position;
+        arahLaju.y = 0f;
+        arahLaju.Normalize();
+        Quaternion rotArah = Quaternion.LookRotation(arahLaju);
+
+        // Titik palka = tempat rel menembus permukaan (Y≈0), di sekitar WP_389 (-22.5,-45.3).
+        Vector3 dive = new Vector3(-22.5f, 0f, -45.3f);
+
+        // Material tanah (share dari Tanah_1 supaya warna PAS) + glow cyan aksen.
+        Material matTanah = MatLit(new Color(0.10f, 0.11f, 0.13f));
+        var t1 = CariGameObject("Tanah_1");
+        if (t1 != null) { var mrt = t1.GetComponent<MeshRenderer>(); if (mrt != null && mrt.sharedMaterial != null) matTanah = mrt.sharedMaterial; }
+
+        // Idempotent.
+        HapusParent("PintuGuaLaut");
+        HapusParent("GEN_GerbangGua_S4");
+
+        // Portal LAMA (Tiang_L/R + Ambang + BlokPlayer) sudah ter-BAKE ke mesh gabungan GABUNG
+        // (menu 14, waktu masih aktif) → SetActive(false)/hapus objek TAK menghilangkan render.
+        // DELETE seluruh Portal (pit sudah ketutup lid → BlokPlayer tak perlu), lalu REBAKE
+        // GEN_Tunnel supaya portal lama hilang dari mesh gabungan.
+        bool perluRebake = false;
+        var portalGo = CariGameObject("Portal");
+        if (portalGo != null) { Object.DestroyImmediate(portalGo); perluRebake = true; }
+
+        var genTun = CariGameObject("GEN_Tunnel");
+        if (genTun != null)
+        {
+            // Selalu hapus mesh gabungan TEKS lama (GABUNG_*_LiberationSans = teks gua, terverifikasi).
+            for (int i = genTun.transform.childCount - 1; i >= 0; i--)
+            {
+                var c = genTun.transform.GetChild(i);
+                if (c.name.StartsWith("GABUNG_") && c.name.Contains("LiberationSans"))
+                    Object.DestroyImmediate(c.gameObject);
+            }
+            // Rebake GEN_Tunnel HANYA saat Portal baru dihapus (operasi berat). GabungMeshStatis
+            // skip objek !activeInHierarchy → Tiang/Ambang (kalau masih ada & inactive) + Portal
+            // yang dihapus EXCLUDED; tunnel/gua (GameObject aktif, renderer-off) ikut re-bake benar.
+            if (perluRebake)
+            {
+                for (int i = genTun.transform.childCount - 1; i >= 0; i--)
+                {
+                    var c = genTun.transform.GetChild(i);
+                    if (c.name.StartsWith("GABUNG_")) Object.DestroyImmediate(c.gameObject);
+                }
+                foreach (var mr in genTun.GetComponentsInChildren<MeshRenderer>(true))
+                    if (mr.gameObject.activeInHierarchy) mr.enabled = true;
+                int nre = TemenDresser.GabungMeshStatis(genTun.transform, "GEN_Tunnel", new HashSet<string>());
+                sb.AppendLine("  Rebake GEN_Tunnel: " + nre + " renderer digabung (portal lama dibuang).");
+            }
+        }
+
+        var root = new GameObject("GEN_GerbangGua_S4");
+
+        // Bukaan palka (axis-aligned): X[-24.75,-20.25] (4.5) × Z[-48.3,-42.3] (6), center dive.
+        float opX0 = -24.75f, opX1 = -20.25f, opZ0 = -48.3f, opZ1 = -42.3f;
+
+        // ---- (c) TUTUP PIT PENUH: isi celah X[-30,-14]×Z[-72,-29] MINUS bukaan palka ----
+        Material matStatik = matTanah;
+        GameObject lidS = BuatBox(root.transform, "LidPit_Selatan", new Vector3(-22f, -0.05f, (-72f + opZ0) * 0.5f), new Vector3(16f, 0.2f, (opZ0 - (-72f))), matStatik);
+        GameObject lidU = BuatBox(root.transform, "LidPit_Utara", new Vector3(-22f, -0.05f, (opZ1 + (-29f)) * 0.5f), new Vector3(16f, 0.2f, ((-29f) - opZ1)), matStatik);
+        GameObject lidB = BuatBox(root.transform, "LidPit_Barat", new Vector3(((-30f) + opX0) * 0.5f, -0.05f, (opZ0 + opZ1) * 0.5f), new Vector3((opX0 - (-30f)), 0.2f, (opZ1 - opZ0)), matStatik);
+        GameObject lidT = BuatBox(root.transform, "LidPit_Timur", new Vector3((opX1 + (-14f)) * 0.5f, -0.05f, (opZ0 + opZ1) * 0.5f), new Vector3(((-14f) - opX1), 0.2f, (opZ1 - opZ0)), matStatik);
+        foreach (var g in new[] { lidS, lidU, lidB, lidT }) GameObjectUtility.SetStaticEditorFlags(g, StaticEditorFlags.BatchingStatic);
+
+        // ---- (d) RAMP REL: box FLAT tipis di bawah rel approach (WP_377..389), top pas rel Y →
+        //  rel tak melayang. Box datar overlap = permukaan ramp mulus (BUKAN kubus tinggi/causeway). ----
+        var ramp = new GameObject("RampRel");
+        ramp.transform.SetParent(root.transform, true);
+        for (int i = 377; i <= 389; i++)
+        {
+            var wp = jalurGo.transform.Find("WP_" + i);
+            if (wp == null) continue;
+            var box = BuatBox(ramp.transform, "Ramp_" + i,
+                new Vector3(wp.position.x, wp.position.y - 0.15f, wp.position.z), new Vector3(4f, 0.3f, 4f), matTanah);
+            GameObjectUtility.SetStaticEditorFlags(box, StaticEditorFlags.BatchingStatic);
+        }
+
+        // ---- (b) PALKA REBAH: salinan pintu (Animator jalan), panel PIPIH, geser samping ----
+        var door = Object.Instantiate(tmplDoor);
+        door.name = "PintuGuaLaut";
+        door.transform.SetParent(root.transform, true);
+        door.transform.SetPositionAndRotation(new Vector3(dive.x, 0.25f, dive.z), Quaternion.identity); // rebah, nongol dikit di atas lid
+        door.SetActive(true);
+
+        var pintuAnim = door.GetComponent<PintuAnimasi>();
+
+        var doorT = door.transform.Find("Door_Transform");
+        var panelT = doorT != null ? doorT.Find("PanelPintu") : null;
+        if (panelT != null)
+        {
+            panelT.localPosition = Vector3.zero;
+            panelT.localScale = new Vector3(4.5f, 0.3f, 6f); // PIPIH (thin-Y) = pintu tanah tidur; X4.5<geser4.2 ~clear
+            var mr = panelT.GetComponent<MeshRenderer>();
+            if (mr != null) mr.sharedMaterial = matTanah;
+            // Border glow cyan MENGELILINGI tepi atas palka (4 garis) biar JELAS itu pintu yang
+            // menggeser. Child Door_Transform → ikut geser saat palka buka. Y0.18 = permukaan atas.
+            Material matBorder = MatUnlitHDR(new Color(0.25f, 0.9f, 1f), 3.5f);
+            BuatBoxLokal(doorT, "GarisGlow_Kiri", new Vector3(-2.2f, 0.18f, 0f), new Vector3(0.18f, 0.1f, 6f), matBorder);
+            BuatBoxLokal(doorT, "GarisGlow_Kanan", new Vector3(2.2f, 0.18f, 0f), new Vector3(0.18f, 0.1f, 6f), matBorder);
+            BuatBoxLokal(doorT, "GarisGlow_Depan", new Vector3(0f, 0.18f, -2.95f), new Vector3(4.5f, 0.1f, 0.18f), matBorder);
+            BuatBoxLokal(doorT, "GarisGlow_Belakang", new Vector3(0f, 0.18f, 2.95f), new Vector3(4.5f, 0.1f, 0.18f), matBorder);
+        }
+        else
+        {
+            Debug.LogWarning("[Wahana] Door_Transform/PanelPintu tak ketemu di salinan — palka tak di-reskin.");
+        }
+
+        // (e) Trigger BULLETPROOF: box BESAR axis-aligned overlap SuasanaZona (-18.2,-47.9)
+        // + set _pintu EKSPLISIT (jangan andalkan auto-find yang mungkin gagal).
+        var zpT = door.transform.Find("Z_Pintu");
+        if (zpT != null)
+        {
+            // world center ~(-19.5,1,-47) → local (root identity di dive): kurangi posisi root.
+            zpT.position = new Vector3(-19.5f, 1f, -47f);
+            zpT.rotation = Quaternion.identity;
+            zpT.localScale = Vector3.one;
+            var bc = zpT.GetComponent<BoxCollider>();
+            if (bc != null) { bc.isTrigger = true; bc.center = Vector3.zero; bc.size = new Vector3(15f, 6f, 15f); }
+            var zt = zpT.GetComponent<ZonaTrigger>();
+            if (zt != null && pintuAnim != null)
+            {
+                var soZt = new SerializedObject(zt);
+                soZt.FindProperty("_tagPemicu").stringValue = "Kereta";
+                soZt.FindProperty("_mode").intValue = 1;
+                soZt.FindProperty("_pintu").objectReferenceValue = pintuAnim; // EKSPLISIT
+                soZt.ApplyModifiedProperties();
+            }
+        }
+
+        // ---- (a) SATU teks "GUA LAUT DALAM" di tiang penanda dekat palka, hadap approach ----
+        Vector3 signPos = dive + arahLaju * -1.5f; // sedikit ke sisi approach dari palka
+        var tiangSign = BuatBox(root.transform, "TiangPenanda", new Vector3(signPos.x, 1.4f, signPos.z), new Vector3(0.25f, 2.8f, 0.25f), matTanah);
+        GameObjectUtility.SetStaticEditorFlags(tiangSign, StaticEditorFlags.BatchingStatic);
+        var teks = new GameObject("TeksGuaLaut");
+        teks.transform.SetParent(root.transform, true);
+        teks.transform.SetPositionAndRotation(new Vector3(signPos.x, 3.1f, signPos.z), rotArah);
+        var tm = teks.AddComponent<TextMesh>();
+        tm.text = "GUA LAUT DALAM";
+        tm.anchor = TextAnchor.MiddleCenter;
+        tm.alignment = TextAlignment.Center;
+        tm.fontSize = 48;
+        tm.characterSize = 0.07f;
+        tm.color = new Color(0.4f, 0.85f, 1f);
+        var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (font != null) { tm.font = font; teks.GetComponent<MeshRenderer>().sharedMaterial = font.material; }
+
+        // ---- Lampu cyan di mulut palka ----
+        var lg = new GameObject("LampuPintuGua");
+        lg.transform.SetParent(root.transform, true);
+        lg.transform.position = new Vector3(dive.x, 2f, dive.z);
+        var lampu = lg.AddComponent<Light>();
+        lampu.type = LightType.Point;
+        lampu.color = new Color(0.4f, 0.85f, 1f);
+        lampu.intensity = 4f;
+        lampu.range = 12f;
+        lampu.shadows = LightShadows.None;
+
+        sb.AppendLine("  Palka rebah di " + F(dive) + " (panel pipih geser samping); pit ditutup penuh minus bukaan; causeway rel; teks tunggal; _pintu eksplisit=" + (pintuAnim != null));
+        Debug.Log(sb.ToString());
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+    }
+
     // ---- helper Hutan Sihir ----
 
     private static float Jitter(System.Random rand, float amp)

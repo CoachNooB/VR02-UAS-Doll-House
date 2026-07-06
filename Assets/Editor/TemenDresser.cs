@@ -360,7 +360,7 @@ public static class TemenDresser
     /// (draw call WebGL turun drastis). Renderer asli DI-DISABLE (bukan dihapus) supaya
     /// bisa dibalikin; hasil gabungan jadi child "GABUNG_x". Mesh disimpan ke Assets/Generated.
     /// </summary>
-    private static int GabungMeshStatis(Transform root, string namaAset, HashSet<string> kecuali)
+    internal static int GabungMeshStatis(Transform root, string namaAset, HashSet<string> kecuali)
     {
         var perMat = new Dictionary<Material, List<CombineInstance>>();
         var dimatikan = new List<Renderer>();
