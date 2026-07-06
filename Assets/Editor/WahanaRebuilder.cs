@@ -1197,6 +1197,16 @@ public static class WahanaRebuilder
             matHalo = new Material(matKaca);
             SetWarna(matHalo, new Color(0.75f, 0.95f, 0.4f, 0.22f));
         }
+        // material jejak kunang (additive glow); skip kalau shader tak ada (anti-magenta)
+        Material matTrail = null;
+        var shTrail = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        if (shTrail != null)
+        {
+            matTrail = new Material(shTrail);
+            if (matTrail.HasProperty("_BaseColor")) matTrail.SetColor("_BaseColor", new Color(0.75f, 0.95f, 0.4f) * 1.6f);
+            if (matTrail.HasProperty("_Surface")) matTrail.SetFloat("_Surface", 1f); // transparent
+            if (matTrail.HasProperty("_Blend")) matTrail.SetFloat("_Blend", 2f);     // additive
+        }
 
         // ---------- (a) kunang DOMINO: 12 besar berbaris koridor masuk -> display ----------
         var domino = new GameObject("DominoKunang");
@@ -1209,7 +1219,7 @@ public static class WahanaRebuilder
             float k = i / 11f;
             Vector3 pos = Vector3.Lerp(awal, akhir, k);
             pos += new Vector3(Jitter(rand, 0.8f), 1.4f + (float)rand.NextDouble() * 0.7f, Jitter(rand, 0.8f));
-            BuatKunang(domino.transform, "KunangB_" + i, pos, 0.16f, matKunang, matHalo, rand);
+            BuatKunang(domino.transform, "KunangB_" + i, pos, 0.09f, matKunang, matHalo, true, matTrail, rand);
         }
         var colDomino = domino.AddComponent<BoxCollider>();
         colDomino.isTrigger = true;
@@ -1230,15 +1240,23 @@ public static class WahanaRebuilder
             if (pos.x < 29f || pos.x > 47f || pos.z < 9f || pos.z > 25f) continue;
             if (MinDistXZ(jalur, pos) < 1.5f) continue;
             pos.y = 1.2f + (float)rand.NextDouble() * 1.2f;
-            BuatKunang(ambient.transform, "KunangK_" + nAmbient, pos, 0.12f, matKunang, null, rand);
+            BuatKunang(ambient.transform, "KunangK_" + nAmbient, pos, 0.06f, matKunang, null, false, null, rand);
             nAmbient++;
         }
         sb.AppendLine("  Ambient: " + nAmbient + " kunang kecil.");
 
         // ---------- (c) taman jamur (terbesar mengangkangi busur cabang WK2) ----------
         var jamurTemplate = CariGameObject("Mushroom_01");
-        var matJamurCyan = MatUnlitHDR(new Color(0.3f, 0.95f, 1f), 1.7f);  // sedang: jamur glow tapi bentuk tetap kebaca
-        var matJamurUngu = MatUnlitHDR(new Color(0.65f, 0.4f, 1f), 1.7f);
+        var jcyan = new Color(0.3f, 0.95f, 1f);
+        var jungu = new Color(0.65f, 0.4f, 1f);
+        var matJamurCyan = MatGlowLit(jcyan, 2.2f);  // Lit+emission: jamur berdimensi + glow (bukan blob flat)
+        var matJamurUngu = MatGlowLit(jungu, 2.2f);
+        Material matHaloJCyan = null, matHaloJUngu = null;
+        if (matKaca != null)
+        {
+            matHaloJCyan = new Material(matKaca); SetWarna(matHaloJCyan, new Color(jcyan.r, jcyan.g, jcyan.b, 0.18f));
+            matHaloJUngu = new Material(matKaca); SetWarna(matHaloJUngu, new Color(jungu.r, jungu.g, jungu.b, 0.18f));
+        }
         int nJamur = 0;
         if (jamurTemplate != null)
         {
@@ -1254,8 +1272,9 @@ public static class WahanaRebuilder
                     if (nJamur >= 8) break;
                     Vector3 pos = arc[i] + new Vector3(Jitter(rand, 0.4f), 0f, sisi * (1.4f + (float)rand.NextDouble() * 0.5f));
                     if (MinDistXZ(jalur, pos) < 1.25f) continue;
+                    bool jc = nJamur % 2 == 0;
                     nJamur += BuatJamurGlow(taman.transform, "JamurGlow_" + nJamur, pos, jamurTemplate,
-                        (nJamur % 2 == 0) ? matJamurCyan : matJamurUngu, rand);
+                        jc ? matJamurCyan : matJamurUngu, jc ? matHaloJCyan : matHaloJUngu, rand);
                 }
             }
             // 2 cluster kecil pendukung di jalur utama (foreshadow dari kejauhan)
@@ -1266,8 +1285,9 @@ public static class WahanaRebuilder
                 {
                     Vector3 pos = pc + new Vector3(Jitter(rand, 0.9f), 0f, Jitter(rand, 0.9f));
                     if (MinDistXZ(jalur, pos) < 1.4f) continue;
+                    bool jc = nJamur % 2 == 0;
                     nJamur += BuatJamurGlow(taman.transform, "JamurGlow_" + nJamur, pos, jamurTemplate,
-                        (nJamur % 2 == 0) ? matJamurCyan : matJamurUngu, rand);
+                        jc ? matJamurCyan : matJamurUngu, jc ? matHaloJCyan : matHaloJUngu, rand);
                 }
             }
             // chime sihir di taman jamur
@@ -1500,7 +1520,8 @@ public static class WahanaRebuilder
 
     /// <summary>Kunang: core emissive + halo transparan (opsional) + DisplayAnimasi melayang.</summary>
     private static void BuatKunang(Transform parent, string nama, Vector3 pos, float ukuran,
-                                   Material matCore, Material matHalo, System.Random rand)
+                                   Material matCore, Material matHalo, bool pakaiTrail, Material matTrail,
+                                   System.Random rand)
     {
         var akar = new GameObject(nama);
         akar.transform.SetParent(parent, true);
@@ -1518,42 +1539,72 @@ public static class WahanaRebuilder
             var halo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             halo.name = "Halo";
             halo.transform.SetParent(akar.transform, false);
-            halo.transform.localScale = Vector3.one * (ukuran * 3.1f);
+            halo.transform.localScale = Vector3.one * (ukuran * 2.3f); // dulu 3.1x — dikecilin
             Object.DestroyImmediate(halo.GetComponent<Collider>());
             halo.GetComponent<MeshRenderer>().sharedMaterial = matHalo;
         }
 
-        var da = akar.AddComponent<DisplayAnimasi>();
-        var so = new SerializedObject(da);
-        so.FindProperty("_mode").intValue = 1; // melayang
-        so.FindProperty("_jarakMelayang").floatValue = 0.25f + (float)rand.NextDouble() * 0.35f;
-        so.FindProperty("_kecepatanMelayang").floatValue = 0.18f + (float)rand.NextDouble() * 0.22f;
+        // jejak cahaya (kunang besar saja) — manis, mengikuti drift wander
+        if (pakaiTrail && matTrail != null)
+        {
+            var tr = akar.AddComponent<TrailRenderer>();
+            tr.time = 0.55f;
+            tr.startWidth = ukuran * 0.9f;
+            tr.endWidth = 0f;
+            tr.numCapVertices = 2;
+            tr.minVertexDistance = 0.06f;
+            tr.sharedMaterial = matTrail;
+            tr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            tr.receiveShadows = false;
+            tr.startColor = new Color(1f, 1f, 1f, 0.6f);
+            tr.endColor = new Color(1f, 1f, 1f, 0f);
+        }
+
+        // gerak organik (Perlin wander) menggantikan bob kaku
+        var gerak = akar.AddComponent<KunangGerak>();
+        var so = new SerializedObject(gerak);
+        so.FindProperty("_amplitudo").floatValue = 0.4f + (float)rand.NextDouble() * 0.4f;
+        so.FindProperty("_kecepatan").floatValue = 0.16f + (float)rand.NextDouble() * 0.18f;
         so.ApplyModifiedProperties();
     }
 
-    /// <summary>Jamur glow: clone template + titik glow denyut di atas tudung. Return 1.</summary>
+    /// <summary>Jamur "mewah": mesh Lit+emission (berdimensi) + HALO aura menyelimuti cap. Return 1.</summary>
     private static int BuatJamurGlow(Transform parent, string nama, Vector3 pos, GameObject template,
-                                     Material matGlow, System.Random rand)
+                                     Material matGlow, Material matHalo, System.Random rand)
     {
-        float skala = 1.3f + (float)rand.NextDouble() * 1.0f; // besar sedikit biar glow jamur kebaca
+        float skala = 1.2f + (float)rand.NextDouble() * 0.7f;
         var jamur = Object.Instantiate(template, parent);
         jamur.name = nama;
         jamur.transform.position = new Vector3(pos.x, template.transform.position.y, pos.z);
         jamur.transform.rotation = Quaternion.Euler(0f, (float)rand.NextDouble() * 360f, 0f);
         jamur.transform.localScale = template.transform.localScale * skala;
         foreach (var col in jamur.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(col);
-        // JAMUR-nya SENDIRI yang glow (mesh-nya di-set material HDR) — BUKAN bola melayang di atas.
-        foreach (var mr in jamur.GetComponentsInChildren<MeshRenderer>(true))
+        // mesh jamur: Lit + emission (ada bentuk & gradasi, glow mekar di bloom — bukan blob flat)
+        var mrs = jamur.GetComponentsInChildren<MeshRenderer>(true);
+        foreach (var mr in mrs) { mr.enabled = true; mr.sharedMaterial = matGlow; }
+
+        // HALO aura: sphere transparan MENYELIMUTI cap (parent = taman, bukan jamur, biar skala world)
+        if (matHalo != null && mrs.Length > 0)
         {
-            mr.enabled = true;
-            mr.sharedMaterial = matGlow;
+            Bounds b = mrs[0].bounds;
+            foreach (var mr in mrs) b.Encapsulate(mr.bounds);
+            Vector3 capCenter = new Vector3(b.center.x, b.max.y - b.size.y * 0.28f, b.center.z);
+            float diam = Mathf.Max(b.size.x, b.size.z) * 1.9f;
+            var halo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            halo.name = "HaloJamur";
+            halo.transform.SetParent(parent, true);
+            halo.transform.position = capCenter;
+            halo.transform.localScale = new Vector3(diam, diam * 0.8f, diam);
+            Object.DestroyImmediate(halo.GetComponent<Collider>());
+            halo.GetComponent<MeshRenderer>().sharedMaterial = matHalo;
         }
-        // denyut halus langsung di jamur (hidup)
+
+        // denyut halus di jamur (hidup)
         var da = jamur.AddComponent<DisplayAnimasi>();
         var so = new SerializedObject(da);
         so.FindProperty("_mode").intValue = 3; // denyut
-        so.FindProperty("_faktorDenyut").floatValue = 1.16f;
-        so.FindProperty("_kecepatanDenyut").floatValue = 0.09f;
+        so.FindProperty("_faktorDenyut").floatValue = 1.14f;
+        so.FindProperty("_kecepatanDenyut").floatValue = 0.08f;
         so.ApplyModifiedProperties();
         return 1;
     }
@@ -1757,6 +1808,18 @@ public static class WahanaRebuilder
         if (sh == null) sh = Shader.Find("Unlit/Color");
         var m = new Material(sh) { color = c };
         if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+        return m;
+    }
+
+    /// <summary>URP Lit + EMISSION HDR: base gelap (kena cahaya = ada BENTUK/gradasi) + emisi
+    /// glow yang mekar di Bloom. Untuk objek glow yang mau tetap berdimensi (jamur), bukan blob flat.</summary>
+    private static Material MatGlowLit(Color c, float emis)
+    {
+        var m = MatLit(new Color(c.r * 0.35f, c.g * 0.35f, c.b * 0.35f));
+        m.EnableKeyword("_EMISSION");
+        m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        if (m.HasProperty("_EmissionColor"))
+            m.SetColor("_EmissionColor", new Color(c.r * emis, c.g * emis, c.b * emis));
         return m;
     }
 
