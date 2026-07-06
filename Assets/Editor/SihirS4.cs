@@ -1,0 +1,1073 @@
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+
+/// <summary>
+/// GENERATOR SECTION S4 "AKUARIUM MAINAN RAKSASA" (gua bawah laut, lantai Y -6.5..-6).
+/// Konsep meta: kereta di DALAM akuarium hias raksasa di kamar seorang anak.
+/// 4 MenuItem Tools/Wahana (38-41), pola sama menu 19/20/23 WahanaRebuilder:
+/// deterministik, idempotent (hapus-lalu-bangun parent GEN_ sendiri), koordinat WORLD
+/// absolut, wiring via SerializedObject, akhiri mark-dirty + SaveScene.
+///
+/// Grup output:
+///   GEN_Sihir_S4      = dekor STATIS (dibake menu 41): kastil, kapal, kerikil,
+///                       panel kaca+frame, strip lamp, koral statis.
+///   GEN_SihirHidup_S4 = animasi/audio (TIDAK dibake): ubur-ubur, gelembung, ikan,
+///                       anemon denyut, siluet anak, audio, SuasanaZona keluar-air.
+///   GEN_Mekanik_S4    = interaksi ketuk kaca + resize Z_Lambat_S4 + splash pemicu.
+///
+/// Semua helper visual dipanggil dari WahanaRebuilder.* (internal static, satu assembly
+/// Editor). Palet: biru-dalam pekat + MAGENTA/pink bioluminescent aksen + amber hangat.
+/// </summary>
+public static class SihirS4
+{
+    // ---- geometri gua (dari scene: AirGua/GuaPlafon/WP loop) ----
+    private static readonly Vector3 GuaPusat = new Vector3(-44f, -6f, -31f);
+    private const float LantaiY = -6f;     // dasar gua (WP loop Y -6)
+    private const float AirY = -2f;        // permukaan plane air
+    private const float PlafonY = -1.5f;   // plafon gua
+    private const float DindingBaratX = -55.7f; // panel kaca sisi barat
+
+    private static readonly Vector3 UburHero = new Vector3(-44f, -2.5f, -31f);
+
+    // palet
+    private static readonly Color Magenta = new Color(1f, 0.25f, 0.75f);
+    private static readonly Color Pink = new Color(1f, 0.45f, 0.85f);
+    private static readonly Color Amber = new Color(1f, 0.72f, 0.32f);
+    private static readonly Color BiruDalam = new Color(0.05f, 0.14f, 0.28f);
+    private static readonly Color PastelPudar = new Color(0.55f, 0.62f, 0.7f);
+
+    // =====================================================================
+    //  MENU 38 — S4 DEKOR STATIS
+    // =====================================================================
+    [MenuItem("Tools/Wahana/38 S4 Dekor", false, 98)]
+    public static void DekorS4()
+    {
+        var sb = new System.Text.StringBuilder("=== S4 AKUARIUM: DEKOR STATIS ===\n");
+        WahanaRebuilder.HapusParent("GEN_Sihir_S4");
+        var root = new GameObject("GEN_Sihir_S4");
+        root.transform.position = Vector3.zero;
+
+        var jalur = PolylineUtama();
+        var rand = new System.Random(4104);
+
+        // ---------- (a) PALKA FIX: ubah palka permukaan jadi kolam air statis ----------
+        FixPalka(sb);
+
+        // ---------- (b) PANEL KACA BESAR sisi barat + frame ----------
+        // kaca kebiruan alpha rendah; di baliknya gelap (dinding gelap). Frame amber-gelap.
+        Material matKaca = WahanaRebuilder.MatLitTransparan(new Color(0.35f, 0.6f, 0.8f), 0.15f);
+        Material matFrame = WahanaRebuilder.MatLit(new Color(0.08f, 0.06f, 0.05f));
+        Material matGelap = WahanaRebuilder.MatLit(new Color(0.01f, 0.015f, 0.03f));
+        var kaca = new GameObject("PanelKacaBarat");
+        kaca.transform.SetParent(root.transform, true);
+        kaca.transform.position = new Vector3(DindingBaratX, (AirY + LantaiY) * 0.5f, GuaPusat.z);
+        // panel: box tipis di X, membentang Z & Y gua
+        var quad = WahanaRebuilder.BuatBox(kaca.transform, "Kaca", new Vector3(DindingBaratX, -3.7f, GuaPusat.z),
+            new Vector3(0.1f, 5f, 14f), matKaca);
+        Object.DestroyImmediate(quad.GetComponent<Collider>()); // kaca tembus pandang, kereta tak nabrak
+        // dinding gelap-samar DI BALIK kaca (barat dari kaca) supaya "di baliknya gelap"
+        var belakang = WahanaRebuilder.BuatBox(kaca.transform, "KacaBelakang", new Vector3(DindingBaratX - 0.6f, -3.7f, GuaPusat.z),
+            new Vector3(0.3f, 5.2f, 14.4f), matGelap);
+        GameObjectUtility.SetStaticEditorFlags(belakang, StaticEditorFlags.BatchingStatic);
+        // frame 4 sisi (amber-gelap)
+        BuatFrame(kaca.transform, new Vector3(DindingBaratX, -3.7f, GuaPusat.z), 14f, 5f, 0.35f, matFrame);
+        GameObjectUtility.SetStaticEditorFlags(quad, StaticEditorFlags.BatchingStatic);
+        sb.AppendLine("  Panel kaca barat X" + DindingBaratX + " (14x5) + frame + dinding gelap di baliknya.");
+
+        // ---------- (c) STRIP LAMP AKUARIUM (statis putih terang) melayang di atas air ----------
+        // memanjang tengah gua sepanjang Z, di bawah plafon (-1.7) — sumber god-ray masuk akal.
+        Material matStrip = WahanaRebuilder.MatUnlitHDR(new Color(1f, 0.97f, 0.9f), 2.2f);
+        var strip = WahanaRebuilder.BuatBox(root.transform, "StripLampAkuarium",
+            new Vector3(GuaPusat.x, -1.75f, GuaPusat.z), new Vector3(1.2f, 0.15f, 18f), matStrip);
+        Object.DestroyImmediate(strip.GetComponent<Collider>());
+        GameObjectUtility.SetStaticEditorFlags(strip, StaticEditorFlags.BatchingStatic);
+        // 1 Spot biru dari strip ke bawah (hemat lighting — lampu gua sudah ada)
+        BuatSpot(root.transform, "SpotStripBiru", new Vector3(GuaPusat.x, -1.8f, GuaPusat.z),
+            new Color(0.5f, 0.75f, 1f), 1.3f, 14f, 60f);
+        sb.AppendLine("  Strip lamp putih + Spot biru turun (feed god-ray).");
+
+        // ---------- (d) KASTIL ORNAMEN AKUARIUM (menara pastel + jendela glow amber) ----------
+        Vector3 posKastil = new Vector3(-51f, LantaiY, -37f);
+        BuatKastil(root.transform, posKastil, rand);
+        sb.AppendLine("  Kastil ornamen di " + F(posKastil) + ".");
+
+        // ---------- (e) KAPAL MAINAN TENGGELAM miring ----------
+        BuatKapal(root.transform, KapalPos, sb);
+
+        // ---------- (f) KERIKIL BULAT BESAR di dasar ----------
+        Material matKerikil = WahanaRebuilder.MatLit(new Color(0.3f, 0.34f, 0.4f));
+        int nKerikil = 0;
+        for (int i = 0; i < 9; i++)
+        {
+            Vector3 pa = WahanaRebuilder.TitikAcakAman(RuangS4(), rand, 2f, jalur, 2f);
+            Vector3 p = new Vector3(pa.x, LantaiY + 0.15f, pa.z);
+            var k = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            k.name = "Kerikil_" + i;
+            k.transform.SetParent(root.transform, true);
+            k.transform.position = p;
+            float s = 0.9f + (float)rand.NextDouble() * 1.4f;
+            k.transform.localScale = new Vector3(s, s * 0.55f, s * (0.85f + (float)rand.NextDouble() * 0.3f));
+            Object.DestroyImmediate(k.GetComponent<Collider>());
+            k.GetComponent<MeshRenderer>().sharedMaterial = matKerikil;
+            GameObjectUtility.SetStaticEditorFlags(k, StaticEditorFlags.BatchingStatic);
+            nKerikil++;
+        }
+        sb.AppendLine("  Kerikil bulat: " + nKerikil + ".");
+
+        // ---------- (g) KORAL CABANG STATIS (glow, pola BuatJamurGlow tiruan) ----------
+        // koral = kapsul bertumpuk glow + halo aura sphere transparan. Terbesar dekat ubur raksasa.
+        int nKoral = 0;
+        Vector3[] koralPos = {
+            UburHero + new Vector3(3.5f, -3.2f, 1.5f),   // dekat ubur raksasa (terbesar)
+            UburHero + new Vector3(-3f, -3.4f, -2f),
+            new Vector3(-49f, LantaiY, -25f),
+            new Vector3(-38f, LantaiY, -35f),
+            new Vector3(-53f, LantaiY, -33f),
+            new Vector3(-41f, LantaiY, -21.5f),
+        };
+        for (int i = 0; i < koralPos.Length; i++)
+        {
+            Vector3 pa = koralPos[i];
+            pa.x = Mathf.Clamp(pa.x, -55f, -33f);
+            pa.z = Mathf.Clamp(pa.z, -41f, -21f);
+            if (i >= 2 && JarakXZ(jalur, pa) < 1.6f) continue; // yang di dasar jauhi rel
+            bool besar = i < 2;
+            BuatKoralCabang(root.transform, "KoralCabang_" + i, pa, besar, i % 2 == 0, rand);
+            nKoral++;
+        }
+        sb.AppendLine("  Koral cabang statis: " + nKoral + " (2 terbesar dekat ubur raksasa).");
+
+        FlagStatisRekursif(root);
+        Selesai(sb, root);
+    }
+
+    // =====================================================================
+    //  MENU 39 — S4 HIDUP (animasi + audio, TIDAK dibake)
+    // =====================================================================
+    [MenuItem("Tools/Wahana/39 S4 Hidup", false, 99)]
+    public static void HidupS4()
+    {
+        var sb = new System.Text.StringBuilder("=== S4 AKUARIUM: HIDUP ===\n");
+        WahanaRebuilder.HapusParent("GEN_SihirHidup_S4");
+        var root = new GameObject("GEN_SihirHidup_S4");
+        root.transform.position = Vector3.zero;
+
+        var jalur = PolylineUtama();
+        var rand = new System.Random(4139);
+
+        // ---------- (a) UBUR-UBUR RAKSASA hero di tengah gua ----------
+        BuatUburRaksasa(root.transform, UburHero, sb);
+
+        // ---------- (b) 2-3 KOLOM GELEMBUNG AERATOR + hum audio ----------
+        // kolom utama (dekat kastil) dengan hum, + 2 kolom sekunder
+        Vector3[] kolomPos = {
+            new Vector3(-51f, LantaiY + 0.2f, -37f),  // di kastil (utama, hum)
+            new Vector3(-38f, LantaiY + 0.2f, -26f),
+            new Vector3(-53f, LantaiY + 0.2f, -26f),
+        };
+        for (int i = 0; i < kolomPos.Length; i++)
+        {
+            bool utama = (i == 0);
+            BuatKolomGelembung(root.transform, "KolomGelembung_" + i, kolomPos[i],
+                AirY - kolomPos[i].y, 10, utama, rand);
+        }
+        // gelembung bocor kapal karam (HIDUP -> di grup ini, bukan dekor statis yang dibake)
+        BuatKolomGelembung(root.transform, "GelembungBocorKapal", KapalBocorPos,
+            AirY - KapalBocorPos.y, 6, false, rand);
+        sb.AppendLine("  Kolom gelembung aerator: " + kolomPos.Length + " (1 hum) + bocor kapal.");
+
+        // blub gelembung berkala (ambience gua)
+        var blub = new GameObject("BlubGelembung_S4");
+        blub.transform.SetParent(root.transform, true);
+        blub.transform.position = GuaPusat + Vector3.up * 2f;
+        BuatAudio(blub, "Assets/Audio/SFX/T7_SFX_BaseAmbience.ogg", 0.5f, 0.08f, true, 12f);
+        sb.AppendLine("  Blub ambience berkala.");
+
+        // ---------- (c) IKAN KAWANAN (prefab Floreswa, orbit elips) ----------
+        string[] fishPf = {
+            "Assets/Models/Floreswa/Prefabs/fish01.prefab",
+            "Assets/Models/Floreswa/Prefabs/fish02.prefab",
+            "Assets/Models/Floreswa/Prefabs/fish03.prefab",
+        };
+        var ikanRoot = new GameObject("IkanKawanan_S4");
+        ikanRoot.transform.SetParent(root.transform, true);
+        ikanRoot.transform.position = Vector3.zero;
+        int nIkan = 0;
+        for (int i = 0; i < 12; i++)
+        {
+            string path = fishPf[i % fishPf.Length];
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (prefab == null) continue;
+            var g = (GameObject)PrefabUtility.InstantiatePrefab(prefab, ikanRoot.transform);
+            HapusFisik(g);
+            float skala = 0.7f + (float)rand.NextDouble() * 0.9f;
+            g.transform.localScale = Vector3.one * skala;
+            float rx = 6f + (float)rand.NextDouble() * 5f;
+            float rz = 4f + (float)rand.NextDouble() * 4f;
+            float fase = i * 30f + (float)rand.NextDouble() * 20f;
+            float tinggi = -4.6f + (float)rand.NextDouble() * 3f; // sebar antara dasar & permukaan
+            // spawn TEPAT di titik orbit awal (sudut = fase) supaya tak ada lompatan frame-1
+            float faseRad = fase * Mathf.Deg2Rad;
+            g.transform.position = new Vector3(
+                GuaPusat.x + Mathf.Cos(faseRad) * rx, tinggi, GuaPusat.z + Mathf.Sin(faseRad) * rz);
+            g.name = "Ikan_" + i;
+            var ik = g.AddComponent<IkanKawanan>();
+            var so = new SerializedObject(ik);
+            so.FindProperty("_pusat").vector3Value = new Vector3(GuaPusat.x, tinggi, GuaPusat.z);
+            so.FindProperty("_radiusX").floatValue = rx;
+            so.FindProperty("_radiusZ").floatValue = rz;
+            so.FindProperty("_kecepatanSudut").floatValue = (i % 2 == 0 ? 1f : -1f) * (14f + (float)rand.NextDouble() * 14f);
+            so.FindProperty("_faseAwal").floatValue = fase;
+            so.FindProperty("_amplitudoBob").floatValue = 0.25f + (float)rand.NextDouble() * 0.3f;
+            so.FindProperty("_kecepatanBob").floatValue = 0.9f + (float)rand.NextDouble() * 0.8f;
+            so.ApplyModifiedProperties();
+            nIkan++;
+        }
+        sb.AppendLine("  Ikan kawanan: " + nIkan + " (orbit elips).");
+
+        // ---------- (d) UBUR-UBUR KECIL glow magenta drift ----------
+        var uburKecil = new GameObject("UburKecil_S4");
+        uburKecil.transform.SetParent(root.transform, true);
+        uburKecil.transform.position = Vector3.zero;
+        Material matUburKecil = WahanaRebuilder.MatGlowLit(Magenta, 2.4f);
+        Material matTentakel = WahanaRebuilder.MatGlowLit(Pink, 2.0f);
+        int nUbur = 0;
+        for (int i = 0; i < 10; i++)
+        {
+            Vector3 pa = WahanaRebuilder.TitikAcakAman(RuangS4(), rand, 2f, jalur, 1.6f);
+            float y = -5f + (float)rand.NextDouble() * 3f;
+            Vector3 p = new Vector3(pa.x, y, pa.z);
+            BuatUburKecil(uburKecil.transform, "UburKecil_" + i, p, matUburKecil, matTentakel, rand);
+            nUbur++;
+        }
+        sb.AppendLine("  Ubur-ubur kecil: " + nUbur + ".");
+
+        // ---------- (e) ANEMON DENYUT (cluster kapsul magenta + DisplayAnimasi mode 3) ----------
+        var anemonRoot = new GameObject("Anemon_S4");
+        anemonRoot.transform.SetParent(root.transform, true);
+        anemonRoot.transform.position = Vector3.zero;
+        int nAnemon = 0;
+        for (int i = 0; i < 10; i++)
+        {
+            Vector3 pa = WahanaRebuilder.TitikAcakAman(RuangS4(), rand, 2f, jalur, 1.5f);
+            Vector3 p = new Vector3(pa.x, LantaiY + 0.1f, pa.z);
+            bool mag = i % 2 == 0;
+            BuatAnemon(anemonRoot.transform, "Anemon_" + i, p, mag ? Magenta : Pink, rand);
+            nAnemon++;
+        }
+        sb.AppendLine("  Anemon denyut: " + nAnemon + ".");
+
+        // ---------- (f) SILUET ANAK di balik kaca barat ----------
+        BuatSiluetAnak(root.transform, sb);
+
+        // ---------- (g) MUSIK POSITIONAL tengah gua ----------
+        var musik = new GameObject("MusikS4_BawahLaut");
+        musik.transform.SetParent(root.transform, true);
+        musik.transform.position = GuaPusat + Vector3.up * 3f;
+        BuatAudio(musik, "Assets/Audio/Musik/Musik_S4_BawahLaut.mp3", 1f, 0.10f, true, 30f);
+        sb.AppendLine("  Musik S4 positional (vol 0.10, spatial 1).");
+
+        // ---------- (h) SuasanaZona keluar-air (persiapan S5 angkasa: fog biru->hitam) ----------
+        BuatSuasanaKeluar(root.transform, sb);
+
+        Selesai(sb, root);
+    }
+
+    // =====================================================================
+    //  MENU 40 — S4 MEKANIK (interaksi ketuk kaca, resize Z_Lambat, splash)
+    // =====================================================================
+    [MenuItem("Tools/Wahana/40 S4 Mekanik", false, 100)]
+    public static void MekanikS4()
+    {
+        var sb = new System.Text.StringBuilder("=== S4 AKUARIUM: MEKANIK ===\n");
+        WahanaRebuilder.HapusParent("GEN_Mekanik_S4");
+        var root = new GameObject("GEN_Mekanik_S4");
+        root.transform.position = Vector3.zero;
+
+        var jalur = PolylineUtama();
+
+        // ---------- (a) OBJEK KETUK KACA dekat rel (ObjekInteraksi mode 10 + AksiKetukKaca) ----------
+        // titik rel terdekat dinding barat: sekitar WP_504 (-50.5,-6,-30). Objek ketuk NON-emissive.
+        // WAJIB dalam jangkauan raycast player (~3.5u dari rel) -> taruh ~2u ke barat rel,
+        // BUKAN nempel dinding kaca (yang ~5u dari rel = di luar jangkauan raycast).
+        Vector3 posRelBarat = TitikRelTerdekat(jalur, new Vector3(-52f, LantaiY, -30f));
+        Vector3 posKetuk = new Vector3(posRelBarat.x - 2f, posRelBarat.y + 1.3f, posRelBarat.z);
+        Material matKetuk = WahanaRebuilder.MatLit(new Color(0.2f, 0.28f, 0.36f)); // non-emissive
+        var ketuk = WahanaRebuilder.BuatBox(root.transform, "KetukKaca", posKetuk, new Vector3(0.7f, 0.7f, 0.7f), matKetuk);
+        var col = ketuk.GetComponent<BoxCollider>();
+        if (col == null) col = ketuk.AddComponent<BoxCollider>(); // WAJIB ada collider utk raycast
+
+        // AudioSource tok-tok + AksiKetukKaca + ObjekInteraksi mode 10
+        BuatAudio(ketuk, "Assets/Audio/SFX/T7_SFX_HeadBonk.ogg", 1.2f, 0.6f, false, 8f, false);
+        var aksi = ketuk.AddComponent<AksiKetukKaca>();
+        var oi = ketuk.AddComponent<ObjekInteraksi>();
+        var soOi = new SerializedObject(oi);
+        soOi.FindProperty("_mode").intValue = 10;
+        soOi.FindProperty("_labelInteraksi").stringValue = "Ketuk Kaca";
+        soOi.ApplyModifiedProperties();
+        // wiring aksi -> siluet (auto-find di Awake juga, tapi set eksplisit kalau ketemu)
+        var siluet = FindKomponen<SiluetAnakS4>();
+        if (siluet != null)
+        {
+            var soAksi = new SerializedObject(aksi);
+            soAksi.FindProperty("_siluet").objectReferenceValue = siluet;
+            soAksi.ApplyModifiedProperties();
+        }
+        sb.AppendLine("  Ketuk kaca di " + F(posKetuk) + " (mode 10, non-emissive, siluet=" + (siluet != null) + ").");
+
+        // ---------- (b) RESIZE Z_Lambat_S4: persempit ke arc kolong ubur -> depan kaca ----------
+        var zl = CariGameObject("Z_Lambat_S4");
+        if (zl != null)
+        {
+            var bc = zl.GetComponent<BoxCollider>();
+            if (bc != null)
+            {
+                // pusatkan ke arc barat (kolong ubur + depan kaca), lebih sempit di Z
+                zl.transform.position = new Vector3(-47f, -4.5f, -31f);
+                bc.center = Vector3.zero;
+                bc.size = new Vector3(16f, 6f, 12f); // dari 22x6x22 -> lebih fokus
+                sb.AppendLine("  Z_Lambat_S4 dipersempit -> 16x6x12 di (-47,-4.5,-31).");
+            }
+            else sb.AppendLine("  [WARN] Z_Lambat_S4 tanpa BoxCollider.");
+        }
+        else sb.AppendLine("  [WARN] Z_Lambat_S4 tak ketemu.");
+
+        // ---------- (c) PLANE SPLASH keluar-air di tunnel naik utara + PemicuKereta ----------
+        // rel muncul ke permukaan Y~0 dekat WP_600 (-43.7,0.09,5.1). Plane melintang rel,
+        // riak = 2 quad offset. PemicuKereta -> IAksiInteraksi (GelembungNaik burst) di objek yg sama.
+        BuatSplashKeluar(root.transform, jalur, sb);
+
+        Selesai(sb, root);
+    }
+
+    // =====================================================================
+    //  MENU 41 — S4 BAKE (pola menu 15: gabung mesh statis GEN_Sihir_S4 SAJA)
+    // =====================================================================
+    [MenuItem("Tools/Wahana/41 S4 Bake", false, 101)]
+    public static void BakeS4()
+    {
+        var g = CariGameObject("GEN_Sihir_S4");
+        if (g == null)
+        {
+            Debug.LogError("[S4 Bake] GEN_Sihir_S4 tak ditemukan — jalankan menu 38 dulu.");
+            return;
+        }
+        // buang hasil gabungan lama (idempoten)
+        for (int i = g.transform.childCount - 1; i >= 0; i--)
+        {
+            var c = g.transform.GetChild(i);
+            if (c.name.StartsWith("GABUNG_")) Object.DestroyImmediate(c.gameObject);
+        }
+        // nyalakan lagi renderer asli dulu (fallback aman)
+        foreach (var mr in g.GetComponentsInChildren<MeshRenderer>(true)) mr.enabled = true;
+        // koral/anemon/kerikil transparan halo TIDAK dibake supaya alpha benar; kecuali nama halo
+        int n = TemenDresser.GabungMeshStatis(g.transform, "GEN_Sihir_S4", new HashSet<string> { "HaloKoral" });
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+        Debug.Log("[S4 Bake] GEN_Sihir_S4 digabung: " + n + " renderer. (GEN_Tunnel TIDAK disentuh.)");
+    }
+
+    // #####################################################################
+    //  BUILDER: UBUR-UBUR RAKSASA (hero)
+    // #####################################################################
+    private static void BuatUburRaksasa(Transform parent, Vector3 pos, System.Text.StringBuilder sb)
+    {
+        var akar = new GameObject("UburRaksasa_S4");
+        akar.transform.SetParent(parent, true);
+        akar.transform.position = pos;
+
+        // dome hemisphere semi-transparan glow magenta (sphere di-clip separuh via scale + posisi;
+        // pakai sphere penuh skala ~4 dengan MatLitTransparan magenta emissive).
+        Material matDome = WahanaRebuilder.MatLitTransparan(Magenta, 0.35f);
+        matDome.EnableKeyword("_EMISSION");
+        matDome.SetColor("_EmissionColor", new Color(Magenta.r, Magenta.g, Magenta.b) * 0.28f);
+        var dome = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        dome.name = "Dome";
+        dome.transform.SetParent(akar.transform, false);
+        dome.transform.localScale = new Vector3(4.2f, 3.2f, 4.2f); // sedikit pipih = kubah ubur
+        Object.DestroyImmediate(dome.GetComponent<Collider>());
+        var mrDome = dome.GetComponent<MeshRenderer>();
+        mrDome.sharedMaterial = matDome;
+        mrDome.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+        // halo sphere transparan menyelimuti dome (aura)
+        Material matHalo = WahanaRebuilder.MatLitTransparan(Pink, 0.12f);
+        var halo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        halo.name = "HaloUbur";
+        halo.transform.SetParent(akar.transform, false);
+        halo.transform.localScale = new Vector3(5.6f, 4.4f, 5.6f);
+        Object.DestroyImmediate(halo.GetComponent<Collider>());
+        var mrHalo = halo.GetComponent<MeshRenderer>();
+        mrHalo.sharedMaterial = matHalo;
+        mrHalo.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+        // 8 tentakel pita panjang melengkung ke bawah (MeshPita, path spiral keluar+turun)
+        Material matPita = WahanaRebuilder.MatLitTransparan(Magenta, 0.5f);
+        matPita.EnableKeyword("_EMISSION");
+        matPita.SetColor("_EmissionColor", new Color(Magenta.r, Magenta.g, Magenta.b) * 0.3f);
+        int nTent = 8;
+        // Batas turun tentakel (LOKAL, relatif pusat ubur) supaya ujung tak nembus dasar gua.
+        float batasBawahLokal = -(pos.y - LantaiY - 0.2f);
+        for (int i = 0; i < nTent; i++)
+        {
+            float a0 = (i / (float)nTent) * Mathf.PI * 2f;
+            // PATH LOKAL (relatif pusat ubur, BUKAN world) — mesh verts jadi lokal supaya
+            // saat DENYUT (mode 3) men-skala akar, tentakel ikut mengembang di tempat, tidak
+            // terlempar (bug kalau verts absolut-world + parent di-scale).
+            var path = new List<Vector3>();
+            for (int s = 0; s <= 8; s++)
+            {
+                float f = s / 8f;
+                // spiral: radius keluar sedikit + putar sudut + turun makin dalam
+                float rad = 1.2f + f * 1.4f;
+                float a = a0 + f * 1.6f; // putar biar tentakel bergelombang, tangen horizontal jelas
+                float x = Mathf.Cos(a) * rad;
+                float z = Mathf.Sin(a) * rad;
+                float y = -1.2f - f * 5f; // turun makin dalam (di-clamp biar tak nembus dasar)
+                path.Add(new Vector3(x, Mathf.Max(y, batasBawahLokal), z));
+            }
+            Mesh mesh = WahanaRebuilder.MeshPita(path, 0.35f, 0f);
+            mesh.name = "TentakelUbur_" + i;
+            var t = WahanaRebuilder.BuatMeshObjek(akar.transform, "Tentakel_" + i, mesh, matPita);
+            // Mesh verts lokal -> tempatkan objek DI pusat ubur (localPosition 0 relatif akar)
+            // supaya denyut men-skala tentakel seragam dari pusat, sama seperti dome/halo.
+            t.transform.position = pos;
+            SimpanMesh(mesh, "S4_TentakelUbur_" + i);
+        }
+
+        // DENYUT pelan (DisplayAnimasi mode 3) di akar ubur — dome + halo ikut skala
+        var da = akar.AddComponent<DisplayAnimasi>();
+        var so = new SerializedObject(da);
+        so.FindProperty("_mode").intValue = 3;
+        so.FindProperty("_faktorDenyut").floatValue = 1.12f;
+        so.FindProperty("_kecepatanDenyut").floatValue = 0.06f;
+        so.ApplyModifiedProperties();
+
+        // fill light magenta dekat ubur (max 1 — hemat lighting)
+        BuatPoint(akar.transform, "FillUbur", pos, Magenta, 1.4f, 10f);
+
+        sb.AppendLine("  Ubur-ubur RAKSASA di " + F(pos) + " (dome 4.2 + 8 tentakel pita + halo + denyut + fill magenta).");
+    }
+
+    private static void BuatUburKecil(Transform parent, string nama, Vector3 pos,
+                                      Material matBadan, Material matTentakel, System.Random rand)
+    {
+        var akar = new GameObject(nama);
+        akar.transform.SetParent(parent, true);
+        akar.transform.position = pos;
+
+        var badan = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        badan.name = "Badan";
+        badan.transform.SetParent(akar.transform, false);
+        badan.transform.localScale = new Vector3(0.7f, 0.5f, 0.7f);
+        Object.DestroyImmediate(badan.GetComponent<Collider>());
+        badan.GetComponent<MeshRenderer>().sharedMaterial = matBadan;
+
+        // 3 tentakel silinder tipis menjuntai
+        for (int i = 0; i < 3; i++)
+        {
+            float a = i * 120f * Mathf.Deg2Rad;
+            var tent = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            tent.name = "Tentakel_" + i;
+            tent.transform.SetParent(akar.transform, false);
+            tent.transform.localPosition = new Vector3(Mathf.Cos(a) * 0.18f, -0.45f, Mathf.Sin(a) * 0.18f);
+            tent.transform.localScale = new Vector3(0.05f, 0.4f, 0.05f);
+            Object.DestroyImmediate(tent.GetComponent<Collider>());
+            tent.GetComponent<MeshRenderer>().sharedMaterial = matTentakel;
+        }
+
+        // gerak drift + naik pelan pakai KunangGerak (wander organik)
+        var gerak = akar.AddComponent<KunangGerak>();
+        var so = new SerializedObject(gerak);
+        so.FindProperty("_amplitudo").floatValue = 0.6f + (float)rand.NextDouble() * 0.6f;
+        so.FindProperty("_kecepatan").floatValue = 0.12f + (float)rand.NextDouble() * 0.12f;
+        so.ApplyModifiedProperties();
+    }
+
+    // #####################################################################
+    //  BUILDER: KOLOM GELEMBUNG (GelembungNaik)
+    // #####################################################################
+    private static void BuatKolomGelembung(Transform parent, string nama, Vector3 dasar,
+                                           float tinggi, int jumlah, bool hum, System.Random rand)
+    {
+        var akar = new GameObject(nama);
+        akar.transform.SetParent(parent, true);
+        akar.transform.position = dasar;
+
+        Material matGel = WahanaRebuilder.MatLitTransparan(new Color(0.8f, 0.95f, 1f), 0.22f);
+        for (int i = 0; i < jumlah; i++)
+        {
+            var g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            g.name = "Gelembung_" + i;
+            g.transform.SetParent(akar.transform, false);
+            float jitter = 0.12f;
+            g.transform.localPosition = new Vector3(
+                ((float)rand.NextDouble() - 0.5f) * jitter, 0f,
+                ((float)rand.NextDouble() - 0.5f) * jitter);
+            float s = 0.08f + (float)rand.NextDouble() * 0.1f;
+            g.transform.localScale = Vector3.one * s;
+            Object.DestroyImmediate(g.GetComponent<Collider>());
+            var mr = g.GetComponent<MeshRenderer>();
+            mr.sharedMaterial = matGel;
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        var gn = akar.AddComponent<GelembungNaik>();
+        var so = new SerializedObject(gn);
+        so.FindProperty("_tinggiTarget").floatValue = Mathf.Max(1f, tinggi);
+        so.FindProperty("_kecepatan").floatValue = 0.8f + (float)rand.NextDouble() * 0.4f;
+        so.FindProperty("_radiusDrift").floatValue = 0.15f;
+        so.ApplyModifiedProperties();
+
+        // hum aerator di kolom utama
+        if (hum)
+        {
+            BuatAudio(akar, "Assets/Audio/SFX/T7_SFX_PlatformHum.ogg", 0.8f, 0.09f, true, 10f);
+        }
+    }
+
+    // #####################################################################
+    //  BUILDER: KASTIL ORNAMEN
+    // #####################################################################
+    private static void BuatKastil(Transform parent, Vector3 baseP, System.Random rand)
+    {
+        var akar = new GameObject("KastilAkuarium");
+        akar.transform.SetParent(parent, true);
+        akar.transform.position = baseP;
+
+        Material matBatu = WahanaRebuilder.MatLit(new Color(PastelPudar.r * 0.9f, PastelPudar.g * 0.85f, PastelPudar.b));
+        Material matAtap = WahanaRebuilder.MatLit(new Color(0.6f, 0.45f, 0.55f));
+        Material matJendela = WahanaRebuilder.MatUnlitHDR(Amber, 1.8f);
+
+        // 3 menara silinder tinggi beda + kerucut atap
+        float[] tinggi = { 4.5f, 3.2f, 3.8f };
+        Vector3[] off = { Vector3.zero, new Vector3(1.8f, 0f, 0.6f), new Vector3(-1.6f, 0f, -0.4f) };
+        for (int i = 0; i < 3; i++)
+        {
+            Vector3 p = baseP + off[i];
+            var menara = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            menara.name = "Menara_" + i;
+            menara.transform.SetParent(akar.transform, true);
+            menara.transform.position = new Vector3(p.x, p.y + tinggi[i] * 0.5f, p.z);
+            menara.transform.localScale = new Vector3(1.1f, tinggi[i] * 0.5f, 1.1f);
+            menara.GetComponent<MeshRenderer>().sharedMaterial = matBatu;
+
+            // kerucut atap (cylinder tipis atas — pseudo cone via scale y kecil bertumpuk? pakai capsule/cone).
+            var atap = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            atap.name = "Atap_" + i;
+            atap.transform.SetParent(akar.transform, true);
+            atap.transform.position = new Vector3(p.x, p.y + tinggi[i] + 0.4f, p.z);
+            atap.transform.localScale = new Vector3(1.3f, 0.5f, 1.3f);
+            atap.GetComponent<MeshRenderer>().sharedMaterial = matAtap;
+
+            // jendela glow amber (box kecil di badan menara)
+            var jendela = WahanaRebuilder.BuatBox(akar.transform, "Jendela_" + i,
+                new Vector3(p.x, p.y + tinggi[i] * 0.6f, p.z - 1.05f), new Vector3(0.35f, 0.5f, 0.1f), matJendela);
+            Object.DestroyImmediate(jendela.GetComponent<Collider>());
+        }
+        // CATATAN: TIDAK menambah Light di kastil — budget lighting gua sudah ketat
+        // (rule 4: max 1 spot biru + 1 fill magenta). Kehangatan amber cukup dari jendela
+        // glow MatUnlitHDR (mekar di Bloom), tanpa real-time light tambahan.
+
+        foreach (var c in akar.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(c);
+    }
+
+    // #####################################################################
+    //  BUILDER: KAPAL TENGGELAM
+    // #####################################################################
+    private static void BuatKapal(Transform parent, Vector3 pos, System.Text.StringBuilder sb)
+    {
+        var akar = new GameObject("KapalTenggelam");
+        akar.transform.SetParent(parent, true);
+        akar.transform.position = pos;
+        akar.transform.rotation = Quaternion.Euler(18f, 35f, -12f); // miring karam
+
+        Material matKayu = WahanaRebuilder.MatLit(new Color(0.28f, 0.18f, 0.12f));
+        Material matTiang = WahanaRebuilder.MatLit(new Color(0.2f, 0.13f, 0.09f));
+
+        // lambung (kapsul memanjang)
+        var lambung = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        lambung.name = "Lambung";
+        lambung.transform.SetParent(akar.transform, false);
+        lambung.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+        lambung.transform.localScale = new Vector3(1.1f, 2.4f, 1.1f);
+        Object.DestroyImmediate(lambung.GetComponent<Collider>());
+        lambung.GetComponent<MeshRenderer>().sharedMaterial = matKayu;
+
+        // tiang
+        var tiang = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        tiang.name = "Tiang";
+        tiang.transform.SetParent(akar.transform, false);
+        tiang.transform.localPosition = new Vector3(0f, 1.4f, 0f);
+        tiang.transform.localScale = new Vector3(0.12f, 1.4f, 0.12f);
+        Object.DestroyImmediate(tiang.GetComponent<Collider>());
+        tiang.GetComponent<MeshRenderer>().sharedMaterial = matTiang;
+
+        // CATATAN: gelembung bocor kapal = objek HIDUP -> dibuat di menu 39 (grup Hidup),
+        // BUKAN di sini (grup statis dibake). Titik bocor = KapalBocorPos (konstanta).
+        sb.AppendLine("  Kapal tenggelam miring di " + F(pos) + " (gelembung bocor menyusul di menu 39).");
+    }
+
+    // Titik/posisi tetap kapal & bocor gelembungnya (dipakai menu 38 dekor & 39 hidup).
+    private static readonly Vector3 KapalPos = new Vector3(-37f, LantaiY + 0.4f, -24f);
+    private static Vector3 KapalBocorPos => KapalPos + new Vector3(0.5f, 0.6f, 0.3f);
+
+    // #####################################################################
+    //  BUILDER: KORAL / ANEMON
+    // #####################################################################
+    private static void BuatKoralCabang(Transform parent, string nama, Vector3 pos, bool besar,
+                                        bool magenta, System.Random rand)
+    {
+        var akar = new GameObject(nama);
+        akar.transform.SetParent(parent, true);
+        akar.transform.position = pos;
+        float skala = besar ? 1.8f : 1f;
+
+        Color warna = magenta ? Magenta : Pink;
+        Material matGlow = WahanaRebuilder.MatGlowLit(warna, 2.2f);
+        Material matHalo = WahanaRebuilder.MatLitTransparan(warna, 0.16f);
+
+        // kapsul bertumpuk (cabang) — 3-4 kapsul menyebar ke atas
+        int cabang = besar ? 5 : 3;
+        for (int i = 0; i < cabang; i++)
+        {
+            float a = (float)rand.NextDouble() * Mathf.PI * 2f;
+            float lean = 0.3f + (float)rand.NextDouble() * 0.4f;
+            var kap = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            kap.name = "Cabang_" + i;
+            kap.transform.SetParent(akar.transform, true);
+            float h = (0.8f + (float)rand.NextDouble() * 0.8f) * skala;
+            kap.transform.position = pos + new Vector3(Mathf.Cos(a) * 0.4f * skala, h * 0.5f, Mathf.Sin(a) * 0.4f * skala);
+            kap.transform.rotation = Quaternion.Euler(Mathf.Cos(a) * lean * 40f, 0f, Mathf.Sin(a) * lean * 40f);
+            kap.transform.localScale = new Vector3(0.22f * skala, h * 0.5f, 0.22f * skala);
+            Object.DestroyImmediate(kap.GetComponent<Collider>());
+            kap.GetComponent<MeshRenderer>().sharedMaterial = matGlow;
+        }
+        // halo aura sphere transparan (TIDAK dibake — nama HaloKoral dikecualikan di menu 41)
+        var halo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        halo.name = "HaloKoral";
+        halo.transform.SetParent(akar.transform, true);
+        halo.transform.position = pos + Vector3.up * (0.9f * skala);
+        halo.transform.localScale = Vector3.one * (2.2f * skala);
+        Object.DestroyImmediate(halo.GetComponent<Collider>());
+        var mrHalo = halo.GetComponent<MeshRenderer>();
+        mrHalo.sharedMaterial = matHalo;
+        mrHalo.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+    }
+
+    private static void BuatAnemon(Transform parent, string nama, Vector3 pos, Color warna, System.Random rand)
+    {
+        var akar = new GameObject(nama);
+        akar.transform.SetParent(parent, true);
+        akar.transform.position = pos;
+
+        Material matGlow = WahanaRebuilder.MatGlowLit(warna, 2.3f);
+        // cluster kapsul pendek menyebar radial
+        int n = 5 + rand.Next(0, 3);
+        for (int i = 0; i < n; i++)
+        {
+            float a = (i / (float)n) * Mathf.PI * 2f;
+            var kap = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            kap.name = "Tentakel_" + i;
+            kap.transform.SetParent(akar.transform, true);
+            float h = 0.4f + (float)rand.NextDouble() * 0.3f;
+            kap.transform.position = pos + new Vector3(Mathf.Cos(a) * 0.2f, h * 0.5f, Mathf.Sin(a) * 0.2f);
+            kap.transform.rotation = Quaternion.Euler(Mathf.Cos(a) * 25f, 0f, Mathf.Sin(a) * 25f);
+            kap.transform.localScale = new Vector3(0.14f, h * 0.5f, 0.14f);
+            Object.DestroyImmediate(kap.GetComponent<Collider>());
+            kap.GetComponent<MeshRenderer>().sharedMaterial = matGlow;
+        }
+
+        // DENYUT (DisplayAnimasi mode 3)
+        var da = akar.AddComponent<DisplayAnimasi>();
+        var so = new SerializedObject(da);
+        so.FindProperty("_mode").intValue = 3;
+        so.FindProperty("_faktorDenyut").floatValue = 1.18f;
+        so.FindProperty("_kecepatanDenyut").floatValue = 0.09f + (float)rand.NextDouble() * 0.05f;
+        so.ApplyModifiedProperties();
+    }
+
+    // #####################################################################
+    //  BUILDER: SILUET ANAK di balik kaca
+    // #####################################################################
+    private static void BuatSiluetAnak(Transform parent, System.Text.StringBuilder sb)
+    {
+        var akar = new GameObject("SiluetAnak_S4");
+        akar.transform.SetParent(parent, true);
+        // posisi awal (jauh) di balik kaca barat
+        Vector3 posJauh = new Vector3(DindingBaratX - 3f, -2.5f, GuaPusat.z);
+        akar.transform.position = posJauh;
+
+        // material siluet GELAP unlit (instance dibuat runtime di SiluetAnakS4.Awake via .material)
+        Material matSiluet = WahanaRebuilder.MatLitTransparan(new Color(0.01f, 0.01f, 0.02f), 0f);
+
+        // kepala (sphere) + bahu (box lebar) — 2 primitive gelap
+        var kepala = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        kepala.name = "Kepala";
+        kepala.transform.SetParent(akar.transform, false);
+        kepala.transform.localPosition = new Vector3(0f, 1.4f, 0f);
+        kepala.transform.localScale = Vector3.one * 2.2f;
+        Object.DestroyImmediate(kepala.GetComponent<Collider>());
+        var mrK = kepala.GetComponent<MeshRenderer>();
+        mrK.sharedMaterial = matSiluet;
+        mrK.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+        var bahu = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        bahu.name = "Bahu";
+        bahu.transform.SetParent(akar.transform, false);
+        bahu.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+        bahu.transform.localPosition = new Vector3(0f, -0.4f, 0f);
+        bahu.transform.localScale = new Vector3(2.4f, 2.6f, 2.4f);
+        Object.DestroyImmediate(bahu.GetComponent<Collider>());
+        var mrB = bahu.GetComponent<MeshRenderer>();
+        mrB.sharedMaterial = matSiluet;
+        mrB.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+        var sil = akar.AddComponent<SiluetAnakS4>();
+        var so = new SerializedObject(sil);
+        so.FindProperty("_posisiJauh").vector3Value = posJauh;
+        so.FindProperty("_posisiDekat").vector3Value = new Vector3(DindingBaratX - 0.9f, -2.5f, GuaPusat.z);
+        so.FindProperty("_posisiDekatKetuk").vector3Value = new Vector3(DindingBaratX - 0.3f, -2.5f, GuaPusat.z);
+        so.ApplyModifiedProperties();
+
+        sb.AppendLine("  Siluet anak di balik kaca barat (fade berkala 25-40s).");
+    }
+
+    // #####################################################################
+    //  BUILDER: SUASANA KELUAR-AIR (persiapan S5)
+    // #####################################################################
+    private static void BuatSuasanaKeluar(Transform parent, System.Text.StringBuilder sb)
+    {
+        // di titik keluar tunnel utara (rel muncul), fog biru -> hitam pekat + ambient gelap
+        var g = new GameObject("Z_SuasanaKeluar_S4");
+        g.transform.SetParent(parent, true);
+        g.transform.position = new Vector3(-43.5f, 0.5f, 3f); // dekat WP_600 (permukaan)
+        var col = g.AddComponent<BoxCollider>();
+        col.isTrigger = true;
+        col.size = new Vector3(6f, 5f, 6f);
+        var sz = g.AddComponent<SuasanaZona>();
+        var so = new SerializedObject(sz);
+        so.FindProperty("_mode").intValue = 0;
+        so.FindProperty("_durasi").floatValue = 2f;
+        so.FindProperty("_fogColor").colorValue = new Color(0.01f, 0.02f, 0.05f);
+        so.FindProperty("_fogStart").floatValue = 4f;
+        so.FindProperty("_fogEnd").floatValue = 22f;
+        so.FindProperty("_ambientSky").colorValue = new Color(0.01f, 0.015f, 0.03f);
+        so.FindProperty("_ambientEquator").colorValue = new Color(0.008f, 0.012f, 0.025f);
+        so.FindProperty("_ambientGround").colorValue = new Color(0.005f, 0.008f, 0.015f);
+        so.ApplyModifiedProperties();
+        sb.AppendLine("  SuasanaZona keluar-air (fog biru->hitam, siap masuk S5).");
+    }
+
+    // #####################################################################
+    //  BUILDER: SPLASH KELUAR (plane air + PemicuKereta -> GelembungNaik burst)
+    // #####################################################################
+    private static void BuatSplashKeluar(Transform parent, List<Vector3> jalur, System.Text.StringBuilder sb)
+    {
+        // titik rel muncul ke permukaan (Y~0) dekat WP_600 (-43.7,0.09,5.1).
+        Vector3 titik = TitikRelDiKetinggian(jalur, 0f, new Vector3(-43.7f, 0f, 5f));
+        Vector3 arah = WahanaRebuilder.RailDirDi(jalur, titik);
+
+        var akar = new GameObject("SplashKeluar_S4");
+        akar.transform.SetParent(parent, true);
+        akar.transform.position = titik;
+
+        // plane air kecil melintang rel (quad cyan alpha 0.3) + riak = 2 quad offset
+        Material matAir = WahanaRebuilder.MatLitTransparan(new Color(0.2f, 0.55f, 0.7f), 0.3f);
+        Quaternion rotAir = Quaternion.Euler(90f, 0f, 0f);
+        for (int i = 0; i < 2; i++)
+        {
+            var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            q.name = "Riak_" + i;
+            q.transform.SetParent(akar.transform, true);
+            q.transform.position = titik + Vector3.up * (0.02f + i * 0.04f);
+            q.transform.rotation = rotAir;
+            float s = 3.5f - i * 0.8f;
+            q.transform.localScale = new Vector3(s, s, 1f);
+            Object.DestroyImmediate(q.GetComponent<Collider>());
+            var mr = q.GetComponent<MeshRenderer>();
+            mr.sharedMaterial = matAir;
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        // kolom gelembung burst (GelembungNaik merangkap IAksiInteraksi) di titik ini
+        var kolom = new GameObject("GelembungSplash");
+        kolom.transform.SetParent(akar.transform, true);
+        kolom.transform.position = titik + Vector3.down * 0.5f;
+        Material matGel = WahanaRebuilder.MatLitTransparan(new Color(0.85f, 0.95f, 1f), 0.25f);
+        var rand = new System.Random(4140);
+        for (int i = 0; i < 8; i++)
+        {
+            var g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            g.name = "Gelembung_" + i;
+            g.transform.SetParent(kolom.transform, false);
+            g.transform.localPosition = new Vector3(((float)rand.NextDouble() - 0.5f) * 0.5f, 0f, ((float)rand.NextDouble() - 0.5f) * 0.5f);
+            g.transform.localScale = Vector3.one * (0.1f + (float)rand.NextDouble() * 0.12f);
+            Object.DestroyImmediate(g.GetComponent<Collider>());
+            var mr = g.GetComponent<MeshRenderer>();
+            mr.sharedMaterial = matGel;
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+        var gn = kolom.AddComponent<GelembungNaik>();
+        var soGn = new SerializedObject(gn);
+        soGn.FindProperty("_tinggiTarget").floatValue = 1.5f;
+        soGn.FindProperty("_kecepatan").floatValue = 1.4f;
+        soGn.ApplyModifiedProperties();
+        // AudioSource splash (Land, pitch 0.7) di kolom -> dibunyikan GelembungNaik.Jalankan()
+        BuatAudio(kolom, "Assets/Audio/SFX/T7_SFX_Land.ogg", 0.7f, 0.5f, false, 10f, false);
+
+        // PemicuKereta: kereta masuk -> Jalankan() GelembungNaik (burst + splash)
+        var pemicuGo = new GameObject("Z_SplashPemicu");
+        pemicuGo.transform.SetParent(akar.transform, true);
+        pemicuGo.transform.position = titik + Vector3.up * 0.5f;
+        var colP = pemicuGo.AddComponent<BoxCollider>();
+        colP.isTrigger = true;
+        colP.size = new Vector3(4f, 4f, 4f);
+        var pemicu = pemicuGo.AddComponent<PemicuKereta>();
+        var soP = new SerializedObject(pemicu);
+        var tArr = soP.FindProperty("_target");
+        tArr.arraySize = 1;
+        tArr.GetArrayElementAtIndex(0).objectReferenceValue = gn; // GelembungNaik implement IAksiInteraksi
+        soP.FindProperty("_cooldown").floatValue = 30f;
+        soP.ApplyModifiedProperties();
+
+        sb.AppendLine("  Splash keluar-air di " + F(titik) + " (plane riak + PemicuKereta -> GelembungNaik burst + SFX Land).");
+    }
+
+    // #####################################################################
+    //  PALKA FIX (revisi user): palka permukaan -> kolam air statis.
+    //  URUTAN: menu 38 WAJIB dijalankan SETELAH menu 23 "Gerbang Gua Laut"
+    //  (menu 23 membangun ulang PintuGuaLaut LENGKAP dengan Animator/PintuAnimasi/
+    //  Z_Pintu/GarisGlow). Kalau menu 23 di-re-run setelah ini, jalankan menu 38 lagi
+    //  untuk memulihkan fix ini. Idempotent (cek komponen ada sebelum hapus).
+    // #####################################################################
+    private static void FixPalka(System.Text.StringBuilder sb)
+    {
+        var palka = CariGameObject("PintuGuaLaut");
+        if (palka == null) { sb.AppendLine("  [Palka] PintuGuaLaut tak ketemu — lewati."); return; }
+
+        int hapus = 0;
+        // (a) hapus Animator + PintuAnimasi + AudioSource
+        var anim = palka.GetComponent<Animator>();
+        if (anim != null) { Object.DestroyImmediate(anim); hapus++; }
+        var pa = palka.GetComponent<PintuAnimasi>();
+        if (pa != null) { Object.DestroyImmediate(pa); hapus++; }
+        foreach (var au in palka.GetComponents<AudioSource>()) { Object.DestroyImmediate(au); hapus++; }
+
+        // (b) hapus child Z_Pintu (trigger)
+        var zp = CariChild(palka.transform, "Z_Pintu");
+        if (zp != null) { Object.DestroyImmediate(zp.gameObject); hapus++; }
+
+        // (c) hapus 4 child GarisGlow_* (di bawah Door_Transform)
+        foreach (var t in palka.GetComponentsInChildren<Transform>(true))
+        {
+            if (t != null && t.name.StartsWith("GarisGlow_")) { Object.DestroyImmediate(t.gameObject); hapus++; }
+        }
+
+        // (d) ganti material PanelPintu -> material AIR baru embedded (biru-air, sedikit emissive)
+        Transform panel = null;
+        foreach (var t in palka.GetComponentsInChildren<Transform>(true))
+            if (t != null && t.name == "PanelPintu") { panel = t; break; }
+        if (panel != null)
+        {
+            Material matAir = WahanaRebuilder.MatLitTransparan(new Color(0.15f, 0.45f, 0.75f), 0.85f);
+            matAir.EnableKeyword("_EMISSION");
+            matAir.SetColor("_EmissionColor", new Color(0.1f, 0.3f, 0.55f) * 0.12f);
+            var mr = panel.GetComponent<MeshRenderer>();
+            if (mr != null) mr.sharedMaterial = matAir;
+        }
+        sb.AppendLine("  [Palka] fix: hapus " + hapus + " komponen/child; PanelPintu -> air statis.");
+    }
+
+    // #####################################################################
+    //  HELPER
+    // #####################################################################
+
+    private static WahanaLayout.Ruangan RuangS4()
+    {
+        foreach (var r in WahanaLayout.BuildRuangan())
+            if (r.nama == "S4") return r;
+        throw new System.Exception("Ruangan S4 tak ditemukan.");
+    }
+
+    private static List<Vector3> PolylineUtama()
+    {
+        var pts = new List<Vector3>();
+        var jalur = CariGameObject("JalurUtama");
+        if (jalur == null) return pts;
+        for (int i = 0; ; i++)
+        {
+            var t = jalur.transform.Find("WP_" + i);
+            if (t == null) break;
+            pts.Add(t.position);
+        }
+        return pts;
+    }
+
+    private static Vector3 TitikRelTerdekat(List<Vector3> pts, Vector3 target)
+    {
+        Vector3 best = target; float bd = float.MaxValue;
+        foreach (var p in pts)
+        {
+            float d = (p - target).sqrMagnitude;
+            if (d < bd) { bd = d; best = p; }
+        }
+        return best;
+    }
+
+    /// <summary>Titik rel yang Y-nya paling dekat targetY, DEKAT posisi hint (XZ).</summary>
+    private static Vector3 TitikRelDiKetinggian(List<Vector3> pts, float targetY, Vector3 hint)
+    {
+        Vector3 best = hint; float skorBest = float.MaxValue;
+        foreach (var p in pts)
+        {
+            float dxz = (p.x - hint.x) * (p.x - hint.x) + (p.z - hint.z) * (p.z - hint.z);
+            float dy = Mathf.Abs(p.y - targetY);
+            float skor = dxz + dy * 4f; // utamakan Y target, tapi tetap dekat hint XZ
+            if (skor < skorBest) { skorBest = skor; best = p; }
+        }
+        return best;
+    }
+
+    private static float JarakXZ(List<Vector3> pts, Vector3 p)
+    {
+        float best = float.MaxValue;
+        foreach (var q in pts)
+        {
+            float dx = q.x - p.x, dz = q.z - p.z, d = dx * dx + dz * dz;
+            if (d < best) best = d;
+        }
+        return Mathf.Sqrt(best);
+    }
+
+    private static void BuatFrame(Transform parent, Vector3 pusat, float panjangZ, float tinggiY, float tebal, Material mat)
+    {
+        // 4 batang frame di bidang X (panel barat): 2 horizontal (atas/bawah), 2 vertikal (depan/belakang Z)
+        BuatBoxNoCol(parent, "FrameAtas", pusat + Vector3.up * (tinggiY * 0.5f), new Vector3(tebal, tebal, panjangZ + tebal), mat);
+        BuatBoxNoCol(parent, "FrameBawah", pusat - Vector3.up * (tinggiY * 0.5f), new Vector3(tebal, tebal, panjangZ + tebal), mat);
+        BuatBoxNoCol(parent, "FrameDepan", pusat + new Vector3(0f, 0f, panjangZ * 0.5f), new Vector3(tebal, tinggiY, tebal), mat);
+        BuatBoxNoCol(parent, "FrameBelakang", pusat - new Vector3(0f, 0f, panjangZ * 0.5f), new Vector3(tebal, tinggiY, tebal), mat);
+    }
+
+    private static GameObject BuatBoxNoCol(Transform parent, string nama, Vector3 pos, Vector3 skala, Material mat)
+    {
+        var g = WahanaRebuilder.BuatBox(parent, nama, pos, skala, mat);
+        Object.DestroyImmediate(g.GetComponent<Collider>());
+        return g;
+    }
+
+    private static void BuatPoint(Transform parent, string nama, Vector3 pos, Color warna, float intensitas, float range)
+    {
+        var g = new GameObject(nama);
+        g.transform.SetParent(parent, true);
+        g.transform.position = pos;
+        var l = g.AddComponent<Light>();
+        l.type = LightType.Point; l.color = warna; l.intensity = intensitas; l.range = range;
+        l.shadows = LightShadows.None;
+    }
+
+    private static void BuatSpot(Transform parent, string nama, Vector3 pos, Color warna, float intensitas, float range, float angle)
+    {
+        var g = new GameObject(nama);
+        g.transform.SetParent(parent, true);
+        g.transform.position = pos;
+        g.transform.rotation = Quaternion.Euler(90f, 0f, 0f); // sorot ke bawah
+        var l = g.AddComponent<Light>();
+        l.type = LightType.Spot; l.color = warna; l.intensity = intensitas; l.range = range; l.spotAngle = angle;
+        l.shadows = LightShadows.None;
+    }
+
+    private static AudioSource BuatAudio(GameObject go, string clipPath, float pitch, float volume,
+                                         bool loop, float maxDist, bool playOnAwake = true)
+    {
+        var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(clipPath);
+        if (clip == null)
+        {
+            Debug.Log("[SihirS4] clip tak ketemu: " + clipPath);
+            return null;
+        }
+        var au = go.AddComponent<AudioSource>();
+        au.clip = clip;
+        au.pitch = pitch;
+        au.volume = volume;
+        au.loop = loop;
+        au.playOnAwake = playOnAwake;
+        au.spatialBlend = 1f;
+        au.rolloffMode = AudioRolloffMode.Linear;
+        au.minDistance = 1.5f;
+        au.maxDistance = maxDist;
+        return au;
+    }
+
+    private static void HapusFisik(GameObject root)
+    {
+        foreach (var rb in root.GetComponentsInChildren<Rigidbody>(true)) Object.DestroyImmediate(rb);
+        foreach (var col in root.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(col);
+    }
+
+    /// <summary>
+    /// Flag BatchingStatic HANYA objek yang benar-benar diam. Subtree yang punya komponen
+    /// animasi (DisplayAnimasi/KunangGerak/GelembungNaik/IkanKawanan) DI-SKIP — objek yang
+    /// bergerak tak boleh static-batched (bikin artefak / gagal batching). Defensif kalau
+    /// ada objek hidup nyasar ke grup dekor.
+    /// </summary>
+    private static void FlagStatisRekursif(GameObject root)
+    {
+        foreach (var t in root.GetComponentsInChildren<Transform>(true))
+        {
+            // cek objek ini & seluruh anaknya: ada komponen animasi -> skip subtree
+            bool bergerak = t.GetComponentInChildren<DisplayAnimasi>(true) != null
+                            || t.GetComponentInChildren<KunangGerak>(true) != null
+                            || t.GetComponentInChildren<GelembungNaik>(true) != null
+                            || t.GetComponentInChildren<IkanKawanan>(true) != null;
+            if (bergerak) continue;
+            GameObjectUtility.SetStaticEditorFlags(t.gameObject, StaticEditorFlags.BatchingStatic);
+        }
+    }
+
+    private static Transform CariChild(Transform t, string nama)
+    {
+        foreach (var c in t.GetComponentsInChildren<Transform>(true))
+            if (c != null && c != t && c.name == nama) return c;
+        return null;
+    }
+
+    private static GameObject CariGameObject(string nama)
+    {
+        var scene = EditorSceneManager.GetActiveScene();
+        foreach (var go in Resources.FindObjectsOfTypeAll<GameObject>())
+        {
+            if (go == null || go.name != nama) continue;
+            if (!go.scene.IsValid() || go.scene != scene) continue;
+            if (EditorUtility.IsPersistent(go)) continue;
+            return go;
+        }
+        return null;
+    }
+
+    private static T FindKomponen<T>() where T : Component
+    {
+        return Object.FindFirstObjectByType<T>(FindObjectsInactive.Include);
+    }
+
+    private static void SimpanMesh(Mesh mesh, string namaFile)
+    {
+        const string dir = "Assets/Generated";
+        if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder("Assets", "Generated");
+        string path = dir + "/" + namaFile + ".asset";
+        AssetDatabase.DeleteAsset(path);
+        AssetDatabase.CreateAsset(mesh, path);
+    }
+
+    private static void Selesai(System.Text.StringBuilder sb, GameObject root)
+    {
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+        sb.AppendLine("Scene disimpan. Parent: " + root.name);
+        Debug.Log(sb.ToString());
+    }
+
+    private static string F(Vector3 v) => string.Format("({0:F1},{1:F1},{2:F1})", v.x, v.y, v.z);
+}
