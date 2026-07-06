@@ -1237,8 +1237,8 @@ public static class WahanaRebuilder
 
         // ---------- (c) taman jamur (terbesar mengangkangi busur cabang WK2) ----------
         var jamurTemplate = CariGameObject("Mushroom_01");
-        var matJamurCyan = MatUnlitHDR(new Color(0.3f, 0.95f, 1f), 2.8f);
-        var matJamurUngu = MatUnlitHDR(new Color(0.65f, 0.4f, 1f), 2.8f);
+        var matJamurCyan = MatUnlitHDR(new Color(0.3f, 0.95f, 1f), 1.7f);  // sedang: jamur glow tapi bentuk tetap kebaca
+        var matJamurUngu = MatUnlitHDR(new Color(0.65f, 0.4f, 1f), 1.7f);
         int nJamur = 0;
         if (jamurTemplate != null)
         {
@@ -1535,27 +1535,25 @@ public static class WahanaRebuilder
     private static int BuatJamurGlow(Transform parent, string nama, Vector3 pos, GameObject template,
                                      Material matGlow, System.Random rand)
     {
-        float skala = 1.0f + (float)rand.NextDouble() * 0.8f;
+        float skala = 1.3f + (float)rand.NextDouble() * 1.0f; // besar sedikit biar glow jamur kebaca
         var jamur = Object.Instantiate(template, parent);
         jamur.name = nama;
         jamur.transform.position = new Vector3(pos.x, template.transform.position.y, pos.z);
         jamur.transform.rotation = Quaternion.Euler(0f, (float)rand.NextDouble() * 360f, 0f);
         jamur.transform.localScale = template.transform.localScale * skala;
         foreach (var col in jamur.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(col);
-        foreach (var mr in jamur.GetComponentsInChildren<MeshRenderer>(true)) mr.enabled = true; // template mungkin ke-bake
-
-        var glow = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        glow.name = "Glow";
-        glow.transform.SetParent(jamur.transform, true);
-        glow.transform.position = jamur.transform.position + Vector3.up * (0.45f * skala);
-        glow.transform.localScale = Vector3.one * 0.22f;
-        Object.DestroyImmediate(glow.GetComponent<Collider>());
-        glow.GetComponent<MeshRenderer>().sharedMaterial = matGlow;
-        var da = glow.AddComponent<DisplayAnimasi>();
+        // JAMUR-nya SENDIRI yang glow (mesh-nya di-set material HDR) — BUKAN bola melayang di atas.
+        foreach (var mr in jamur.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            mr.enabled = true;
+            mr.sharedMaterial = matGlow;
+        }
+        // denyut halus langsung di jamur (hidup)
+        var da = jamur.AddComponent<DisplayAnimasi>();
         var so = new SerializedObject(da);
         so.FindProperty("_mode").intValue = 3; // denyut
-        so.FindProperty("_faktorDenyut").floatValue = 1.25f;
-        so.FindProperty("_kecepatanDenyut").floatValue = 0.12f;
+        so.FindProperty("_faktorDenyut").floatValue = 1.16f;
+        so.FindProperty("_kecepatanDenyut").floatValue = 0.09f;
         so.ApplyModifiedProperties();
         return 1;
     }
