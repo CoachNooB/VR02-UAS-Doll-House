@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 
@@ -651,7 +653,7 @@ public static class WahanaRebuilder
         nyala.transform.position = posApi + Vector3.up * 0.35f;
         nyala.transform.localScale = new Vector3(0.35f, 0.6f, 0.35f);
         Object.DestroyImmediate(nyala.GetComponent<Collider>());
-        nyala.GetComponent<MeshRenderer>().sharedMaterial = MatUnlit(new Color(1f, 0.55f, 0.15f));
+        nyala.GetComponent<MeshRenderer>().sharedMaterial = MatUnlitHDR(new Color(1f, 0.55f, 0.15f), 1.7f);
         var daNyala = nyala.AddComponent<DisplayAnimasi>();
         var soNyala = new SerializedObject(daNyala);
         soNyala.FindProperty("_mode").intValue = 3;              // denyut
@@ -665,7 +667,7 @@ public static class WahanaRebuilder
         inti.transform.position = posApi + Vector3.up * 0.45f;
         inti.transform.localScale = new Vector3(0.18f, 0.34f, 0.18f);
         Object.DestroyImmediate(inti.GetComponent<Collider>());
-        inti.GetComponent<MeshRenderer>().sharedMaterial = MatUnlit(new Color(1f, 0.85f, 0.35f));
+        inti.GetComponent<MeshRenderer>().sharedMaterial = MatUnlitHDR(new Color(1f, 0.85f, 0.35f), 2.1f);
 
         // lampu api oranye + flicker (additional light ke-3 di S1; limit URP mobile = 4)
         var lampuGo = new GameObject("LampuApi_S1");
@@ -1020,7 +1022,7 @@ public static class WahanaRebuilder
         bulan.transform.position = new Vector3(33f, plafonY - 0.3f, 21f);
         bulan.transform.localScale = new Vector3(1.4f, 0.1f, 1.4f);
         Object.DestroyImmediate(bulan.GetComponent<Collider>());
-        bulan.GetComponent<MeshRenderer>().sharedMaterial = MatUnlit(new Color(0.85f, 0.9f, 1f));
+        bulan.GetComponent<MeshRenderer>().sharedMaterial = MatUnlitHDR(new Color(0.85f, 0.9f, 1f), 1.6f);
 
         var matKanopi = MatUnlit(new Color(0.004f, 0.008f, 0.012f));
         Vector3[] posKanopi = { new Vector3(33f, plafonY - 0.5f, 17f), new Vector3(42f, plafonY - 0.6f, 13f), new Vector3(37f, plafonY - 0.45f, 22f) };
@@ -1107,11 +1109,11 @@ public static class WahanaRebuilder
         pathSungai.Add(nodeSungai[nodeSungai.Count - 1]);
 
         // sungai LEBAR + cyan terang; inti tipis lebih terang = kesan aliran cahaya
-        var matAir = MatUnlit(new Color(0.28f, 0.88f, 1f));
+        var matAir = MatUnlitHDR(new Color(0.28f, 0.88f, 1f), 1.7f);
         Mesh meshSungai = MeshPita(pathSungai, 1.9f, 0.04f);
         SimpanMeshAsset(meshSungai, "SIHIR_Sungai");
         BuatMeshObjek(root.transform, "Sungai_S1", meshSungai, matAir);
-        var matAirInti = MatUnlit(new Color(0.6f, 1f, 1f));
+        var matAirInti = MatUnlitHDR(new Color(0.6f, 1f, 1f), 2.4f);
         Mesh meshInti = MeshPita(pathSungai, 0.7f, 0.06f);
         SimpanMeshAsset(meshInti, "SIHIR_SungaiInti");
         BuatMeshObjek(root.transform, "SungaiInti_S1", meshInti, matAirInti);
@@ -1126,7 +1128,7 @@ public static class WahanaRebuilder
 
         // jembatan kayu TERANG + 4 lentera cyan di persilangan rel x sungai (44.75, 13.7)
         var matKayu = MatLit(new Color(0.45f, 0.32f, 0.18f));
-        var matLenteraJ = MatUnlit(new Color(0.3f, 0.95f, 1f));
+        var matLenteraJ = MatUnlitHDR(new Color(0.3f, 0.95f, 1f), 2.6f);
         var jembatan = new GameObject("Jembatan_S1");
         jembatan.transform.SetParent(root.transform, true);
         jembatan.transform.position = new Vector3(44.75f, 0f, 13.7f);
@@ -1187,7 +1189,7 @@ public static class WahanaRebuilder
         var teddySection = CariTransform("UAS_ForestTeddySection");
         if (teddySection != null) cen = new Vector3(teddySection.position.x, 0f, teddySection.position.z);
 
-        var matKunang = MatUnlit(new Color(0.75f, 0.95f, 0.4f));
+        var matKunang = MatUnlitHDR(new Color(0.75f, 0.95f, 0.4f), 2.6f);
         var matKaca = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/MatKaca.mat");
         Material matHalo = null;
         if (matKaca != null)
@@ -1235,8 +1237,8 @@ public static class WahanaRebuilder
 
         // ---------- (c) taman jamur (terbesar mengangkangi busur cabang WK2) ----------
         var jamurTemplate = CariGameObject("Mushroom_01");
-        var matJamurCyan = MatUnlit(new Color(0.3f, 0.95f, 1f));
-        var matJamurUngu = MatUnlit(new Color(0.65f, 0.4f, 1f));
+        var matJamurCyan = MatUnlitHDR(new Color(0.3f, 0.95f, 1f), 2.8f);
+        var matJamurUngu = MatUnlitHDR(new Color(0.65f, 0.4f, 1f), 2.8f);
         int nJamur = 0;
         if (jamurTemplate != null)
         {
@@ -1279,7 +1281,7 @@ public static class WahanaRebuilder
         else sb.AppendLine("  (Mushroom_01 tak ketemu — jamur dilewati)");
 
         // ---------- (d) lumut glow di 4 batang pohon terdekat jalur ----------
-        var matLumut = MatUnlit(new Color(0.4f, 1f, 0.75f));
+        var matLumut = MatUnlitHDR(new Color(0.4f, 1f, 0.75f), 2.3f);
         int nLumut = 0;
         Transform envLumut = null;
         var temenRoot = CariTransform("GEN_Temen_S1");
@@ -1373,6 +1375,61 @@ public static class WahanaRebuilder
         soBerkala.ApplyModifiedProperties();
         sb.AppendLine("  Chime jembatan terpasang.");
 
+        Debug.Log(sb.ToString());
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+    }
+
+    // =====================================================================
+    //  MENU 21 — SIHIR BLOOM (post-processing global)
+    //  Nyalakan post-fx kamera + Volume Bloom global supaya semua glow HDR
+    //  (jamur/kunang/sungai/lentera) MEKAR = efek "nyala" enchanted. Idempotent.
+    // =====================================================================
+    [MenuItem("Tools/Wahana/21 S1 Sihir Bloom (post-fx)")]
+    public static void SihirBloom()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("=== SIHIR BLOOM ===");
+
+        // 1) nyalakan post-processing di kamera utama
+        Camera cam = Camera.main;
+        if (cam == null)
+        {
+            var camGo = GameObject.FindWithTag("MainCamera");
+            if (camGo != null) cam = camGo.GetComponent<Camera>();
+        }
+        if (cam != null)
+        {
+            var data = cam.GetComponent<UniversalAdditionalCameraData>();
+            if (data == null) data = cam.gameObject.AddComponent<UniversalAdditionalCameraData>();
+            data.renderPostProcessing = true;
+            EditorUtility.SetDirty(cam);
+            sb.AppendLine("  Post-processing kamera '" + cam.name + "' ON.");
+        }
+        else sb.AppendLine("  (Kamera utama tak ketemu — post-fx dilewati)");
+
+        // 2) Volume global + profil Bloom (idempoten)
+        HapusParent("GEN_PostProcess");
+        var volGo = new GameObject("GEN_PostProcess");
+        var vol = volGo.AddComponent<Volume>();
+        vol.isGlobal = true;
+        vol.priority = 10f;
+
+        PastikanFolderGenerated();
+        AssetDatabase.DeleteAsset("Assets/Generated/GEN_VolumeProfile.asset");
+        var profile = ScriptableObject.CreateInstance<VolumeProfile>();
+        AssetDatabase.CreateAsset(profile, "Assets/Generated/GEN_VolumeProfile.asset");
+
+        var bloom = profile.Add<Bloom>(true);
+        bloom.threshold.overrideState = true; bloom.threshold.value = 0.85f;
+        bloom.intensity.overrideState = true; bloom.intensity.value = 1.4f;
+        bloom.scatter.overrideState = true; bloom.scatter.value = 0.72f;
+        bloom.tint.overrideState = true; bloom.tint.value = new Color(0.82f, 0.9f, 1f);
+
+        vol.sharedProfile = profile;
+        EditorUtility.SetDirty(profile);
+        AssetDatabase.SaveAssets();
+
+        sb.AppendLine("  Volume Bloom global (threshold 0.85, intensity 1.4).");
         Debug.Log(sb.ToString());
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
     }
@@ -1551,7 +1608,7 @@ public static class WahanaRebuilder
         Object.DestroyImmediate(palang.GetComponent<Collider>());
         palang.GetComponent<MeshRenderer>().sharedMaterial = matKayu;
 
-        var matLentera = MatUnlit(new Color(0.3f, 0.95f, 1f));
+        var matLentera = MatUnlitHDR(new Color(0.3f, 0.95f, 1f), 2.6f);
         BuatBoxSihir(akar.transform, "Lentera_L", pos - kanan * 1.9f + Vector3.up * 2.35f + arahLaju * -0.28f, new Vector3(0.22f, 0.3f, 0.22f), matLentera);
         BuatBoxSihir(akar.transform, "Lentera_R", pos + kanan * 1.9f + Vector3.up * 2.35f + arahLaju * -0.28f, new Vector3(0.22f, 0.3f, 0.22f), matLentera);
 
@@ -1702,6 +1759,16 @@ public static class WahanaRebuilder
         if (sh == null) sh = Shader.Find("Unlit/Color");
         var m = new Material(sh) { color = c };
         if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+        return m;
+    }
+
+    /// <summary>Unlit warna HDR (color*intensitas, komponen bisa &gt;1) supaya MEKAR di Bloom = efek "nyala".</summary>
+    private static Material MatUnlitHDR(Color c, float intensitas)
+    {
+        Color hdr = new Color(c.r * intensitas, c.g * intensitas, c.b * intensitas, c.a);
+        var m = MatUnlit(c);
+        m.color = hdr;
+        if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", hdr);
         return m;
     }
 
