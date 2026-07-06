@@ -417,6 +417,64 @@ public static class TemenDresser
         return dimatikan.Count;
     }
 
+    // =====================================================================
+    //  MENU 15 — REBAKE ENVIRONMENT S1 (SURGICAL)
+    //  Visual pohon Environment = mesh gabungan (GABUNG_*) hasil DressS1; kalau
+    //  transform pohon asli digeser (mis. Tools/Wahana/8 Rapikan Pohon S1), bake
+    //  jadi basi. Menu ini: hapus GABUNG lama + asset-nya, enable ulang renderer
+    //  asli (fallback aman kalau gagal di tengah), lalu gabung ulang dengan
+    //  exclusion yang SAMA dengan DressS1 ("Forest_Animals"). Idempotent.
+    // =====================================================================
+    [MenuItem("Tools/Wahana/15 S1 Rebake Environment", false, 80)]
+    public static void RebakeTemenS1()
+    {
+        var root = GameObject.Find("GEN_Temen_S1");
+        if (root == null)
+        {
+            Debug.LogError("[Rebake S1] GEN_Temen_S1 tidak ditemukan — jalankan Dress Temen S1 dulu.");
+            return;
+        }
+
+        Transform env = null;
+        foreach (var t in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (t.name == "Environment") { env = t; break; }
+        }
+        if (env == null)
+        {
+            Debug.LogError("[Rebake S1] Environment tidak ditemukan di bawah GEN_Temen_S1.");
+            return;
+        }
+
+        // 1) buang hasil gabungan lama (idempoten)
+        for (int i = env.childCount - 1; i >= 0; i--)
+        {
+            var c = env.GetChild(i);
+            if (c.name.StartsWith("GABUNG_")) Object.DestroyImmediate(c.gameObject);
+        }
+
+        // 2) pre-delete SEMUA asset lama berprefix — anti-orphan kalau jumlah
+        //    grup material menyusut (index sisa tidak tertimpa CreateAsset baru).
+        foreach (var guid in AssetDatabase.FindAssets("TemenS1_Environment", new[] { "Assets/Generated" }))
+        {
+            string p = AssetDatabase.GUIDToAssetPath(guid);
+            if (System.IO.Path.GetFileNameWithoutExtension(p).StartsWith("TemenS1_Environment"))
+            {
+                AssetDatabase.DeleteAsset(p);
+            }
+        }
+
+        // 3) nyalakan lagi renderer asli DULU — kalau langkah 4 gagal, scene tetap
+        //    tampil benar (draw call naik sementara), tinggal re-run menu ini.
+        foreach (var mr in env.GetComponentsInChildren<MeshRenderer>(true)) mr.enabled = true;
+
+        // 4) gabung ulang — exclusion sama persis dengan DressS1.
+        int n = GabungMeshStatis(env, "TemenS1_Environment", new HashSet<string> { "Forest_Animals" });
+
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        Debug.Log("[Rebake S1] Environment digabung ulang: " + n + " renderer (posisi pohon terbaru).");
+    }
+
     [MenuItem("Tools/Wahana/14 Gabung Mesh Statis GEN (WebGL)", false, 79)]
     public static void GabungGenStatis()
     {

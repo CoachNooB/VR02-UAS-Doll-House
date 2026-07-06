@@ -486,6 +486,376 @@ public static class WahanaRebuilder
         return best;
     }
 
+    /// <summary>Titik jalur yang harus dihindari di S1: WP utama dalam window S1 + semua WK2 cabang (flat XZ).</summary>
+    private static List<Vector3> JalurS1Flat()
+    {
+        var ptsU = WahanaLayout.Resample(WahanaLayout.BuildNodeUtama(), true);
+        var ptsK2 = WahanaLayout.Resample(WahanaLayout.BuildNodeKiriS1(), false);
+        var jalur = new List<Vector3>();
+        foreach (var p in ptsU) if (p.x > 26f && p.x < 48f && p.z > 6f && p.z < 27f) jalur.Add(new Vector3(p.x, 0f, p.z));
+        foreach (var p in ptsK2) jalur.Add(new Vector3(p.x, 0f, p.z));
+        return jalur;
+    }
+
+    // =====================================================================
+    //  MENU 16 — REL CABANG S1 (SURGICAL)
+    //  Bikin rel visual utk cabang hutan (WK2) dgn fungsi rel yang SAMA dengan
+    //  menu 5, TANPA menjalankan menu 5 (destruktif). Idempotent.
+    // =====================================================================
+    [MenuItem("Tools/Wahana/16 S1 Rel Cabang")]
+    public static void RelCabangS1()
+    {
+        Transform railRoot = CariTransform(P_Rails);
+        if (railRoot == null)
+        {
+            Debug.LogError("[Rel Cabang S1] " + P_Rails + " tidak ditemukan — jalankan menu 5 dulu (sekali saja).");
+            return;
+        }
+
+        // idempoten: buang rel cabang lama + asset-nya
+        for (int i = railRoot.childCount - 1; i >= 0; i--)
+        {
+            var c = railRoot.GetChild(i);
+            if (c.name.StartsWith("Rel_KiriS1_")) Object.DestroyImmediate(c.gameObject);
+        }
+        HapusAssetMenu("RAIL_KiriS1");
+
+        // titik cabang: resample + datar-kan Y (pola menu 7 — resample polyline terbuka
+        // bisa meninggalkan Y=0)
+        var ptsK2 = WahanaLayout.Resample(WahanaLayout.BuildNodeKiriS1(), false);
+        for (int i = 0; i < ptsK2.Count; i++) { var p = ptsK2[i]; p.y = WahanaLayout.YPermukaan; ptsK2[i] = p; }
+
+        // material: SHARE dari rel utama (embedded scene — tidak ada asset-nya),
+        // fallback bikin baru dengan warna yang sama.
+        Material matRel = null;
+        var relUtama = railRoot.Find("Rel_Utama_0");
+        if (relUtama != null)
+        {
+            var mrU = relUtama.GetComponent<MeshRenderer>();
+            if (mrU != null) matRel = mrU.sharedMaterial;
+        }
+        if (matRel == null)
+        {
+            matRel = MatLit(new Color(0.35f, 0.32f, 0.30f));
+            matRel.SetFloat("_Cull", 0f);
+        }
+
+        int n = BuatRelRibbon(railRoot, ptsK2, matRel, false, "KiriS1");
+
+        // static batching seperti rel lain
+        for (int i = 0; i < railRoot.childCount; i++)
+        {
+            var c = railRoot.GetChild(i);
+            if (c.name.StartsWith("Rel_KiriS1_"))
+            {
+                GameObjectUtility.SetStaticEditorFlags(c.gameObject, StaticEditorFlags.BatchingStatic);
+            }
+        }
+
+        Debug.Log("[Rel Cabang S1] " + n + " chunk rel KiriS1 dibuat di " + P_Rails + ".");
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+    }
+
+    // =====================================================================
+    //  MENU 17 — KEMAH API UNGGUN S1 (SURGICAL)
+    //  (a) hapus prop usang (PohonS1_* pilar + Firefly_* lama — visual bake-nya
+    //      dibersihkan menu 14 setelah ini), (b) rakit api unggun di picnic beruang
+    //      (log+batu+api unlit+lampu flicker+audio+percikan), (c) fireflies emissive
+    //      TANPA Light, (d) retune LampuShell_S1 jadi moonlight biru. Idempotent.
+    // =====================================================================
+    [MenuItem("Tools/Wahana/17 S1 Kemah Api Unggun")]
+    public static void KemahS1()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("=== KEMAH API UNGGUN S1 ===");
+
+        // (a) hapus prop usang di ShellTematik (skip yang sudah tidak ada = idempoten)
+        var shell = CariTransform("ShellTematik");
+        int dihapus = 0;
+        if (shell != null)
+        {
+            for (int i = shell.childCount - 1; i >= 0; i--)
+            {
+                var c = shell.GetChild(i);
+                if (c.name.StartsWith("PohonS1_") || c.name.StartsWith("Firefly_"))
+                {
+                    Object.DestroyImmediate(c.gameObject);
+                    dihapus++;
+                }
+            }
+        }
+        sb.AppendLine("  Prop usang dihapus: " + dihapus + " (PohonS1_*/Firefly_* — re-run menu 14 utk bersihkan bake).");
+
+        // (b) parent kemah baru (idempoten)
+        HapusParent("GEN_Kemah_S1");
+        var kemahRoot = BuatParent("GEN_Kemah_S1");
+
+        // posisi api: 8 arah radius 2.3 dari pusat picnic, pilih terjauh dari jalur
+        Vector3 cen = new Vector3(37.9f, 0f, 16.7f);
+        var teddy = CariTransform("UAS_ForestTeddySection");
+        if (teddy != null) cen = new Vector3(teddy.position.x, 0f, teddy.position.z);
+        var jalur = JalurS1Flat();
+        Vector3 posApi = cen; float bestD = -1f;
+        for (int a = 0; a < 8; a++)
+        {
+            float rad = a * Mathf.PI / 4f;
+            Vector3 kandidat = cen + new Vector3(Mathf.Cos(rad), 0f, Mathf.Sin(rad)) * 2.3f;
+            float d = MinDistXZ(jalur, kandidat);
+            if (d > bestD) { bestD = d; posApi = kandidat; }
+        }
+        posApi.y = 0.02f;
+        sb.AppendLine("  Posisi api: " + F(posApi) + " (jarak jalur " + bestD.ToString("0.0") + "u).");
+
+        var api = new GameObject("Kemah_Api");
+        api.transform.SetParent(kemahRoot.transform, true);
+        api.transform.position = posApi;
+
+        var rand = new System.Random(WahanaLayout.Seed);
+
+        // 3 batang kayu silang datar (y bertingkat biar kelihatan numpuk apa pun
+        // orientasi asli fbx-nya) + 6 batu ring
+        var logPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Kenney/NatureKit/log.fbx");
+        if (logPrefab == null)
+        {
+            logPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Temen/Paket/Polytope Studio/Lowpoly_Environments/Sources/Meshes/Trees/PT_Pine_Tree_03_logs.fbx");
+        }
+        if (logPrefab != null)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                var log = Object.Instantiate(logPrefab, api.transform);
+                log.name = "Kayu_" + i;
+                log.transform.position = posApi + Vector3.up * (0.06f + 0.07f * i);
+                log.transform.rotation = Quaternion.Euler(0f, i * 60f, 0f);
+                log.transform.localScale = Vector3.one * 0.6f;
+                foreach (var col in log.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(col);
+                FlagStatisRekursif(log, true);
+            }
+        }
+        else sb.AppendLine("  (log.fbx tidak ketemu — kayu dilewati)");
+
+        var rockPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Kenney/NatureKit/rock_smallA.fbx");
+        if (rockPrefab != null)
+        {
+            for (int i = 0; i < 6; i++)
+            {
+                float rad = i * Mathf.PI / 3f;
+                var rock = Object.Instantiate(rockPrefab, api.transform);
+                rock.name = "Batu_" + i;
+                rock.transform.position = posApi + new Vector3(Mathf.Cos(rad), 0f, Mathf.Sin(rad)) * 0.55f;
+                rock.transform.rotation = Quaternion.Euler(0f, (float)(rand.NextDouble() * 360.0), 0f);
+                rock.transform.localScale = Vector3.one * 0.5f;
+                foreach (var col in rock.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(col);
+                FlagStatisRekursif(rock, true);
+            }
+        }
+        else sb.AppendLine("  (rock_smallA.fbx tidak ketemu — batu dilewati)");
+
+        // api 2 lapis: sphere unlit full-bright (MatLitEmissive di-clamp redup — tak cocok api)
+        var nyala = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        nyala.name = "Api_Nyala";
+        nyala.transform.SetParent(api.transform, true);
+        nyala.transform.position = posApi + Vector3.up * 0.35f;
+        nyala.transform.localScale = new Vector3(0.35f, 0.6f, 0.35f);
+        Object.DestroyImmediate(nyala.GetComponent<Collider>());
+        nyala.GetComponent<MeshRenderer>().sharedMaterial = MatUnlit(new Color(1f, 0.55f, 0.15f));
+        var daNyala = nyala.AddComponent<DisplayAnimasi>();
+        var soNyala = new SerializedObject(daNyala);
+        soNyala.FindProperty("_mode").intValue = 3;              // denyut
+        soNyala.FindProperty("_faktorDenyut").floatValue = 1.2f;
+        soNyala.FindProperty("_kecepatanDenyut").floatValue = 0.6f;
+        soNyala.ApplyModifiedProperties();
+
+        var inti = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        inti.name = "Api_Inti";
+        inti.transform.SetParent(api.transform, true);
+        inti.transform.position = posApi + Vector3.up * 0.45f;
+        inti.transform.localScale = new Vector3(0.18f, 0.34f, 0.18f);
+        Object.DestroyImmediate(inti.GetComponent<Collider>());
+        inti.GetComponent<MeshRenderer>().sharedMaterial = MatUnlit(new Color(1f, 0.85f, 0.35f));
+
+        // lampu api oranye + flicker (additional light ke-3 di S1; limit URP mobile = 4)
+        var lampuGo = new GameObject("LampuApi_S1");
+        lampuGo.transform.SetParent(api.transform, true);
+        lampuGo.transform.position = posApi + Vector3.up * 0.9f;
+        var lampu = lampuGo.AddComponent<Light>();
+        lampu.type = LightType.Point;
+        lampu.color = new Color(1f, 0.55f, 0.25f);
+        lampu.intensity = 2.2f;
+        lampu.range = 9f;
+        lampu.shadows = LightShadows.None;
+        lampuGo.AddComponent<LampuFlicker>(); // default = dasar 2.2, rentang 0.55, noise 9
+
+        // suara api (placeholder: BaseAmbience pitch rendah = gemuruh bara; 3D memudar-jarak)
+        var clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/SFX/T7_SFX_BaseAmbience.ogg");
+        if (clip != null)
+        {
+            var audio = api.AddComponent<AudioSource>();
+            audio.clip = clip;
+            audio.loop = true;
+            audio.playOnAwake = true;
+            audio.spatialBlend = 1f;
+            audio.pitch = 0.55f;
+            audio.volume = 0.45f;
+            audio.rolloffMode = AudioRolloffMode.Linear;
+            audio.minDistance = 1.5f;
+            audio.maxDistance = 12f;
+        }
+        else sb.AppendLine("  (BaseAmbience.ogg tidak ketemu — audio dilewati)");
+
+        // percikan kecil (opsional — skip TOTAL kalau shader partikel URP tak ada, anti-magenta)
+        var shPartikel = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+        if (shPartikel != null)
+        {
+            var percikanGo = new GameObject("Api_Percikan");
+            percikanGo.transform.SetParent(api.transform, true);
+            percikanGo.transform.position = posApi + Vector3.up * 0.5f;
+            var ps = percikanGo.AddComponent<ParticleSystem>();
+            var main = ps.main;
+            main.maxParticles = 30;
+            main.startLifetime = 1.2f;
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.5f, 1f);
+            main.startSize = 0.04f;
+            main.startColor = new Color(1f, 0.6f, 0.2f);
+            var em = ps.emission;
+            em.rateOverTime = 6f;
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 15f;
+            shape.radius = 0.15f;
+            var matP = new Material(shPartikel);
+            if (matP.HasProperty("_BaseColor")) matP.SetColor("_BaseColor", new Color(1f, 0.6f, 0.2f));
+            percikanGo.GetComponent<ParticleSystemRenderer>().sharedMaterial = matP;
+        }
+        else sb.AppendLine("  (shader URP Particles/Unlit tak ada — percikan dilewati)");
+
+        // (c) fireflies: titik emissive kecil melayang, TANPA Light (budget lampu)
+        var matFirefly = MatUnlit(new Color(0.75f, 0.95f, 0.4f));
+        for (int i = 0; i < 8; i++)
+        {
+            float rad = (float)(rand.NextDouble() * Mathf.PI * 2.0);
+            float r = 2.5f + (float)rand.NextDouble() * 2.5f;
+            var ff = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            ff.name = "FireflyS1_" + i;
+            ff.transform.SetParent(kemahRoot.transform, true);
+            ff.transform.position = cen + new Vector3(Mathf.Cos(rad) * r,
+                1.2f + (float)rand.NextDouble() * 1.0f, Mathf.Sin(rad) * r);
+            ff.transform.localScale = Vector3.one * 0.12f;
+            Object.DestroyImmediate(ff.GetComponent<Collider>());
+            ff.GetComponent<MeshRenderer>().sharedMaterial = matFirefly;
+            var da = ff.AddComponent<DisplayAnimasi>();
+            var soFf = new SerializedObject(da);
+            soFf.FindProperty("_mode").intValue = 1; // melayang
+            soFf.FindProperty("_jarakMelayang").floatValue = 0.3f + 0.3f * (i / 7f);
+            soFf.FindProperty("_kecepatanMelayang").floatValue = 0.2f + 0.2f * ((i % 4) / 3f);
+            soFf.ApplyModifiedProperties();
+        }
+        sb.AppendLine("  Api unggun + 8 fireflies dirakit.");
+
+        // (d) retune lampu existing: shell hijau -> moonlight biru dingin (kontras api hangat)
+        var shellLampu = CariGameObject("LampuShell_S1");
+        if (shellLampu != null)
+        {
+            var l = shellLampu.GetComponent<Light>();
+            if (l != null)
+            {
+                l.color = new Color(0.55f, 0.65f, 1f);
+                l.intensity = 1.1f;
+                l.range = 20f;
+            }
+            shellLampu.transform.position = new Vector3(38f, 5.2f, 17f);
+            sb.AppendLine("  LampuShell_S1 -> moonlight biru (1.1, r20, y5.2).");
+        }
+        else sb.AppendLine("  (LampuShell_S1 tidak ketemu — moonlight dilewati)");
+
+        Debug.Log(sb.ToString());
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+    }
+
+    // =====================================================================
+    //  MENU 18 — RECOLOR MALAM S1 (SURGICAL)
+    //  Polish warna low-poly (tanpa tekstur): dinding+plafon biru-hijau gelap,
+    //  lantai tanah hutan, pintu kayu hangat. Dinding S1 pakai material EMBEDDED
+    //  scene (MatDindingS1.mat asset 0 referensi!) -> recolor sharedMaterial.
+    //  Pintu pakai MatPagar BERSAMA seluruh wahana -> WAJIB material baru.
+    // =====================================================================
+    [MenuItem("Tools/Wahana/18 S1 Recolor Malam")]
+    public static void RecolorS1Malam()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("=== RECOLOR MALAM S1 ===");
+
+        // 1) dinding + plafon: kumpulkan sharedMaterial unik lalu recolor sekali
+        var shellS1 = CariTransform(P_ShellPrefix + "S1");
+        int nDinding = 0;
+        if (shellS1 != null)
+        {
+            var matSet = new HashSet<Material>();
+            foreach (var mr in shellS1.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (mr.name.StartsWith("Dinding_S1") || mr.name == "Plafon_S1")
+                {
+                    if (mr.sharedMaterial != null) matSet.Add(mr.sharedMaterial);
+                    nDinding++;
+                }
+            }
+            foreach (var m in matSet) SetWarna(m, new Color(0.05f, 0.11f, 0.10f));
+            sb.AppendLine("  Dinding+Plafon: " + nDinding + " renderer, " + matSet.Count + " material -> (0.05, 0.11, 0.10).");
+        }
+        else sb.AppendLine("  (GEN_Shell_S1 tidak ketemu — dinding dilewati)");
+
+        // 2) lantai: embedded 1-ref -> recolor in-place; guard kalau ternyata asset
+        //    bersama lintas-section -> ganti material baru khusus S1
+        var lantai = CariGameObject("Lantai_S1");
+        if (lantai != null)
+        {
+            var mr = lantai.GetComponent<MeshRenderer>();
+            if (mr != null && mr.sharedMaterial != null)
+            {
+                if (AssetDatabase.Contains(mr.sharedMaterial))
+                {
+                    var baru = MatLit(new Color(0.10f, 0.09f, 0.05f));
+                    baru.name = "MatLantaiS1";
+                    mr.sharedMaterial = baru;
+                    sb.AppendLine("  Lantai_S1: material asset bersama -> diganti MatLantaiS1 baru.");
+                }
+                else
+                {
+                    SetWarna(mr.sharedMaterial, new Color(0.10f, 0.09f, 0.05f));
+                    sb.AppendLine("  Lantai_S1: recolor in-place -> (0.10, 0.09, 0.05).");
+                }
+            }
+        }
+        else sb.AppendLine("  (Lantai_S1 tidak ketemu — lantai dilewati)");
+
+        // 3) pintu kereta S1: panel pakai MatPagar BERSAMA -> material kayu baru khusus
+        var pintu = CariTransform("PintuKereta_S1");
+        if (pintu != null)
+        {
+            var matPintu = MatLit(new Color(0.32f, 0.20f, 0.10f));
+            matPintu.name = "MatPintuKayuS1";
+            int nPanel = 0;
+            foreach (var mr in pintu.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                mr.sharedMaterial = matPintu;
+                nPanel++;
+            }
+            sb.AppendLine("  PintuKereta_S1: " + nPanel + " panel -> MatPintuKayuS1 (0.32, 0.20, 0.10).");
+        }
+        else sb.AppendLine("  (PintuKereta_S1 tidak ketemu — pintu dilewati)");
+
+        Debug.Log(sb.ToString());
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+    }
+
+    /// <summary>Set warna material URP (color + _BaseColor) — idempotent, aman diulang.</summary>
+    private static void SetWarna(Material m, Color c)
+    {
+        m.color = c;
+        if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
+    }
+
     // #####################################################################
     //  HELPER: SCENE / OBJEK
     // #####################################################################
