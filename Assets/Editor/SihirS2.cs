@@ -534,16 +534,22 @@ public static class SihirS2
 
         // ---------- (h) zona masuk S2 -> ambient SIANG (in-place, anti-duplikat) ----------
         UbahZonaSiang(sb);
+        PindahZonaKeluar(sb); // restore-malam pindah ke AMBANG pintu keluar barat (dulu kepicu di tikungan SW = gelap kepagian)
 
         // ---------- (i) clearance visual koridor penumpang ----------
         FixClearanceVisual(sb);
+        HapusRelNganggur(sb); // bangkai visual cabang S2 lama (Rel_Kiri_0/1; WK sudah dihapus menu 32)
 
-        // ---------- (j) snap prop panggung & snowmen ke permukaan (Renderer.bounds) ----------
+        // ---------- (j) recolor dressing S2 (coklat lama -> tema salju/emas) ----------
+        RecolorDressingS2(sb);
+
+        // ---------- (k) sebar + snap prop panggung & snowmen (Renderer.bounds) ----------
         SnapPropKePermukaan(pts, sb);
 
-        // ---------- (k) statis + rebake dekor (gundukan ikut dibake? TIDAK — parent sendiri) ----------
+        // ---------- (l) statis + rebake dekor & dressing ----------
         FlagStatisKecualiBerputar(root);
         S2Bake(); // rebake GEN_Sihir_S2 (posisi Gear/Trim baru masuk bake; sudah MarkDirty+Save)
+        TemenDresser.GabungGenStatis(); // rebake GEN_Dressing dkk (recolor RodaGigiS2/DrumS2/Alas baru kelihatan)
 
         Debug.Log(sb.ToString());
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
@@ -797,8 +803,69 @@ public static class SihirS2
         }
     }
 
-    /// <summary>Snap monster panggung ke permukaan disc & snowmen ke lantai via Renderer.bounds
-    /// (prefab instance tak terbaca parser YAML — bounds runtime = akurat). + WARNING koridor.</summary>
+    /// <summary>Recolor dressing S2 lama yang coklat (ShellTematik RodaGigiS2/DrumS2 -> emas,
+    /// alas panggung -> es putih). Butuh rebake dressing (GabungGenStatis) supaya kelihatan.</summary>
+    private static void RecolorDressingS2(System.Text.StringBuilder sb)
+    {
+        Material matMekanik = S2MatAsset("S2_MekanikEmas", Emas, 0.35f, null, 1f);
+        Material matAlasEs = S2MatAsset("S2_AlasEs", new Color(0.92f, 0.94f, 0.97f), 0.3f, null, 1f);
+
+        var shell = CariTransform("ShellTematik");
+        int nGigi = 0;
+        if (shell != null)
+        {
+            foreach (var mr in shell.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (mr.gameObject.name.StartsWith("RodaGigiS2") || mr.gameObject.name == "DrumS2")
+                {
+                    mr.sharedMaterial = matMekanik;
+                    nGigi++;
+                }
+            }
+        }
+        int nAlas = 0;
+        foreach (var namaP in new[] { "GEN_Panggung_S2_0", "GEN_Panggung_S2_1" })
+        {
+            var pg = CariGameObject(namaP);
+            if (pg == null) continue;
+            foreach (var mr in pg.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                mr.sharedMaterial = matAlasEs;
+                nAlas++;
+            }
+        }
+        sb.AppendLine("  Recolor dressing S2: " + nGigi + " mekanik -> emas, " + nAlas + " bagian panggung -> es putih.");
+    }
+
+    /// <summary>Hapus pita rel visual cabang S2 lama (Rel_Kiri_0/1) — WK waypoint sudah
+    /// dihapus menu 32, mesh relnya ketinggalan ("rel nganggur"). Rel_KiriS1_* TIDAK disentuh.</summary>
+    private static void HapusRelNganggur(System.Text.StringBuilder sb)
+    {
+        int n = 0;
+        foreach (var nama in new[] { "Rel_Kiri_0", "Rel_Kiri_1" })
+        {
+            var go = CariGameObject(nama);
+            if (go != null) { Object.DestroyImmediate(go); n++; }
+        }
+        sb.AppendLine(n > 0 ? "  Rel nganggur cabang lama dihapus: " + n + " (Rel_Kiri_*)."
+                            : "  (Rel_Kiri_* sudah tidak ada.)");
+    }
+
+    /// <summary>Pindahkan zona restore-malam ke AMBANG pintu keluar barat — sebelumnya di
+    /// tikungan SW dalam ruangan sehingga gelap kepicu sebelum benar-benar keluar.</summary>
+    private static void PindahZonaKeluar(System.Text.StringBuilder sb)
+    {
+        var go = CariGameObject("GEN_Suasana_S2Keluar");
+        if (go == null) { sb.AppendLine("  (GEN_Suasana_S2Keluar tak ketemu — jalankan menu 31 dulu!)"); return; }
+        go.transform.position = new Vector3(MinX - 0.6f, LantaiY + 1f, -22.8f);
+        var bc = go.GetComponent<BoxCollider>();
+        if (bc != null) bc.size = new Vector3(3.5f, 6f, 6f);
+        sb.AppendLine("  Zona keluar S2 -> ambang pintu barat (" + F(go.transform.position) + ") — restore malam pas menembus dinding.");
+    }
+
+    /// <summary>Sebar monster MELINGKAR di disc (posisi world reparent bisa berimpit = numpuk!)
+    /// lalu snap ke permukaan via Renderer.bounds (prefab instance tak terbaca parser YAML).
+    /// + WARNING koridor.</summary>
     private static void SnapPropKePermukaan(List<Vector3> pts, System.Text.StringBuilder sb)
     {
         var hidup = CariTransform(P_Hidup);
@@ -812,10 +879,20 @@ public static class SihirS2
             var mrPiring = piringan != null ? piringan.GetComponent<MeshRenderer>() : null;
             if (mrPiring == null) continue;
             float topY = mrPiring.bounds.max.y;
+
+            // kumpulkan prop di disc (selain piringan/cincin) lalu SEBAR merata melingkar
+            var props = new List<Transform>();
             foreach (Transform anak in disc)
+                if (anak.name != "Piringan" && anak.name != "Cincin") props.Add(anak);
+            for (int i = 0; i < props.Count; i++)
             {
-                if (anak.name == "Piringan" || anak.name == "Cincin") continue;
-                nSnap += SnapSatu(anak, topY, pts, sb);
+                float sudut = (360f / Mathf.Max(1, props.Count)) * i + 30f;
+                float rad = sudut * Mathf.Deg2Rad;
+                float jarak = props.Count > 1 ? 0.72f : 0f; // 1 prop = tengah; >1 = lingkaran
+                var lp = new Vector3(Mathf.Cos(rad) * jarak, props[i].localPosition.y, Mathf.Sin(rad) * jarak);
+                props[i].localPosition = lp;
+                props[i].localRotation = Quaternion.Euler(0f, -sudut + 90f, 0f); // hadap keluar
+                nSnap += SnapSatu(props[i], topY, pts, sb);
             }
         }
         var temenS2 = CariTransform("GEN_Temen_S2");
