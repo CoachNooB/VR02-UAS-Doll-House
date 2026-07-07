@@ -1323,6 +1323,11 @@ public static class SihirS4
         int nFilm = BuatFilmAirSegmen(lorong.transform, segMasuk, texAir, rand, sb, "Masuk")
                   + BuatFilmAirSegmen(lorong.transform, segKeluar, texAir, rand, sb, "Keluar");
 
+        // (c2) PERMUKAAN AIR PIT (feedback playtest-6 "harusnya ketutup air"): bidang air
+        //      horizontal di garis air menutup celah switchback kedua pit — dari atas
+        //      kolam kaustik, dari bawah "langit air"; kereta menembusnya saat menyelam.
+        BuatPermukaanAirPit(lorong.transform, texRGB, sb);
+
         // (c) momen KELUAR dari air: tirai kedua + plunge di crossing y~-2.2 tanjakan,
         //     + kolom gelembung di bagian dalam tanjakan. Splash permukaan existing tetap.
         Vector3 titikKeluar = TitikKeluarAir(pts);
@@ -1654,6 +1659,36 @@ public static class SihirS4
             }
         }
         return best;
+    }
+
+    /// <summary>Bidang permukaan air horizontal di garis air (y -2.15) menutup celah pit
+    /// switchback masuk (trench T1 X[-30,-14] Z[-72,-29]) & keluar (T2 X[-50,-36] Z[-13,9],
+    /// WahanaLayout BuildGroundRects). Dari atas = kolam kaustik scroll; dari bawah = langit
+    /// air (double-sided); atap tube level bawah tak kelihatan lagi. Kereta menembusnya
+    /// tepat di momen menyelam (konsisten tirai di y-2.2).</summary>
+    private static void BuatPermukaanAirPit(Transform parent, Texture2D texRGB,
+                                            System.Text.StringBuilder sb)
+    {
+        BuatSatuPermukaanPit(parent, "PermukaanAirPit_Masuk", new Vector3(-22f, -2.15f, -50.5f),
+            new Vector2(15.6f, 42.6f), texRGB, new Vector2(0.015f, 0.010f), sb);
+        BuatSatuPermukaanPit(parent, "PermukaanAirPit_Keluar", new Vector3(-43f, -2.15f, -2f),
+            new Vector2(13.6f, 21.6f), texRGB, new Vector2(-0.012f, 0.014f), sb);
+    }
+
+    private static void BuatSatuPermukaanPit(Transform parent, string nama, Vector3 pusat,
+                                             Vector2 ukuran, Texture2D tex, Vector2 laju,
+                                             System.Text.StringBuilder sb)
+    {
+        Material m = WahanaRebuilder.MatLitTransparan(new Color(0.16f, 0.45f, 0.75f), 0.60f);
+        m.EnableKeyword("_EMISSION");
+        m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        m.SetColor("_EmissionColor", new Color(0.10f, 0.30f, 0.55f) * 0.8f);
+        m.SetTexture("_BaseMap", tex);
+        m.SetTextureScale("_BaseMap", new Vector2(ukuran.x * 0.25f, ukuran.y * 0.25f));
+        m.SetFloat("_Smoothness", 0.05f);
+        BuatQuadTirai(parent, nama, pusat, Quaternion.Euler(90f, 0f, 0f), ukuran, m, laju);
+        sb.AppendLine("  " + nama + " " + F(pusat) + " uk " + ukuran.x + "x" + ukuran.y
+                      + " (bidang air pit, scroll).");
     }
 
     /// <summary>(e3) Fog portal & gua dibirukan lebih terang — fog nyaris-hitam bikin semua
