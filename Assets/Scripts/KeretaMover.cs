@@ -49,9 +49,13 @@ public class KeretaMover : MonoBehaviour
 
     [Header("Audio (opsional)")]
     [SerializeField] private AudioSource _suaraJalan; // suara roda kereta, set Loop di Inspector
+    [SerializeField] private AudioSource _sfxTolak;   // buzzer penolakan tanpa tiket (fallback: child "SFX_Tolak")
 
     /// <summary>Kereta sedang bergerak menjalani ride atau tidak.</summary>
     public bool SedangJalan { get; private set; }
+
+    /// <summary>Kecepatan aktual kereta saat ini (dibaca RodaKencana untuk putaran roda).</summary>
+    public float KecepatanSaat => kecepatanSaat;
 
     // ----- state internal -----
     private Transform[] waypointUtama;    // diisi di Awake dari child JalurUtama
@@ -81,6 +85,8 @@ public class KeretaMover : MonoBehaviour
     private bool menungguPilihan;         // true = berhenti di depan cabang S1, tunggu E (tuas) / W (berangkat)
     private bool sudahBerhentiCabang;     // true = stop cabang sudah terjadi di ride ini (sekali per ride)
     private PusatWahana hub;              // pusat referensi wahana (StatusUI, Ringkasan, Fade)
+    private AudioSource belStasiun;       // bel "ding-dong" di platform boarding (by name "BelStasiun")
+    private GameObject teksTolakObjek;    // teks melayang "TIKET HABIS" (child "TeksTolakKereta")
 
     /// <summary>
     /// Cari referensi yang belum di-drag di Inspector (pola fallback auto-find)
@@ -221,6 +227,31 @@ public class KeretaMover : MonoBehaviour
         if (tuasCabangCollider != null)
         {
             tuasCabangCollider.enabled = false;
+        }
+
+        // Bel stasiun di platform boarding (di LUAR hierarki kereta) -> cari by name.
+        GameObject objBel = GameObject.Find("BelStasiun");
+        if (objBel != null)
+        {
+            belStasiun = objBel.GetComponent<AudioSource>();
+        }
+
+        // Teks penolakan "tiket habis" melayang di atas kereta (child, default sembunyi).
+        Transform teksTolak = transform.Find("TeksTolakKereta");
+        if (teksTolak != null)
+        {
+            teksTolakObjek = teksTolak.gameObject;
+            teksTolakObjek.SetActive(false);
+        }
+
+        // Buzzer penolakan: child "SFX_Tolak" di kereta (share clip buzzer gerbang).
+        if (_sfxTolak == null)
+        {
+            Transform sfxTolak = transform.Find("SFX_Tolak");
+            if (sfxTolak != null)
+            {
+                _sfxTolak = sfxTolak.GetComponent<AudioSource>();
+            }
         }
 
         totalRute = _jumlahUtama;
@@ -504,6 +535,12 @@ public class KeretaMover : MonoBehaviour
             _suaraJalan.Stop();
         }
 
+        // Bel stasiun "tiba kembali" — menandai kereta masuk peron lagi.
+        if (belStasiun != null)
+        {
+            belStasiun.Play();
+        }
+
         TurunkanPlayer();
 
         if (hub == null)
@@ -537,6 +574,14 @@ public class KeretaMover : MonoBehaviour
         // Sudah duduk atau kereta sudah jalan -> jangan naik dua kali.
         if (playerNaik || SedangJalan)
         {
+            return;
+        }
+
+        // WAJIB punya tiket buat naik — tiket hangus saat berangkat, jadi habis ride
+        // player harus beli lagi di loket (Mode Jalan Kaki bebas, buat cek bug).
+        if (!ModeJalanKaki.Aktif && hub != null && !hub.PunyaTiket)
+        {
+            TolakTanpaTiket();
             return;
         }
 
@@ -625,6 +670,14 @@ public class KeretaMover : MonoBehaviour
             return;
         }
 
+        // Lapisan kedua guard tiket (NaikkanPlayer sudah menyaring; ini jaga-jaga
+        // kalau ada jalur duduk lain). Tanpa tiket = tuas ditolak, ride tidak mulai.
+        if (!ModeJalanKaki.Aktif && hub != null && !hub.PunyaTiket)
+        {
+            TolakTanpaTiket();
+            return;
+        }
+
         SedangJalan = true;
         sedangBerhenti = false;
         diJalurKiri = false;
@@ -662,6 +715,12 @@ public class KeretaMover : MonoBehaviour
         if (_suaraJalan != null)
         {
             _suaraJalan.Play();
+        }
+
+        // Bel stasiun "berangkat!" — feedback audio momen keberangkatan.
+        if (belStasiun != null)
+        {
+            belStasiun.Play();
         }
 
         if (hub != null && hub.Fade != null)
@@ -851,6 +910,35 @@ public class KeretaMover : MonoBehaviour
                 transform.rotation = Quaternion.LookRotation(arah);
                 arahHadap = transform.forward;
             }
+        }
+    }
+
+    /// <summary>
+    /// Feedback penolakan naik/berangkat tanpa tiket: buzzer + teks melayang
+    /// "TIKET HABIS" muncul 2.5 detik di atas kereta.
+    /// </summary>
+    private void TolakTanpaTiket()
+    {
+        if (_sfxTolak != null)
+        {
+            _sfxTolak.Play();
+        }
+
+        if (teksTolakObjek != null)
+        {
+            teksTolakObjek.SetActive(true);
+            CancelInvoke(nameof(SembunyikanTeksTolak));
+            Invoke(nameof(SembunyikanTeksTolak), 2.5f);
+        }
+
+        KirimStatus("<color=red>Tiket habis!</color> Beli tiket lagi di loket.");
+    }
+
+    private void SembunyikanTeksTolak()
+    {
+        if (teksTolakObjek != null)
+        {
+            teksTolakObjek.SetActive(false);
         }
     }
 

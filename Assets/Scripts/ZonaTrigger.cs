@@ -82,7 +82,13 @@ public class ZonaTrigger : MonoBehaviour
     {
         if (other.CompareTag(_tagPemicu)) return true;
         Rigidbody rb = other.attachedRigidbody;
-        return rb != null && rb.CompareTag(_tagPemicu);
+        if (rb != null && rb.CompareTag(_tagPemicu)) return true;
+
+        // Mode Jalan Kaki (backstage tour): semua zona pintu (mode 1) ikut merespons
+        // Player yang jalan kaki, supaya pintu section bisa dilewati tanpa kereta.
+        if (_mode == 1 && ModeJalanKaki.Aktif && other.CompareTag("Player")) return true;
+
+        return false;
     }
 
     private void OnTriggerEnter(Collider other)
@@ -99,7 +105,8 @@ public class ZonaTrigger : MonoBehaviour
         // penolakan, pintu tidak dibuka. Setelah AmbilTiket, masuk lagi = kebuka.
         // Buzzer TIDAK bunyi kalau pintu memang sedang terbuka (kasus player keluar
         // dari dalam: zona sisi-dalam yang membukakan, sisi-luar jangan protes).
-        if (_mode == 1 && _butuhTiket && (_wahana == null || !_wahana.PunyaTiket))
+        if (_mode == 1 && _butuhTiket && !ModeJalanKaki.Aktif
+            && (_wahana == null || !_wahana.PunyaTiket))
         {
             _dalamZona++;
             bool pintuLagiTerbuka = _pintu != null && _pintu.TerbukaSekarang;
@@ -147,6 +154,28 @@ public class ZonaTrigger : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Recheck tiap frame KHUSUS gerbang tiket (mode 1 + _butuhTiket). MesinTiket
+    /// berada DI DALAM zona gerbang, jadi player yang beli tiket sambil berdiri di
+    /// zona TIDAK menghasilkan OnTriggerEnter baru — dulu harus mundur keluar zona
+    /// dulu baru pintu kebuka. Dengan recheck ini, begitu tiket didapat (atau Mode
+    /// Jalan Kaki aktif) pintu langsung dibuka di tempat. Murah: langsung return
+    /// untuk semua zona non-gerbang, dan guard _sudahTerbuka di PintuAnimasi
+    /// membuat panggilan berulang aman.
+    /// </summary>
+    private void OnTriggerStay(Collider other)
+    {
+        if (_mode != 1 || !_butuhTiket) return;               // hanya gerbang tiket
+        if (_pintu == null || _pintu.TerbukaSekarang) return; // sudah terbuka -> tak ada kerja
+
+        bool bolehLewat = ModeJalanKaki.Aktif || (_wahana != null && _wahana.PunyaTiket);
+        if (!bolehLewat) return;
+        if (!CocokTag(other)) return;
+
+        _pintu.BatalTutup();
+        _pintu.BukaPintu();
+    }
+
     private void OnTriggerExit(Collider other)
     {
         // Guard: hanya bereaksi ke tag yang ditentukan (collider atau Rigidbody-nya)
@@ -163,6 +192,21 @@ public class ZonaTrigger : MonoBehaviour
         else if (_mode == 2)
         {
             if (_wahana != null && _wahana.Kereta != null) _wahana.Kereta.SetKecepatanNormal();
+        }
+    }
+
+    /// <summary>
+    /// Nol-kan counter collider di dalam zona. Dipanggil ModeJalanKaki saat mode
+    /// dimatikan: Player yang tadinya dihitung lewat CocokTag mode-jalan bisa keluar
+    /// zona TANPA Exit yang cocok (mode sudah off), bikin counter nyangkut > 0 dan
+    /// pintu tidak pernah menutup. Pintu mode 1 yang masih terbuka dijadwalkan tutup.
+    /// </summary>
+    public void ResetHitunganZona()
+    {
+        _dalamZona = 0;
+        if (_mode == 1 && _pintu != null && _pintu.TerbukaSekarang)
+        {
+            _pintu.TutupTertunda(_delayTutup);
         }
     }
 
