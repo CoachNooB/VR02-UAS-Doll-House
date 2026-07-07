@@ -22,6 +22,12 @@ using UnityEngine;
 ///                        langit, speaker plaza Musik_Lobby).
 ///   53 Suara Malam     : opsional — pasang loop jangkrik CC0 KALAU clip-nya
 ///                        sudah diimpor (cari by-name); else log instruksi.
+///   54 Perbaiki Teks   : swap SEMUA TextMesh -> material BNS_TeksDunia (shader
+///                        Wahana/TeksDunia, ZTest normal + fog — font bawaan
+///                        ZTest Always = teks tembus dinding) + GO SinkronTeksDunia
+///                        (TeksDuniaSync jaga atlas font runtime). Menu yang bikin
+///                        TextMesh baru (19/22/23/51 dst) => re-run 54; menu 51
+///                        sudah memanggilnya otomatis.
 ///
 /// RANTAI SOP:
 ///   - Menu 3 (Rebuild Layout) membangun ulang CanopyMalam → kalau pernah re-run,
@@ -510,6 +516,8 @@ public static class SihirMalam
         int nBake = TemenDresser.GabungMeshStatis(root.transform, "GEN_MalamBNS_Taman",
             new HashSet<string> { "BohlamMarquee" });
         sb.AppendLine("  Bake taman: " + nBake + " renderer digabung.");
+
+        TerapkanTeksDunia(sb); // teks marquee baru ikut di-swap anti-tembus
 
         SimpanScene(sb);
         Debug.Log(sb.ToString());
@@ -1023,6 +1031,66 @@ public static class SihirMalam
         sb.AppendLine("  3 titik jangkrik terpasang (clip: " + clip.name + ", vol 0.12).");
         SimpanScene(sb);
         Debug.Log(sb.ToString());
+    }
+
+    // =====================================================================
+    //  MENU 54 — PERBAIKI TEKS TEMBUS DINDING
+    // =====================================================================
+    [MenuItem("Tools/Wahana/54 Malam BNS - Perbaiki Teks Tembus", false, 115)]
+    public static void MalamPerbaikiTeks()
+    {
+        if (GuardPlayMode()) return;
+        var sb = new StringBuilder("=== 54 MALAM BNS - PERBAIKI TEKS TEMBUS ===\n");
+        TerapkanTeksDunia(sb);
+        SimpanScene(sb);
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>
+    /// Swap semua TextMesh ke material BNS_TeksDunia (Wahana/TeksDunia: ZTest
+    /// LEqual + fog) + pastikan GO SinkronTeksDunia (jaga tekstur atlas font
+    /// dinamis saat runtime). Idempotent.
+    /// </summary>
+    private static void TerapkanTeksDunia(StringBuilder sb)
+    {
+        var shader = Shader.Find("Wahana/TeksDunia");
+        if (shader == null)
+        {
+            sb.AppendLine("[WARN] Shader Wahana/TeksDunia belum terimport — teks tembus BELUM difix.");
+            return;
+        }
+
+        string path = DirGenerated + "/BNS_TeksDunia.mat";
+        var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (mat == null)
+        {
+            mat = new Material(shader);
+            AssetDatabase.CreateAsset(mat, path);
+        }
+        else if (mat.shader != shader) mat.shader = shader;
+
+        // preview editor: pakai atlas font saat ini (runtime dijaga TeksDuniaSync)
+        var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (font != null && font.material != null) mat.mainTexture = font.material.mainTexture;
+        EditorUtility.SetDirty(mat);
+
+        int n = 0;
+        foreach (var tm in Object.FindObjectsByType<TextMesh>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            var mr = tm.GetComponent<MeshRenderer>();
+            if (mr == null) continue;
+            if (mr.sharedMaterial != mat) { mr.sharedMaterial = mat; n++; }
+        }
+
+        var sync = WahanaFinalUtil.CariGameObject("SinkronTeksDunia");
+        if (sync == null) sync = new GameObject("SinkronTeksDunia");
+        var comp = sync.GetComponent<TeksDuniaSync>();
+        if (comp == null) comp = sync.AddComponent<TeksDuniaSync>();
+        var so = new SerializedObject(comp);
+        so.FindProperty("_materialTeks").objectReferenceValue = mat;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        sb.AppendLine("  Teks dunia: " + n + " TextMesh di-swap ke BNS_TeksDunia (ZTest normal + fog).");
     }
 
     private static AudioClip CariClip(string[] hints)
