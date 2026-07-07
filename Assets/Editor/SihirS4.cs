@@ -1267,6 +1267,10 @@ public static class SihirS4
     private static readonly Color LidAir = new Color(0.06f, 0.14f, 0.20f);      // lid pit + tiang penanda
     private static readonly Color PintuAir = new Color(0.08f, 0.18f, 0.26f);    // panel PintuKereta_S4 (mulut gua)
     private static readonly Color LantaiLaut = new Color(0.05f, 0.12f, 0.17f);  // Lantai_S4 (dulu abu 0.10,0.10,0.12)
+    private static readonly Color PalkaAir = new Color(0.10f, 0.30f, 0.50f);    // palka PintuGuaLaut (kolam menyelam)
+    private const float NEON_EMIS = 1.2f; // mandat Izhar "biru neon nutup semua": emission
+                                          // self-lit di SEMUA material air — abu mustahil,
+                                          // bebas cap 8 lampu. Kurang nyala? naikkan + re-run 49c.
     private static readonly Color LampuAirPermukaan = new Color(0.40f, 0.75f, 1.00f);
     private static readonly Color LampuAirDalam = new Color(0.15f, 0.40f, 0.85f);
     private const float LampuAirIMax = 1.8f;   // intensitas dekat permukaan
@@ -1454,6 +1458,16 @@ public static class SihirS4
     {
         var m = WahanaFinalUtil.MatAsset(nama, warna, 0.25f, tex, tiling);
         if (m.HasProperty("_Cull")) m.SetFloat("_Cull", 0f);
+        // NEON: semua permukaan air menyala sendiri (emission berpola kaustik) —
+        // tak tergantung lampu/sudut/jarak, abu tak mungkin muncul. Max emisi
+        // ~0.46 < threshold bloom 0.85 → luminous tanpa blowout.
+        // WAJIB: globalIlluminationFlags RealtimeEmissive (default EmissiveIsBlack=4
+        // membuat Unity mengabaikan emission — pola MatGlowLit) + SetDirty TERAKHIR.
+        m.EnableKeyword("_EMISSION");
+        m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        m.SetColor("_EmissionColor", warna * NEON_EMIS);
+        if (tex != null && m.HasProperty("_EmissionMap")) m.SetTexture("_EmissionMap", tex);
+        EditorUtility.SetDirty(m);
         return m;
     }
 
@@ -1533,8 +1547,7 @@ public static class SihirS4
         Material mLid = MatBandAir("S4_LidAir", LidAir, texRGB, 2f);
         Material mLantai = MatBandAir("S4_LantaiLaut", LantaiLaut, texRGB, 8f);
         Material mPintu = MatBandAir("S4_PintuAir", PintuAir, texRGB, 2f);
-        mPintu.EnableKeyword("_EMISSION");
-        mPintu.SetColor("_EmissionColor", new Color(0.1f, 0.3f, 0.5f) * 0.15f);
+        Material mPalka = MatBandAir("S4_PalkaAir", PalkaAir, texRGB, 2f);
 
         var segs = new List<List<Vector3>> { segMasuk, segKeluar };
         var aabb = new List<Bounds>();
@@ -1558,6 +1571,8 @@ public static class SihirS4
             if (nm == "Lantai_S4") { mr.sharedMaterial = mLantai; nLantai++; continue; }
             if (nm == "PanelPintu" && PunyaAncestor(mr.transform, "PintuKereta_S4"))
             { mr.sharedMaterial = mPintu; nPintu++; continue; }
+            if (nm == "PanelPintu" && PunyaAncestor(mr.transform, "PintuGuaLaut"))
+            { mr.sharedMaterial = mPalka; nPintu++; continue; } // palka kolam menyelam ikut neon
 
             // ---- sweep v2 (log-only) ----
             bool dekat = false;
@@ -1598,8 +1613,9 @@ public static class SihirS4
                 + c.b.ToString("0.00") + ", jarak " + jarak.ToString("0.0") + "u)"));
         }
 
+        AssetDatabase.SaveAssets(); // material asset (emission/keyword) SapuAbu ikut tersimpan
         sb.AppendLine("  Sapu abu: " + nRamp + " ramp; " + nLid + " lid/tiang; " + nLantai
-                      + " Lantai_S4 -> S4_LantaiLaut; " + nPintu + " PanelPintu S4 -> S4_PintuAir.");
+                      + " Lantai_S4 -> S4_LantaiLaut; " + nPintu + " PanelPintu S4+palka -> PintuAir/PalkaAir.");
         temuan.Sort((x, y) => x.Key.CompareTo(y.Key));
         if (temuan.Count == 0) sb.AppendLine("  Sweep v2: bersih (tak ada renderer non-air <=7u dari jalur).");
         else
