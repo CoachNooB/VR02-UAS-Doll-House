@@ -928,6 +928,252 @@ public static class SihirS3
         Debug.Log("[S3 Bake] Dekor S3 digabung: " + n + " renderer (Hero + SetA/B dikecualikan).");
     }
 
+    // ======================================================================
+    //  MENU 47 — S3 HOROR TEATER (FINAL)
+    //  Tema final "Merah-Ungu Teater": kamar anak terbengkalai jadi panggung
+    //  horor dramatis (family-friendly). Show blackout 4-tahap DIPERTAHANKAN —
+    //  karena SekuensKamarS3 mengumpulkan lampu SAAT TRIGGER dari grup _grupS3,
+    //  SEMUA lampu baru ditaruh di 'LampuTeater_S3' DI BAWAH GEN_SihirHidup_S3
+    //  (ikut blackout, tahan re-run menu 36). Musik tetap hening->klimaks.
+    //  Idempotent; material asset di-update tiap run; jalankan SETELAH 34-37.
+    // ======================================================================
+    private const string P_FinalS3 = "GEN_HororFinal_S3";
+
+    // Palet C "Merah-Ungu Teater"
+    private static readonly Color MerahTeater = new Color(0.69f, 0.23f, 0.36f);   // #B03A5C
+    private static readonly Color UnguTeater = new Color(0.49f, 0.30f, 0.75f);    // #7C4DBE
+    private static readonly Color MerahDinding = new Color(0.24f, 0.06f, 0.12f);
+    private static readonly Color UnguPlafonGelap = new Color(0.07f, 0.03f, 0.10f);
+    private static readonly Color MerahTirai = new Color(0.45f, 0.10f, 0.16f);
+    private static readonly Color UnguKarpet = new Color(0.16f, 0.06f, 0.20f);
+    private static readonly Color EmasProscenium = new Color(0.55f, 0.42f, 0.20f);
+
+    [MenuItem("Tools/Wahana/47 S3 Horor Teater (final)", false, 99)]
+    public static void S3HororTeater()
+    {
+        var sb = new System.Text.StringBuilder("=== S3 HOROR TEATER (MERAH-UNGU) ===\n");
+
+        var hidup = CariGameObject("GEN_SihirHidup_S3");
+        if (hidup == null) { Debug.LogError("[S3 Final] GEN_SihirHidup_S3 tak ketemu — jalankan menu 35 dulu."); return; }
+
+        HapusParent(P_FinalS3);
+        var root = BuatParent(P_FinalS3);
+        HapusParent("LampuTeater_S3");
+        var lampuRoot = new GameObject("LampuTeater_S3");
+        lampuRoot.transform.SetParent(hidup.transform, true); // WAJIB: ikut blackout (_grupS3)
+
+        var pts = WahanaFinalUtil.AmbilPolylineJalur();
+        sb.AppendLine("  Polyline rel: " + pts.Count + " WP.");
+
+        // ---------- (a) material tema ----------
+        var texKayu = WahanaFinalUtil.CariTeksturPack(new[] { "yughues", "wooden", "wood" }, sb, "kayu S3");
+        Color warnaLantai = texKayu != null ? new Color(0.60f, 0.50f, 0.40f) : new Color(0.16f, 0.10f, 0.07f);
+        var matLantaiKayu = WahanaFinalUtil.MatAsset("S3_LantaiKayu", warnaLantai, 0.15f, texKayu, 5f);
+        var lantai = CariGameObject("Lantai_S3");
+        if (lantai != null)
+        {
+            var mrL = lantai.GetComponent<MeshRenderer>();
+            if (mrL != null) { mrL.sharedMaterial = matLantaiKayu; sb.AppendLine("  Lantai_S3 -> kayu tua."); }
+        }
+        // dinding S3 aktual pakai Mat_DarkWall (Halimah) — assignment eksplisit per-renderer,
+        // jangan bergantung asset lama (pelajaran cross-check blueprint).
+        var shell3 = CariGameObject("GEN_Shell_S3");
+        int nDind = 0;
+        if (shell3 != null)
+        {
+            var matDindingT = WahanaFinalUtil.MatAsset("S3_DindingTeater", MerahDinding, 0.2f, null, 1f);
+            foreach (var mr in shell3.GetComponentsInChildren<MeshRenderer>(true))
+                if (mr.gameObject.name.StartsWith("Dinding_S3")) { mr.sharedMaterial = matDindingT; nDind++; }
+        }
+        sb.AppendLine("  Dinding_S3 -> merah teater dalam (" + nDind + " renderer).");
+        var plafon = CariGameObject("Plafon_S3");
+        if (plafon != null)
+        {
+            var mrP = plafon.GetComponent<MeshRenderer>();
+            if (mrP != null) mrP.sharedMaterial = WahanaFinalUtil.MatAsset("S3_PlafonTeater", UnguPlafonGelap, 0.1f, null, 1f);
+            sb.AppendLine("  Plafon_S3 -> ungu sangat gelap.");
+        }
+        // dressing lama (DindingMiringS3_* di ShellTematik) ikut tema
+        var shellTem = CariGameObject("ShellTematik");
+        int nMiring = 0;
+        if (shellTem != null)
+        {
+            var matMiring = WahanaFinalUtil.MatAsset("S3_DindingMiring", new Color(0.20f, 0.05f, 0.10f), 0.2f, null, 1f);
+            foreach (var mr in shellTem.GetComponentsInChildren<MeshRenderer>(true))
+                if (mr.gameObject.name.StartsWith("DindingMiringS3")) { mr.sharedMaterial = matMiring; nMiring++; }
+        }
+        sb.AppendLine("  DindingMiringS3 recolor: " + nMiring + " (rebake dressing di akhir).");
+
+        // ---------- (b) dressing teater: tirai, karpet, proscenium ----------
+        var hero = CariGameObject("HeroBoneka_S3");
+        Vector3 heroPos = hero != null ? hero.transform.position : new Vector3(2f, LantaiY, -58f);
+        var matTirai = WahanaFinalUtil.MatAsset("S3_Tirai", MerahTirai, 0.12f, null, 1f);
+        float yTirai = LantaiY + 1.6f;
+        foreach (var xt in new[] { MinX + 1.6f, MaxX - 1.6f })
+        {
+            float xPakai = xt;
+            if (WahanaFinalUtil.JarakKeRel(pts, xPakai, -57.5f) < 1.6f) xPakai += (xt < heroPos.x ? -0.8f : 0.8f);
+            var tiraiGo = BuatBox(root.transform, "TiraiTeater_" + (xt < heroPos.x ? "K" : "N"),
+                new Vector3(xPakai, yTirai, -57.5f), new Vector3(0.15f, 3.0f, 2.2f), matTirai);
+            BuangCollider(tiraiGo);
+        }
+        var karpetGo = BuatBox(root.transform, "KarpetHero",
+            new Vector3(heroPos.x, LantaiY + 0.03f, heroPos.z + 0.8f), new Vector3(6f, 0.045f, 3f),
+            WahanaFinalUtil.MatAsset("S3_Karpet", UnguKarpet, 0.1f, null, 1f));
+        BuangCollider(karpetGo);
+        var prosGo = BuatBox(root.transform, "Proscenium",
+            new Vector3(heroPos.x, LantaiY + 3.0f, heroPos.z + 1.6f), new Vector3(10f, 0.12f, 0.12f),
+            WahanaFinalUtil.MatAsset("S3_Proscenium", EmasProscenium, 0.4f, null, 1f));
+        BuangCollider(prosGo);
+        sb.AppendLine("  Tirai x2 + karpet + proscenium terpasang.");
+
+        // ---------- (c) penonton boneka (doll pack) — berdiri menghadap rel ----------
+        var terpasang = new List<Transform>();
+        var permukaan = new List<float>();
+        float lantaiTop = lantai != null ? WahanaFinalUtil.BoundsGabungan(lantai.transform).max.y : LantaiY;
+        // larangan dinamis dari objek nyata (bounds runtime)
+        var larang = new List<Vector4>(); // x, z, radius
+        foreach (var nm in new[] { "HeroBoneka_S3", "KudaGoyang_S3", "KursiGoyang_S3", "KotakMusik_S3", "PushableBox_Halimah", "PintuCelah_S3" })
+        {
+            var g = CariGameObject(nm);
+            if (g == null) continue;
+            var b = WahanaFinalUtil.BoundsGabungan(g.transform);
+            larang.Add(new Vector4(b.center.x, b.center.z, Mathf.Max(b.extents.x, b.extents.z) + 0.5f, 0));
+        }
+        larang.Add(new Vector4(15f, -48f, 2.2f, 0)); // pintu masuk
+        string[] warnaDoll = { "white", "pink", "light_blue", "brown" };
+        Vector2[] kandidat = {
+            new Vector2(-9f, -45.5f), new Vector2(-9f, -49f), new Vector2(-8.5f, -53f),
+            new Vector2(12f, -52f), new Vector2(13f, -45.5f), new Vector2(10f, -59.5f),
+            new Vector2(-6f, -59.5f), new Vector2(5f, -44.5f), new Vector2(-2f, -44.5f), new Vector2(8f, -47f),
+        };
+        int kIdx = 0, nDoll = 0;
+        foreach (var warna in warnaDoll)
+        {
+            string path = "Assets/Models/Low Poly Casual Horror Doll Pack/Objects/" + warna + "/Prefabs/" + warna + ".prefab";
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (prefab == null) { sb.AppendLine("  (prefab doll '" + warna + "' tak ketemu — dilewati)"); continue; }
+            // buang instance lama (idempoten)
+            var lama = WahanaFinalUtil.CariChildRekursif(root.transform, "PenontonBoneka_" + warna);
+            if (lama != null) Object.DestroyImmediate(lama.gameObject);
+            Transform slotT = null;
+            while (kIdx < kandidat.Length && slotT == null)
+            {
+                var c = kandidat[kIdx++];
+                if (WahanaFinalUtil.JarakKeRel(pts, c.x, c.y) < 2.0f) continue;
+                bool tabu = false;
+                foreach (var l in larang)
+                    if (new Vector2(c.x - l.x, c.y - l.y).magnitude < l.z + 0.6f) { tabu = true; break; }
+                if (tabu) continue;
+                var inst = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
+                inst.name = "PenontonBoneka_" + warna;
+                inst.transform.position = new Vector3(c.x, lantaiTop + 0.5f, c.y);
+                WahanaFinalUtil.UnpackDanBuangFisik(inst); // doll pack bawa collider/rigidbody
+                slotT = inst.transform;
+            }
+            if (slotT == null) { sb.AppendLine("  [WARNING] slot penonton '" + warna + "' habis."); continue; }
+            WahanaFinalUtil.AutoFit(slotT, 99f, 1.1f, sb);
+            // hadap titik rel terdekat (mereka "menonton penumpang")
+            float bestD = float.MaxValue; Vector3 bestP = slotT.position + Vector3.forward;
+            foreach (var p in pts)
+            {
+                float d = new Vector2(p.x - slotT.position.x, p.z - slotT.position.z).sqrMagnitude;
+                if (d < bestD) { bestD = d; bestP = p; }
+            }
+            Vector3 arah = bestP - slotT.position; arah.y = 0f;
+            if (arah.sqrMagnitude > 0.001f) slotT.rotation = Quaternion.LookRotation(arah);
+            WahanaFinalUtil.SnapY(slotT, lantaiTop);
+            larang.Add(new Vector4(slotT.position.x, slotT.position.z, WahanaFinalUtil.HalfXZ(slotT) + 0.3f, 0));
+            terpasang.Add(slotT); permukaan.Add(lantaiTop);
+            nDoll++;
+        }
+        sb.AppendLine("  Penonton boneka: " + nDoll + "/4 (menghadap rel).");
+
+        // ---------- (d) lighting teater (SEMUA di LampuTeater_S3 -> ikut blackout) ----------
+        // TANPA flicker: LampuFlicker menulis intensity tiap frame -> melawan fase REDUP
+        // show SekuensKamarS3 (blackout aman krn enabled=false, redup tidak).
+        WahanaFinalUtil.BuatSpot(lampuRoot.transform, "LampuTeater_0",
+            new Vector3(heroPos.x - 5f, LantaiY + 3.0f, -50f), new Vector3(heroPos.x - 2f, LantaiY, -55f),
+            MerahTeater, 2.2f, 14f, 55f, false);
+        WahanaFinalUtil.BuatSpot(lampuRoot.transform, "LampuTeater_1",
+            new Vector3(heroPos.x + 5f, LantaiY + 3.0f, -50f), new Vector3(heroPos.x + 2f, LantaiY, -55f),
+            UnguTeater, 2.2f, 14f, 55f, false);
+        WahanaFinalUtil.BuatSpot(lampuRoot.transform, "SorotHero",
+            new Vector3(heroPos.x, LantaiY + 3.1f, heroPos.z + 3.5f), heroPos + Vector3.up * 1.2f,
+            new Color(0.62f, 0.28f, 0.60f), 2.6f, 12f, 46f, false);
+        sb.AppendLine("  3 lampu teater (merah/ungu/sorot hero) di LampuTeater_S3.");
+        RecolorLampuS3("SpotBulan_S3", new Color(0.55f, 0.45f, 0.85f), 2.0f, sb);
+        RecolorLampuS3("LampuShell_S3", new Color(0.45f, 0.25f, 0.45f), 1.2f, sb);
+
+        // ---------- (e) zona: masuk teater in-place + PINDAH ke ambang pintu (dulu di tengah ruangan!) ----------
+        UbahZonaS3Masuk(sb);
+        WahanaFinalUtil.PindahZona("GEN_Suasana_S3Masuk",
+            WahanaFinalUtil.TitikAmbangMasuk(pts, MinX, MaxX, MinZ, MaxZ), new Vector3(3.5f, 6f, 6f), sb);
+        WahanaFinalUtil.PindahZona("GEN_Suasana_S3Keluar",
+            WahanaFinalUtil.TitikAmbangKeluar(pts, MinX, MaxX, MinZ, MaxZ), new Vector3(3.5f, 6f, 6f), sb);
+
+        // ---------- (f) verifikasi aktor lama (snap hanya kalau melenceng) ----------
+        foreach (var nm in new[] { "HeroBoneka_S3", "KudaGoyang_S3", "KursiGoyang_S3", "PushableBox_Halimah" })
+        {
+            var g = CariGameObject(nm);
+            if (g == null) continue;
+            var b = WahanaFinalUtil.BoundsGabungan(g.transform);
+            if (Mathf.Abs(b.min.y - (lantaiTop + 0.01f)) > 0.05f)
+            {
+                float d = WahanaFinalUtil.SnapY(g.transform, lantaiTop);
+                sb.AppendLine("    snap " + nm + ": " + (d >= 0 ? "+" : "") + d.ToString("0.00") + " y");
+            }
+            terpasang.Add(g.transform); permukaan.Add(lantaiTop);
+        }
+        WahanaFinalUtil.BarisVerifikasi(terpasang, permukaan, pts, sb);
+
+        // ---------- (g) bersih-bersih legacy ----------
+        var zShow = CariGameObject("Z_Show_S3");
+        if (zShow != null) { Object.DestroyImmediate(zShow); sb.AppendLine("  Z_Show_S3 legacy (no-op) dihapus."); }
+
+        // ---------- (h) statis + rebake ----------
+        FlagStatisRekursif(root, true);
+        S3Bake();
+        TemenDresser.GabungGenStatis(); // rebake dressing (DindingMiringS3 recolor kelihatan)
+
+        Debug.Log(sb.ToString());
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+    }
+
+    private static void BuangCollider(GameObject go)
+    {
+        if (go == null) return;
+        var col = go.GetComponent<Collider>();
+        if (col != null) Object.DestroyImmediate(col);
+    }
+
+    private static void RecolorLampuS3(string nama, Color warna, float intensitas, System.Text.StringBuilder sb)
+    {
+        var go = CariGameObject(nama);
+        var l = go != null ? go.GetComponent<Light>() : null;
+        if (l == null) { sb.AppendLine("  (" + nama + " tak ketemu)"); return; }
+        l.color = warna;
+        l.intensity = intensitas;
+        sb.AppendLine("  " + nama + " -> tema teater (int " + intensitas + ").");
+    }
+
+    private static void UbahZonaS3Masuk(System.Text.StringBuilder sb)
+    {
+        var go = CariGameObject("GEN_Suasana_S3Masuk");
+        var sz = go != null ? go.GetComponent<SuasanaZona>() : null;
+        if (sz == null) { sb.AppendLine("  (GEN_Suasana_S3Masuk tak ketemu!)"); return; }
+        var so = new SerializedObject(sz);
+        so.FindProperty("_fogColor").colorValue = new Color(0.06f, 0.015f, 0.05f);
+        so.FindProperty("_fogStart").floatValue = 5f;
+        so.FindProperty("_fogEnd").floatValue = 24f;
+        so.FindProperty("_ambientSky").colorValue = new Color(0.10f, 0.03f, 0.09f);
+        so.FindProperty("_ambientEquator").colorValue = new Color(0.07f, 0.02f, 0.06f);
+        so.FindProperty("_ambientGround").colorValue = new Color(0.04f, 0.015f, 0.04f);
+        so.ApplyModifiedProperties();
+        sb.AppendLine("  Zona masuk S3 -> fog & ambient maroon-ungu teater.");
+    }
+
     // #####################################################################
     //  HELPER LOKAL (WahanaRebuilder helpers private -> re-implement di sini)
     // #####################################################################

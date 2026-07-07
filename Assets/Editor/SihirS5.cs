@@ -187,6 +187,257 @@ public static class SihirS5
         Simpan();
     }
 
+    // ======================================================================
+    //  MENU 48 — S5 GALAKSI (FINAL)
+    //  Tema final "Galaksi Ungu-Biru": nebula ungu/biru + bintang emas, band
+    //  alien pusat show, ending "anak tertidur" DIPERTAHANKAN. Integrasi:
+    //  EndingKamarS5 snapshot lampu SEKALI di Awake dari GEN_SihirHidup_S5 →
+    //  SEMUA lampu/objek-hidup baru ditaruh DI BAWAH GEN_SihirHidup_S5
+    //  (subgroup LampuGalaksi_S5 & GalaksiHidup_S5) supaya ikut ending-dim/
+    //  ending-slow; strobo encore hanya menyentuh grup band (aman).
+    //  PENTING: lantai S5 top AKTUAL y=0.0 (bukan konstanta) → semua snap
+    //  pakai bounds runtime. Idempotent; jalankan SETELAH menu 42-45.
+    // ======================================================================
+    private const string P_FinalS5 = "GEN_GalaksiFinal_S5";
+
+    // Palet A "Galaksi Ungu-Biru"
+    private static readonly Color GalaksiShell = new Color(0.05f, 0.03f, 0.12f);
+    private static readonly Color GalaksiLangit = new Color(0.04f, 0.02f, 0.10f);
+    private static readonly Color GalaksiLantai = new Color(0.08f, 0.06f, 0.16f);
+    private static readonly Color GalaksiUngu = new Color(0.45f, 0.35f, 0.95f);
+    private static readonly Color GalaksiNebula = new Color(0.35f, 0.22f, 0.75f);
+    private static readonly Color GalaksiBiru = new Color(0.25f, 0.42f, 0.90f);
+    private static readonly Color EmasBintang = new Color(0.94f, 0.78f, 0.38f);
+
+    [MenuItem("Tools/Wahana/48 S5 Galaksi (final)", false, 106)]
+    public static void S5Galaksi()
+    {
+        var sb = new System.Text.StringBuilder("=== S5 GALAKSI (UNGU-BIRU) ===\n");
+        float minX = -50f, maxX = -28f, minZ = 10f, maxZ = 28f; // rect S5 (verifikasi inventaris)
+
+        var hidup = CariGameObject("GEN_SihirHidup_S5");
+        if (hidup == null) { Debug.LogError("[S5 Final] GEN_SihirHidup_S5 tak ketemu — jalankan menu 43 dulu."); return; }
+        var sihir = CariGameObject("GEN_Sihir_S5");
+
+        HapusParent(P_FinalS5);
+        var root = BuatParent(P_FinalS5);
+        HapusParent("LampuGalaksi_S5");
+        var lampuRoot = new GameObject("LampuGalaksi_S5");
+        lampuRoot.transform.SetParent(hidup.transform, true); // ikut ending-dim (snapshot Awake grup ini)
+        HapusParent("GalaksiHidup_S5");
+        var hidupBaru = new GameObject("GalaksiHidup_S5");
+        hidupBaru.transform.SetParent(hidup.transform, true); // PutarPelan di sini ikut ending-slow
+
+        var pts = WahanaFinalUtil.AmbilPolylineJalur();
+        sb.AppendLine("  Polyline rel: " + pts.Count + " WP.");
+
+        // ---------- (a) material shell galaksi ----------
+        var texBintang = WahanaFinalUtil.CariTeksturPack(
+            new[] { "starfield", "skybox", "space", "nebula", "galax" }, sb, "starfield S5");
+        var matShell = WahanaFinalUtil.MatAsset("S5_ShellGalaksi", GalaksiShell, 0.2f, null, 1f);
+        var matLangit = WahanaFinalUtil.MatAsset("S5_LangitGalaksi",
+            texBintang != null ? new Color(0.55f, 0.55f, 0.75f) : GalaksiLangit, 0.1f, texBintang, 2f);
+        var matLantaiN = WahanaFinalUtil.MatAsset("S5_LantaiNavy", GalaksiLantai, 0.3f, null, 1f);
+        var shell5 = CariGameObject("GEN_Shell_S5");
+        int nShell = 0;
+        float lantaiTop = 0f;
+        if (shell5 != null)
+        {
+            foreach (var mr in shell5.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                string nm = mr.gameObject.name;
+                if (nm.StartsWith("Dinding_S5")) { mr.sharedMaterial = matShell; nShell++; }
+                else if (nm == "Lantai_S5")
+                {
+                    mr.sharedMaterial = matLantaiN; nShell++;
+                    lantaiTop = mr.bounds.max.y; // permukaan RUNTIME (aktual 0.0)
+                }
+                else if (nm == "Plafon_S5") { mr.sharedMaterial = matLangit; nShell++; }
+            }
+        }
+        sb.AppendLine("  Shell galaksi: " + nShell + " renderer (lantaiTop runtime=" + lantaiTop.ToString("0.00") + ").");
+
+        // ---------- (b) jendela "melihat angkasa" ----------
+        var matJendela = WahanaFinalUtil.MatAssetUnlitHDR("S5_JendelaBintang",
+            texBintang != null ? new Color(0.75f, 0.80f, 1.0f) : new Color(0.25f, 0.30f, 0.70f),
+            texBintang != null ? 1.15f : 1.6f, texBintang, 1f);
+        int nKaca = 0;
+        var jendela = sihir != null ? WahanaFinalUtil.CariChildRekursif(sihir.transform, "Jendela") : null;
+        if (jendela != null)
+            foreach (var mr in jendela.GetComponentsInChildren<MeshRenderer>(true))
+                if (mr.gameObject.name.ToLowerInvariant().Contains("kaca")) { mr.sharedMaterial = matJendela; nKaca++; }
+        var shellTem5 = CariGameObject("ShellTematik");
+        if (shellTem5 != null)
+            foreach (var mr in shellTem5.GetComponentsInChildren<MeshRenderer>(true))
+                if (mr.gameObject.name.StartsWith("JendelaBintangS5")) { mr.sharedMaterial = matJendela; nKaca++; }
+        sb.AppendLine("  Kaca jendela angkasa: " + nKaca + " renderer.");
+
+        // ---------- (c) nebula pita + cincin galaksi ----------
+        var matNebulaA = WahanaFinalUtil.MatAssetUnlitHDR("S5_NebulaA", GalaksiNebula, 1.5f, null, 1f);
+        var matNebulaB = WahanaFinalUtil.MatAssetUnlitHDR("S5_NebulaB", GalaksiBiru, 1.4f, null, 1f);
+        BoxFinal(root.transform, "NebulaN", new Vector3(-39f, 4.1f, maxZ - 0.35f), new Vector3(9f, 0.8f, 0.1f), matNebulaA);
+        BoxFinal(root.transform, "NebulaW", new Vector3(minX + 0.35f, 3.9f, 19f), new Vector3(0.1f, 0.8f, 8f), matNebulaB);
+        BoxFinal(root.transform, "NebulaE", new Vector3(maxX - 0.35f, 4.2f, 20f), new Vector3(0.1f, 0.7f, 6f), matNebulaA);
+        var mobile = CariGameObject("MobilePlanet");
+        Vector3 pusatCincin = mobile != null ? mobile.transform.position : Center + Vector3.up * 3.8f;
+        var cincin = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        cincin.name = "CincinGalaksi";
+        cincin.transform.SetParent(hidupBaru.transform, true);
+        cincin.transform.position = pusatCincin;
+        cincin.transform.localScale = new Vector3(7f, 0.03f, 7f);
+        cincin.transform.rotation = Quaternion.Euler(18f, 0f, 0f);
+        Object.DestroyImmediate(cincin.GetComponent<Collider>());
+        cincin.GetComponent<MeshRenderer>().sharedMaterial =
+            WahanaFinalUtil.MatAssetUnlitHDR("S5_CincinGalaksi", new Color(0.50f, 0.35f, 0.90f), 1.4f, null, 1f);
+        var ppC = cincin.AddComponent<PutarPelan>();
+        var soC = new SerializedObject(ppC);
+        soC.FindProperty("_sumbu").vector3Value = Vector3.up;
+        soC.FindProperty("_derajatPerDetik").floatValue = 4f;
+        soC.ApplyModifiedProperties();
+        sb.AppendLine("  3 pita nebula + CincinGalaksi (ikut ending-slow).");
+
+        // ---------- (d) lampu galaksi (di LampuGalaksi_S5 -> ikut ending-dim) ----------
+        PointFinal(lampuRoot.transform, "LampuGalaksi_0", new Vector3(maxX - 3f, 3.6f, maxZ - 3f), GalaksiUngu, 1.8f, 16f);
+        PointFinal(lampuRoot.transform, "LampuGalaksi_1", new Vector3(minX + 3f, 3.6f, minZ + 2.5f), GalaksiUngu, 1.8f, 16f);
+        var panggung = CariGameObject("PanggungBand");
+        Vector3 pgPos = panggung != null ? WahanaFinalUtil.BoundsGabungan(panggung.transform).center : Center;
+        WahanaFinalUtil.BuatSpot(lampuRoot.transform, "SorotBulanJendela",
+            new Vector3(-35f, 4.4f, minZ + 1.2f), pgPos, new Color(0.60f, 0.65f, 1.0f), 2.0f, 18f, 60f, false);
+        sb.AppendLine("  2 point + 1 sorot galaksi di LampuGalaksi_S5.");
+        var moon = CariGameObject("Moonlight_S5");
+        var moonL = moon != null ? moon.GetComponent<Light>() : null;
+        if (moonL != null) { moonL.color = new Color(0.55f, 0.50f, 0.95f); sb.AppendLine("  Moonlight_S5 -> ungu-biru."); }
+
+        // ---------- (e) MATIKAN headlight depo Dr14 (I=10 R=40 = banjir cahaya + spike WebGL).
+        // enabled=false legal di prefab instance & TIDAK disentuh strobo/ending (mereka hanya
+        // menulis intensity/warna) — destroy komponen prefab-instance justru error editor. ----------
+        int nOff = 0;
+        foreach (var l in hidup.GetComponentsInChildren<Light>(true))
+        {
+            bool headlight = l.gameObject.name.Contains("Headlight");
+            for (var p = l.transform.parent; !headlight && p != null; p = p.parent)
+                if (p.name.Contains("Headlight")) headlight = true;
+            if (!headlight) continue;
+            if (l.enabled) { l.enabled = false; nOff++; }
+        }
+        sb.AppendLine("  Headlight depo dimatikan: " + nOff + " lampu.");
+
+        // ---------- (f) bintang -> emas (TwinkleS5 MPB baca _BaseColor dasar -> ikut emas) ----------
+        int nBintang = 0;
+        var bintang = sihir != null ? WahanaFinalUtil.CariChildRekursif(sihir.transform, "Bintang") : null;
+        if (bintang != null)
+        {
+            var matEmas = WahanaFinalUtil.MatAssetUnlitHDR("S5_BintangEmas", EmasBintang, 1.3f, null, 1f);
+            foreach (var mr in bintang.GetComponentsInChildren<MeshRenderer>(true)) { mr.sharedMaterial = matEmas; nBintang++; }
+        }
+        sb.AppendLine("  Bintang emas: " + nBintang + " renderer (twinkle ikut emas).");
+
+        // ---------- (g) zona: masuk galaksi in-place + pindah kedua zona ke ambang pintu ----------
+        UbahZonaS5Masuk(sb);
+        WahanaFinalUtil.PindahZona("GEN_Suasana_S5Masuk",
+            WahanaFinalUtil.TitikAmbangMasuk(pts, minX, maxX, minZ, maxZ), new Vector3(3.5f, 6f, 6f), sb);
+        WahanaFinalUtil.PindahZona("GEN_Suasana_S5Keluar",
+            WahanaFinalUtil.TitikAmbangKeluar(pts, minX, maxX, minZ, maxZ), new Vector3(3.5f, 6f, 6f), sb);
+
+        // ---------- (h) peta boneka: kaki band/penonton vs permukaan runtime + orbit ----------
+        var terpasang = new List<Transform>();
+        var permukaan = new List<float>();
+        float pgTop = panggung != null ? WahanaFinalUtil.BoundsGabungan(panggung.transform).max.y : lantaiTop;
+        float pgR = panggung != null ? WahanaFinalUtil.HalfXZ(panggung.transform) + 0.3f : 0f;
+        int nSnap = 0;
+        foreach (var gr in hidup.GetComponentsInChildren<GoyangRitmis>(true))
+        {
+            var t = gr.transform;
+            var b = WahanaFinalUtil.BoundsGabungan(t);
+            bool diPanggung = panggung != null &&
+                new Vector2(b.center.x - pgPos.x, b.center.z - pgPos.z).magnitude <= pgR;
+            float surf = diPanggung ? pgTop : lantaiTop;
+            if (Mathf.Abs(b.min.y - (surf + 0.01f)) > 0.05f)
+            {
+                float d = WahanaFinalUtil.SnapY(t, surf);
+                sb.AppendLine("    snap " + t.name + ": " + (d >= 0 ? "+" : "") + d.ToString("0.00") + " y");
+                nSnap++;
+            }
+            if (terpasang.Count < 12) { terpasang.Add(t); permukaan.Add(surf); }
+        }
+        sb.AppendLine("  Kaki band/penonton dicek (snap " + nSnap + ").");
+        int nOrbit = 0;
+        foreach (var ro in Object.FindObjectsByType<RoketOrbit>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            var pos = ro.transform.position;
+            if (pos.x < minX - 2f || pos.x > maxX + 2f || pos.z < minZ - 2f || pos.z > maxZ + 2f) continue;
+            var so = new SerializedObject(ro);
+            var pRad = so.FindProperty("_radius");
+            if (pRad == null) continue;
+            float dRel = WahanaFinalUtil.JarakKeRel(pts, pos.x, pos.z);
+            if (dRel < pRad.floatValue + 1.2f)
+            {
+                float baru = Mathf.Max(0.8f, dRel - 1.2f);
+                sb.AppendLine("    orbit " + ro.gameObject.name + ": radius " + pRad.floatValue.ToString("0.0") + " -> " + baru.ToString("0.0") + " (koridor).");
+                pRad.floatValue = baru;
+                so.ApplyModifiedProperties();
+                nOrbit++;
+            }
+        }
+        if (mobile != null)
+        {
+            var bm = WahanaFinalUtil.BoundsGabungan(mobile.transform);
+            float dm = WahanaFinalUtil.JarakKeRel(pts, bm.center.x, bm.center.z) - Mathf.Max(bm.extents.x, bm.extents.z);
+            if (dm < 1.2f && bm.min.y < 2.8f)
+                sb.AppendLine("    [WARNING] MobilePlanet dekat koridor (gap " + dm.ToString("0.00") + ") — cek visual.");
+        }
+        sb.AppendLine("  Orbit roket di-clamp: " + nOrbit + ".");
+        WahanaFinalUtil.BarisVerifikasi(terpasang, permukaan, pts, sb);
+
+        // ---------- (i) statis + rebake ----------
+        FlagStatisRekursif(root, true);
+        BakeS5(); // pertahankan exclusion "Bintang"
+        TemenDresser.GabungGenStatis(); // JendelaBintangS5 recolor (dressing) kelihatan
+
+        Debug.Log(sb.ToString());
+        Simpan();
+    }
+
+    private static void BoxFinal(Transform parent, string nama, Vector3 pos, Vector3 ukuran, Material mat)
+    {
+        var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        g.name = nama;
+        g.transform.SetParent(parent, true);
+        g.transform.position = pos;
+        g.transform.localScale = ukuran;
+        Object.DestroyImmediate(g.GetComponent<Collider>());
+        g.GetComponent<MeshRenderer>().sharedMaterial = mat;
+    }
+
+    private static void PointFinal(Transform parent, string nama, Vector3 pos, Color warna, float intensitas, float range)
+    {
+        var go = new GameObject(nama);
+        go.transform.SetParent(parent, true);
+        go.transform.position = pos;
+        var l = go.AddComponent<Light>();
+        l.type = LightType.Point;
+        l.color = warna;
+        l.intensity = intensitas;
+        l.range = range;
+        l.shadows = LightShadows.None;
+    }
+
+    private static void UbahZonaS5Masuk(System.Text.StringBuilder sb)
+    {
+        var go = CariGameObject("GEN_Suasana_S5Masuk");
+        var sz = go != null ? go.GetComponent<SuasanaZona>() : null;
+        if (sz == null) { sb.AppendLine("  (GEN_Suasana_S5Masuk tak ketemu!)"); return; }
+        var so = new SerializedObject(sz);
+        so.FindProperty("_fogColor").colorValue = new Color(0.05f, 0.03f, 0.12f);
+        so.FindProperty("_fogStart").floatValue = 12f;
+        so.FindProperty("_fogEnd").floatValue = 55f;
+        so.FindProperty("_ambientSky").colorValue = new Color(0.10f, 0.07f, 0.22f);
+        so.FindProperty("_ambientEquator").colorValue = new Color(0.07f, 0.05f, 0.16f);
+        so.FindProperty("_ambientGround").colorValue = new Color(0.04f, 0.03f, 0.10f);
+        so.ApplyModifiedProperties();
+        sb.AppendLine("  Zona masuk S5 -> fog & ambient galaksi ungu-biru.");
+    }
+
     // =====================================================================
     //  (42) BUANG ALIEN DEVA
     // =====================================================================
