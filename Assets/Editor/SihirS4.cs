@@ -1452,6 +1452,11 @@ public static class SihirS4
         }
         else sb.AppendLine("  [WARN] GuaS4 tak ketemu — batu gua dilewati.");
 
+        // (a3) pangkas geometri yang MENEMBUS ruangan S5 (temuan Izhar playtest-9:
+        // bank/tube caustic nongol di dalam ruang galaksi — menu 4 tak mengecualikan S5;
+        // dulu tersamar gelap-tanah, setelah neon jadi kentara). SEBELUM rebake.
+        PangkasTembusS5(genTun, sb);
+
         // rebake GEN_Tunnel (pola GerbangGuaLaut) + pre-delete asset prefix (anti-orphan
         // pola RebakeTemenS1 — jumlah grup material berubah antar-run).
         for (int i = genTun.transform.childCount - 1; i >= 0; i--)
@@ -1472,6 +1477,58 @@ public static class SihirS4
         sb.AppendLine("  Recolor terowongan: tube dangkal " + nDangkal + " / sedang " + nSedang
                       + " / dalam " + nDalam + " chunk + bank " + nBank + " box + batu gua "
                       + nGua + "; rebake GEN_Tunnel " + nre + " renderer.");
+    }
+
+    /// <summary>Hapus/pangkas geometri GEN_Tunnel yang MENEMBUS ruangan S5. Generator
+    /// menu 4 tidak mengecualikan S5 (hanya S4): bank tanah + ujung tube ikut masuk ruang
+    /// galaksi. Bank_* di dalam rect S5 DIHAPUS (terkubur di balik dinding, tak dibutuhkan);
+    /// vertex Tunnel_* di dalam rect DICLAMP ke tepi rect terdekat (tube berakhir rata di
+    /// muka dinding). Idempotent; jalankan SEBELUM rebake supaya GABUNG ikut bersih.</summary>
+    private static void PangkasTembusS5(GameObject genTun, System.Text.StringBuilder sb)
+    {
+        var r5 = RuangByNama("S5");
+        float x0 = r5.Center.x - r5.Lebar * 0.5f, x1 = r5.Center.x + r5.Lebar * 0.5f;
+        float z0 = r5.Center.z - r5.Panjang * 0.5f, z1 = r5.Center.z + r5.Panjang * 0.5f;
+
+        // bank yang BOUNDS-nya menembus rect S5 → hapus. Tes titik-pusat TIDAK cukup:
+        // kotak bank lebar 2.5-5.5u, pusat di luar tapi badan nembus dinding (playtest-9,
+        // run pertama 0 kena). Margin 0.4 = bank yang cuma nempel muka luar dinding aman.
+        float mx0 = x0 + 0.4f, mx1 = x1 - 0.4f, mz0 = z0 + 0.4f, mz1 = z1 - 0.4f;
+        var hapus = new List<GameObject>();
+        foreach (var mr in genTun.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (!mr.name.StartsWith("Bank_")) continue;
+            Bounds b = mr.bounds;
+            if (b.max.x > mx0 && b.min.x < mx1 && b.max.z > mz0 && b.min.z < mz1)
+                hapus.Add(mr.gameObject);
+        }
+        foreach (var g in hapus) Object.DestroyImmediate(g);
+
+        // vertex tube di dalam rect S5 → clamp ke tepi terdekat (potongan rata di dinding)
+        int nClamp = 0;
+        foreach (var mf in genTun.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (!mf.name.StartsWith("Tunnel_") || mf.sharedMesh == null) continue;
+            var mesh = mf.sharedMesh;
+            var verts = mesh.vertices;
+            var l2w = mf.transform.localToWorldMatrix;
+            var w2l = mf.transform.worldToLocalMatrix;
+            bool ubah = false;
+            for (int i = 0; i < verts.Length; i++)
+            {
+                Vector3 w = l2w.MultiplyPoint3x4(verts[i]);
+                if (w.x <= x0 || w.x >= x1 || w.z <= z0 || w.z >= z1) continue;
+                float dx0 = w.x - x0, dx1 = x1 - w.x, dz0 = w.z - z0, dz1 = z1 - w.z;
+                float m = Mathf.Min(Mathf.Min(dx0, dx1), Mathf.Min(dz0, dz1));
+                if (m == dz0) w.z = z0; else if (m == dz1) w.z = z1;
+                else if (m == dx0) w.x = x0; else w.x = x1;
+                verts[i] = w2l.MultiplyPoint3x4(w);
+                ubah = true; nClamp++;
+            }
+            if (ubah) { mesh.vertices = verts; mesh.RecalculateBounds(); EditorUtility.SetDirty(mesh); }
+        }
+        sb.AppendLine("  Pangkas tembus S5: " + hapus.Count + " bank dihapus, " + nClamp
+                      + " vertex tube diclamp ke muka dinding.");
     }
 
     /// <summary>Material asset band air (Assets/Generated, nilai di-update tiap run).
@@ -2501,9 +2558,14 @@ public static class SihirS4
 
     private static WahanaLayout.Ruangan RuangS4()
     {
+        return RuangByNama("S4");
+    }
+
+    private static WahanaLayout.Ruangan RuangByNama(string nama)
+    {
         foreach (var r in WahanaLayout.BuildRuangan())
-            if (r.nama == "S4") return r;
-        throw new System.Exception("Ruangan S4 tak ditemukan.");
+            if (r.nama == nama) return r;
+        throw new System.Exception("Ruangan " + nama + " tak ditemukan.");
     }
 
     private static List<Vector3> PolylineUtama()
