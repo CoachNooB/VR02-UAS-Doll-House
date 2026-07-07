@@ -1242,6 +1242,8 @@ public static class SihirS4
     //  (a) RECOLOR dinding tube + bank per-BAND KEDALAMAN (gradient menyelam
     //      terbake di warna dinding — bukan lampu: URP cap 8 lampu per-object
     //      per-vertex, tube = 1 mesh GABUNG besar) + rebake GEN_Tunnel;
+    //  (a2) SAPU ABU: swap material per-renderer Ramp_/LidPit_/TiangPenanda
+    //      (share MatRumputMalam global) + sweep diagnostik [ABU?] koridor;
     //  (b) panel "air mengalir" ScrollUV di dinding & plafon kedua segmen;
     //  (c) tirai air kedua + plunge + kolom gelembung di tanjakan keluar
     //      (mirror masuk; splash existing di permukaan TIDAK disentuh);
@@ -1256,7 +1258,9 @@ public static class SihirS4
     private static readonly Color TubeDangkal = new Color(0.10f, 0.22f, 0.32f); // band y > -2.2
     private static readonly Color TubeSedang = new Color(0.07f, 0.17f, 0.26f);  // band -4.5..-2.2
     private static readonly Color TubeDalam = new Color(0.05f, 0.13f, 0.20f);   // band <= -4.5
-    private static readonly Color BankAir = new Color(0.06f, 0.14f, 0.19f);     // slab bank tanah
+    private static readonly Color BankAir = new Color(0.08f, 0.17f, 0.23f);     // slab bank tanah
+    private static readonly Color RampAir = new Color(0.09f, 0.19f, 0.27f);     // ramp bawah rel (dasar terang)
+    private static readonly Color LidAir = new Color(0.05f, 0.12f, 0.17f);      // lid pit + tiang penanda
     private static readonly Color LampuAirPermukaan = new Color(0.40f, 0.75f, 1.00f);
     private static readonly Color LampuAirDalam = new Color(0.15f, 0.40f, 0.85f);
     private const float LampuAirIMax = 1.8f;  // intensitas dekat permukaan
@@ -1290,6 +1294,10 @@ public static class SihirS4
 
         // (a) recolor terowongan per-band kedalaman + rebake GEN_Tunnel
         RecolorTerowonganAir(sb);
+
+        // (a2) sapu abu: swap material Ramp_/LidPit_/TiangPenanda (share MatRumputMalam
+        // global — asset-nya jangan dicat) + sweep diagnostik sisa abu di koridor
+        SapuAbuKoridor(segMasuk, segKeluar, sb);
 
         // (b) grup hidup lorong (idempoten; TIDAK dibake, TANPA static flag — ada ScrollUV)
         WahanaRebuilder.HapusParent("LorongAir_S4");
@@ -1430,6 +1438,70 @@ public static class SihirS4
         var m = WahanaFinalUtil.MatAsset(nama, warna, 0.25f, null, 1f);
         if (m.HasProperty("_Cull")) m.SetFloat("_Cull", 0f);
         return m;
+    }
+
+    /// <summary>Langkah (a2) "sapu abu" — playtest-1: dinding sudah biru tapi masih ada abu.
+    /// (1) SWAP MATERIAL PER-RENDERER by name: Ramp_* (13 box bawah rel — lempeng terang di
+    /// screenshot), LidPit_* (5, incl notch), TiangPenanda. Mereka share MatRumputMalam GLOBAL
+    /// (ground seluruh taman) → asset-nya JANGAN direcolor, renderer-nya yang dipindah ke
+    /// material air. Tidak dibake (GEN_GerbangGua_S4 bukan grup menu 14) → langsung kelihatan,
+    /// tanpa rebake. Bonus: NotchLid mewarisi sharedMaterial lid → slab notch berikutnya biru.
+    /// (2) SWEEP DIAGNOSTIK [ABU?]: log renderer lain sekitar koridor (AABB segmen ±10 lateral
+    /// ±8 vertikal) yang materialnya bukan keluarga air/glow/transparan — sisa abu ketahuan
+    /// BY NAME di console, bukan tebakan screenshot. Log-only, max 20 entri.</summary>
+    private static void SapuAbuKoridor(List<Vector3> segMasuk, List<Vector3> segKeluar,
+                                       System.Text.StringBuilder sb)
+    {
+        Material mRamp = MatBandAir("S4_RampAir", RampAir);
+        Material mLid = MatBandAir("S4_LidAir", LidAir);
+
+        Bounds bMasuk = BoundsSegmen(segMasuk), bKeluar = BoundsSegmen(segKeluar);
+        bMasuk.Expand(new Vector3(14f, 8f, 14f));   // BoundsSegmen sudah ±3/±4 → total ±10/±8
+        bKeluar.Expand(new Vector3(14f, 8f, 14f));
+
+        int nRamp = 0, nLid = 0;
+        var abu = new List<string>();
+        foreach (var mr in Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+        {
+            if (mr == null || !mr.enabled || !mr.gameObject.activeInHierarchy) continue;
+            string nm = mr.name;
+            if (nm.StartsWith("Ramp_")) { mr.sharedMaterial = mRamp; nRamp++; continue; }
+            if (nm.StartsWith("LidPit_") || nm == "TiangPenanda") { mr.sharedMaterial = mLid; nLid++; continue; }
+
+            // ---- sweep diagnostik sisa abu (log-only) ----
+            if (!mr.bounds.Intersects(bMasuk) && !mr.bounds.Intersects(bKeluar)) continue;
+            bool skip = false;
+            for (var a = mr.transform; a != null && !skip; a = a.parent)
+            {
+                string an = a.name;
+                if (an.StartsWith("Kereta") || an.StartsWith("Bak") || an == "SistemKereta"
+                    || an.StartsWith("Rel") || an.StartsWith("JalurUtama")
+                    || an.StartsWith("TiraiAir") || an.StartsWith("PlungeMasuk")
+                    || an.StartsWith("PlungeKeluar") || an.StartsWith("SplashKeluar")
+                    || an.StartsWith("LorongAir") || an.StartsWith("GelembungTunnel")
+                    || an.StartsWith("PintuGuaLaut") || an.StartsWith("TeksGuaLaut")
+                    || an.StartsWith("GEN_Sihir")) skip = true; // GEN_Sihir* = dekor S4 sudah biru
+            }
+            if (skip) continue;
+            var mat = mr.sharedMaterial;
+            if (mat == null) continue;
+            string mn = mat.name;
+            if (mn.StartsWith("S4_") || mn.StartsWith("TUN_")) continue;           // keluarga air
+            if (mat.shader != null && mat.shader.name.Contains("Unlit")) continue; // glow/teks
+            if (mat.HasProperty("_Surface") && mat.GetFloat("_Surface") > 0.5f) continue; // transparan
+            Color c = mat.HasProperty("_BaseColor") ? mat.GetColor("_BaseColor")
+                    : (mat.HasProperty("_Color") ? mat.color : Color.magenta);
+            if (abu.Count < 20)
+                abu.Add("    [ABU?] " + PathHirarki(mr.transform) + " (mat " + mn + ", "
+                        + c.r.ToString("0.00") + "," + c.g.ToString("0.00") + "," + c.b.ToString("0.00") + ")");
+        }
+        sb.AppendLine("  Sapu abu: " + nRamp + " ramp -> S4_RampAir; " + nLid + " lid/tiang -> S4_LidAir.");
+        if (abu.Count == 0) sb.AppendLine("  Sweep [ABU?]: bersih — tak ada kandidat abu lain di koridor.");
+        else
+        {
+            sb.AppendLine("  Sweep [ABU?] kandidat tersisa (log-only):");
+            foreach (var s in abu) sb.AppendLine(s);
+        }
     }
 
     /// <summary>Panel "air mengalir" (Quad primitif + ScrollUV) selang-seling dinding kiri/
