@@ -1022,6 +1022,199 @@ public static class SihirS4
         WahanaFinalUtil.BarisVerifikasi(daftar, permukaan, jalur, sb);
     }
 
+    // =====================================================================
+    //  MENU 49b — CARVE KORIDOR TURUNAN S4
+    //  Fix playtest "layar ketutup abu sesaat saat masuk terowongan":
+    //  bank tanah switchback nyempil ke koridor kamera. Deteksi VERTEX-level
+    //  semua renderer aktif yang masuk tabung koridor (radius 1.1, tinggi
+    //  0.25-2.2 di atas rel) di segmen turunan, lalu CARVE: dorong vertex
+    //  keluar radius 1.3 (samping) / angkat ke atas kepala (tepat di atas rel).
+    //  HANYA mesh hasil bake "GABUNG_*" (asset unik) yang di-carve — mesh
+    //  primitif bersama (Cube dll) cuma di-log [MANUAL].
+    //  CATATAN: rebake GEN_Tunnel (menu 23 kondisi portal) menghapus carve
+    //  -> re-run menu ini setelahnya.
+    // =====================================================================
+    [MenuItem("Tools/Wahana/49b S4 Carve Koridor Turunan", false, 108)]
+    public static void CarveKoridorS4()
+    {
+        if (EditorApplication.isPlaying)
+        {
+            Debug.LogError("[Wahana] Jangan jalankan menu ini saat PLAY MODE.");
+            return;
+        }
+        var sb = new System.Text.StringBuilder("=== S4 CARVE KORIDOR TURUNAN ===\n");
+        var pts = PolylineUtama();
+        if (pts.Count == 0) { Debug.LogError("[S4 Carve] JalurUtama kosong."); return; }
+
+        // segmen turunan (margin): WP pertama y<=-0.3 s.d. WP pertama y<=-5.6 (+4 WP)
+        int iAwal = -1, iGua = -1;
+        for (int i = 0; i < pts.Count; i++)
+        {
+            if (iAwal < 0 && pts[i].y <= -0.3f) iAwal = i;
+            if (iAwal >= 0 && pts[i].y <= -5.6f) { iGua = i; break; }
+        }
+        if (iAwal < 0 || iGua <= iAwal) { Debug.LogError("[S4 Carve] Segmen turunan tak ketemu."); return; }
+        iAwal = Mathf.Max(0, iAwal - 2);
+        iGua = Mathf.Min(iGua + 4, pts.Count - 1);
+        var seg = pts.GetRange(iAwal, iGua - iAwal + 1);
+        sb.AppendLine("  Segmen koridor: WP " + iAwal + ".." + iGua + " (" + seg.Count + " titik).");
+
+        const float R_DETEKSI = 1.1f, R_CARVE = 1.3f, DY_MIN = 0.25f, DY_MAX = 2.2f;
+
+        var korAabb = new Bounds(seg[0], Vector3.zero);
+        foreach (var p in seg) korAabb.Encapsulate(p);
+        korAabb.Expand(new Vector3(2.6f, 5.5f, 2.6f));
+
+        int nIntrusi = 0, nCarve = 0, nVertTotal = 0;
+        var lidNotch = new List<GameObject>();
+        foreach (var mr in Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+        {
+            if (mr == null || !mr.enabled || !mr.gameObject.activeInHierarchy) continue;
+            if (!mr.bounds.Intersects(korAabb)) continue;
+
+            // skip objek yang MEMANG menempel/melintang rel (ride & efek air S4)
+            bool skip = false;
+            for (var a = mr.transform; a != null && !skip; a = a.parent)
+            {
+                string an = a.name;
+                if (an.StartsWith("Kereta") || an.StartsWith("Bak") || an == "SistemKereta"
+                    || an.StartsWith("Rel") || an.StartsWith("Ramp_") || an.StartsWith("JalurUtama")
+                    || an.StartsWith("TiraiAir") || an.StartsWith("PlungeMasuk")
+                    || an.StartsWith("GelembungTunnel") || an.StartsWith("PintuGuaLaut")) skip = true;
+            }
+            if (skip) continue;
+            var mf = mr.GetComponent<MeshFilter>();
+            if (mf == null || mf.sharedMesh == null) continue;
+
+            var mesh = mf.sharedMesh;
+            var verts = mesh.vertices;
+            var l2w = mf.transform.localToWorldMatrix;
+            List<int> dalam = null;
+            for (int vi = 0; vi < verts.Length; vi++)
+            {
+                Vector3 w = l2w.MultiplyPoint3x4(verts[vi]);
+                if (DalamTabungKoridor(w, seg, R_DETEKSI, DY_MIN, DY_MAX, out _))
+                    (dalam = dalam ?? new List<int>()).Add(vi);
+            }
+            if (dalam == null) continue;
+            nIntrusi++;
+            nVertTotal += dalam.Count;
+            bool bolehCarve = mr.name.StartsWith("GABUNG_");
+            bool bolehNotch = mr.name.StartsWith("LidPit_");
+            sb.AppendLine("  " + (bolehCarve ? "[CARVE]  " : bolehNotch ? "[NOTCH]  " : "[MANUAL] ")
+                          + PathHirarki(mr.transform)
+                          + " (mesh " + mesh.name + "): " + dalam.Count + " vertex dalam koridor.");
+            if (bolehNotch) { lidNotch.Add(mr.gameObject); continue; }
+            if (!bolehCarve) continue;
+
+            var w2l = mf.transform.worldToLocalMatrix;
+            foreach (int vi in dalam)
+            {
+                Vector3 w = l2w.MultiplyPoint3x4(verts[vi]);
+                DalamTabungKoridor(w, seg, R_DETEKSI, DY_MIN, DY_MAX, out Vector3 q);
+                Vector3 dXZ = new Vector3(w.x - q.x, 0f, w.z - q.z);
+                Vector3 baru;
+                if (dXZ.magnitude < 0.35f) baru = new Vector3(w.x, q.y + DY_MAX + 0.15f, w.z); // tepat di atas rel -> angkat
+                else baru = new Vector3(q.x, w.y, q.z) + dXZ.normalized * R_CARVE;             // samping -> dorong keluar
+                verts[vi] = w2l.MultiplyPoint3x4(baru);
+            }
+            mesh.vertices = verts;
+            mesh.RecalculateBounds();
+            EditorUtility.SetDirty(mesh);
+            nCarve++;
+        }
+        // notch lid pit yang memotong koridor (kotak primitif — tak bisa carve, jadi dibelah)
+        foreach (var lid in lidNotch) NotchLid(lid, seg, sb);
+
+        AssetDatabase.SaveAssets();
+        sb.AppendLine("  Intrusi: " + nIntrusi + " renderer (" + nVertTotal + " vertex); carve: " + nCarve
+                      + " mesh GABUNG; notch: " + lidNotch.Count + " lid.");
+        if (nIntrusi == 0) sb.AppendLine("  (Koridor turunan sudah bersih.)");
+        sb.AppendLine("=== SELESAI CARVE ===");
+        Selesai(sb, CariGameObject("GEN_SihirHidup_S4"));
+    }
+
+    /// <summary>Ganti kotak lid dengan potongan-potongan yang menyisakan LUBANG di lintasan
+    /// koridor kamera (rect lid MINUS rect persilangan rel ±1.3). Dari luar tetap tertutup
+    /// (lubang ada di dalam bore terowongan); dari dalam tak ada lagi lempengan menembus kepala.</summary>
+    private static void NotchLid(GameObject lid, List<Vector3> seg, System.Text.StringBuilder sb)
+    {
+        if (lid == null) return;
+        Vector3 pos = lid.transform.position;
+        Vector3 skala = lid.transform.lossyScale;
+        float minX = pos.x - skala.x * 0.5f, maxX = pos.x + skala.x * 0.5f;
+        float minZ = pos.z - skala.z * 0.5f, maxZ = pos.z + skala.z * 0.5f;
+
+        // rect persilangan: WP koridor yang jatuh di dalam footprint lid (+0.6 margin cari)
+        float hMinX = float.MaxValue, hMaxX = float.MinValue, hMinZ = float.MaxValue, hMaxZ = float.MinValue;
+        bool ada = false;
+        foreach (var p in seg)
+        {
+            if (p.x < minX - 0.6f || p.x > maxX + 0.6f || p.z < minZ - 0.6f || p.z > maxZ + 0.6f) continue;
+            ada = true;
+            hMinX = Mathf.Min(hMinX, p.x); hMaxX = Mathf.Max(hMaxX, p.x);
+            hMinZ = Mathf.Min(hMinZ, p.z); hMaxZ = Mathf.Max(hMaxZ, p.z);
+        }
+        if (!ada) { sb.AppendLine("    (notch " + lid.name + " batal — tak ada WP di footprint.)"); return; }
+        hMinX = Mathf.Max(minX, hMinX - 1.3f); hMaxX = Mathf.Min(maxX, hMaxX + 1.3f);
+        hMinZ = Mathf.Max(minZ, hMinZ - 1.3f); hMaxZ = Mathf.Min(maxZ, hMaxZ + 1.3f);
+
+        var parent = lid.transform.parent;
+        var mat = lid.GetComponent<MeshRenderer>().sharedMaterial;
+        string nama = lid.name;
+        float y = pos.y, tebal = skala.y;
+
+        // 4 slab penutup: Barat/Timur (full Z) + Selatan/Utara (di antara lubang X)
+        BuatLidSlab(parent, nama + "_W", minX, hMinX, minZ, maxZ, y, tebal, mat);
+        BuatLidSlab(parent, nama + "_E", hMaxX, maxX, minZ, maxZ, y, tebal, mat);
+        BuatLidSlab(parent, nama + "_S", hMinX, hMaxX, minZ, hMinZ, y, tebal, mat);
+        BuatLidSlab(parent, nama + "_N", hMinX, hMaxX, hMaxZ, maxZ, y, tebal, mat);
+        Object.DestroyImmediate(lid);
+        sb.AppendLine("    notch " + nama + ": lubang X[" + hMinX.ToString("0.0") + ".." + hMaxX.ToString("0.0")
+                      + "] Z[" + hMinZ.ToString("0.0") + ".." + hMaxZ.ToString("0.0") + "], 4 slab pengganti.");
+    }
+
+    private static void BuatLidSlab(Transform parent, string nama, float x0, float x1, float z0, float z1,
+                                    float y, float tebal, Material mat)
+    {
+        if (x1 - x0 < 0.05f || z1 - z0 < 0.05f) return; // sisi kosong — skip
+        var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        g.name = nama;
+        g.transform.SetParent(parent, true);
+        g.transform.position = new Vector3((x0 + x1) * 0.5f, y, (z0 + z1) * 0.5f);
+        g.transform.localScale = new Vector3(x1 - x0, tebal, z1 - z0);
+        g.GetComponent<MeshRenderer>().sharedMaterial = mat;
+        GameObjectUtility.SetStaticEditorFlags(g, StaticEditorFlags.BatchingStatic);
+    }
+
+    /// <summary>True kalau titik p dalam tabung koridor (jarak XZ ke polyline &lt; r, dan
+    /// tinggi di atas rel antara dyMin..dyMax). qOut = titik rel terdekat (y terinterpolasi).</summary>
+    private static bool DalamTabungKoridor(Vector3 p, List<Vector3> seg, float r, float dyMin, float dyMax, out Vector3 qOut)
+    {
+        float best = float.MaxValue;
+        qOut = seg[0];
+        for (int i = 0; i < seg.Count - 1; i++)
+        {
+            Vector3 a = seg[i], b = seg[i + 1];
+            float dx = b.x - a.x, dz = b.z - a.z;
+            float l2 = dx * dx + dz * dz;
+            float t = l2 < 1e-4f ? 0f : Mathf.Clamp01(((p.x - a.x) * dx + (p.z - a.z) * dz) / l2);
+            Vector3 q = a + (b - a) * t;
+            float d = (p.x - q.x) * (p.x - q.x) + (p.z - q.z) * (p.z - q.z);
+            if (d < best) { best = d; qOut = q; }
+        }
+        float dxz = Mathf.Sqrt(best);
+        float dy = p.y - qOut.y;
+        return dxz < r && dy > dyMin && dy < dyMax;
+    }
+
+    private static string PathHirarki(Transform t)
+    {
+        string s = t.name;
+        for (var a = t.parent; a != null; a = a.parent) s = a.name + "/" + s;
+        return s;
+    }
+
     // #####################################################################
     //  BUILDER: UBUR-UBUR RAKSASA (hero)
     // #####################################################################
