@@ -46,6 +46,7 @@ public static class OnboardingFinal
         if (GuardPlayMode()) return;
         var sb = new StringBuilder("=== 59 ONBOARDING - MEKANIK TIKET ===\n");
         PasangColliderDaunPintu(sb);
+        RapikanArahPintuLobby(sb);
         RapikanHitboxNaik(sb);
         PasangBelStasiun(sb);
         PasangFeedbackTolak(sb);
@@ -92,6 +93,54 @@ public static class OnboardingFinal
 
         sb.AppendLine("  Collider daun pintu: +" + dipasang + " baru, "
             + PintuBerdaunSolid.Length + " pintu dipaksa solid (enabled, non-trigger).");
+    }
+
+    /// <summary>
+    /// Balik arah geser daun pintu rel lobby ke ARAH TEMBOK. Dinding barat/timur
+    /// hanya punya bidang tembok di sisi UTARA bukaan (z 23.5-28; selatan langsung
+    /// pojok gedung z20). Yaw lama 90 membuat klip geser (+X lokal) mengarah ke
+    /// selatan -> daun melayang di udara kosong luar pojok. Yaw 270 => +X lokal =
+    /// utara, daun menggeser masuk ke dalam tembok (pola PintuTiket/Sekat).
+    /// PanelPintu duduk di pivot (lokal 0,1.7,0) jadi pose TERTUTUP tidak berubah;
+    /// Z_Pintu (non-animasi) dipertahankan pose dunianya. Idempotent via cek yaw.
+    /// </summary>
+    private static void RapikanArahPintuLobby(StringBuilder sb)
+    {
+        foreach (string nama in new[] { "PintuKereta_Berangkat", "PintuKereta_Pulang" })
+        {
+            GameObject pintu = WahanaFinalUtil.CariGameObject(nama);
+            if (pintu == null)
+            {
+                sb.AppendLine("  [WARN] " + nama + " tidak ketemu — arah pintu dilewati.");
+                continue;
+            }
+
+            float yaw = pintu.transform.eulerAngles.y;
+            if (Mathf.Abs(Mathf.DeltaAngle(yaw, 270f)) < 1f)
+            {
+                sb.AppendLine("  " + nama + " sudah yaw 270 (skip).");
+                continue;
+            }
+
+            Transform zPintu = pintu.transform.Find("Z_Pintu");
+            Vector3 zPos = Vector3.zero;
+            Quaternion zRot = Quaternion.identity;
+            if (zPintu != null)
+            {
+                zPos = zPintu.position;
+                zRot = zPintu.rotation;
+            }
+
+            pintu.transform.rotation = Quaternion.Euler(0f, 270f, 0f);
+
+            if (zPintu != null)
+            {
+                zPintu.position = zPos;
+                zPintu.rotation = zRot;
+            }
+
+            sb.AppendLine("  " + nama + ": yaw " + yaw.ToString("0") + " -> 270 (daun kini geser ke tembok utara).");
+        }
     }
 
     /// <summary>
