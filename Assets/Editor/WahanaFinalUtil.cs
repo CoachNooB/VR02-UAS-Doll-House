@@ -170,6 +170,87 @@ public static class WahanaFinalUtil
         return new Vector3(pos.x, pos.y + 1f, pos.z);
     }
 
+    /// <summary>Geser prop tegak-lurus MENJAUH dari rel sampai gap bounds >= targetGap
+    /// (fix deterministik untuk prop existing yang menembus koridor). Return true kalau digeser.</summary>
+    public static bool GeserMenjauhRel(Transform prop, List<Vector3> pts, float targetGap,
+                                       float minX, float maxX, float minZ, float maxZ,
+                                       System.Text.StringBuilder sb)
+    {
+        var b = BoundsGabungan(prop);
+        float half = Mathf.Max(b.extents.x, b.extents.z);
+        float gap = JarakKeRel(pts, b.center.x, b.center.z) - half;
+        if (gap >= targetGap) return false;
+        // titik rel terdekat -> arah menjauh (XZ)
+        Vector3 dekat = b.center; float bd = float.MaxValue;
+        foreach (var p in pts)
+        {
+            float d = new Vector2(p.x - b.center.x, p.z - b.center.z).sqrMagnitude;
+            if (d < bd) { bd = d; dekat = p; }
+        }
+        Vector3 arah = new Vector3(b.center.x - dekat.x, 0f, b.center.z - dekat.z);
+        if (arah.sqrMagnitude < 0.001f) arah = Vector3.right;
+        arah.Normalize();
+        float geser = (targetGap - gap) + 0.1f;
+        Vector3 baru = prop.position + arah * geser;
+        baru.x = Mathf.Clamp(baru.x, minX + 1.2f, maxX - 1.2f);
+        baru.z = Mathf.Clamp(baru.z, minZ + 1.2f, maxZ - 1.2f);
+        prop.position = baru;
+        sb.AppendLine("    geser " + prop.name + " menjauh rel +" + geser.ToString("0.00") + "m (gap " + gap.ToString("0.00") + " -> target " + targetGap + ").");
+        return true;
+    }
+
+    /// <summary>Pisahkan prop yang saling tumpuk (gap bounds < minGap): dorong pasangan
+    /// menjauh sepanjang garis pusat mereka, beberapa iterasi. Opsional dikekang dalam
+    /// lingkaran (pusatClamp+radiusClamp, mis. piringan panggung) dan menjauh dari rel.</summary>
+    public static int PisahkanTumpukan(List<Transform> props, float minGap, int iterasi,
+                                       Vector3 pusatClamp, float radiusClamp,
+                                       List<Vector3> pts, float relMin,
+                                       System.Text.StringBuilder sb)
+    {
+        int digeser = 0;
+        for (int it = 0; it < iterasi; it++)
+        {
+            bool ada = false;
+            for (int i = 0; i < props.Count; i++)
+            for (int j = i + 1; j < props.Count; j++)
+            {
+                if (props[i] == null || props[j] == null) continue;
+                var bi = BoundsGabungan(props[i]);
+                var bj = BoundsGabungan(props[j]);
+                float ri = Mathf.Max(bi.extents.x, bi.extents.z);
+                float rj = Mathf.Max(bj.extents.x, bj.extents.z);
+                Vector2 sel = new Vector2(bj.center.x - bi.center.x, bj.center.z - bi.center.z);
+                float gap = sel.magnitude - ri - rj;
+                if (gap >= minGap) continue;
+                Vector2 arah = sel.sqrMagnitude > 0.0001f ? sel.normalized : new Vector2(1f, 0f);
+                float dorong = (minGap - gap) * 0.55f;
+                GeserXZ(props[i], -arah * dorong, pusatClamp, radiusClamp, pts, relMin);
+                GeserXZ(props[j], arah * dorong, pusatClamp, radiusClamp, pts, relMin);
+                ada = true; digeser++;
+            }
+            if (!ada) break;
+        }
+        if (digeser > 0) sb.AppendLine("    tumpukan dipisah: " + digeser + " dorongan.");
+        return digeser;
+    }
+
+    private static void GeserXZ(Transform t, Vector2 delta, Vector3 pusatClamp, float radiusClamp,
+                                List<Vector3> pts, float relMin)
+    {
+        Vector3 baru = t.position + new Vector3(delta.x, 0f, delta.y);
+        if (radiusClamp > 0f)
+        {
+            Vector2 dariPusat = new Vector2(baru.x - pusatClamp.x, baru.z - pusatClamp.z);
+            if (dariPusat.magnitude > radiusClamp)
+            {
+                dariPusat = dariPusat.normalized * radiusClamp;
+                baru = new Vector3(pusatClamp.x + dariPusat.x, baru.y, pusatClamp.z + dariPusat.y);
+            }
+        }
+        if (relMin > 0f && pts != null && JarakKeRel(pts, baru.x, baru.z) < relMin) return; // batal (jangan mendekat rel)
+        t.position = baru;
+    }
+
     /// <summary>Lepaskan instance dari prefab lalu buang Rigidbody & Collider (doll pack dkk
     /// bawa fisik yang bisa jatuh/ganggu raycast; destroy komponen prefab-instance tanpa
     /// unpack = error editor).</summary>

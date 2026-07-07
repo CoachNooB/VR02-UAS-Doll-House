@@ -1112,11 +1112,13 @@ public static class SihirS3
         WahanaFinalUtil.PindahZona("GEN_Suasana_S3Keluar",
             WahanaFinalUtil.TitikAmbangKeluar(pts, MinX, MaxX, MinZ, MaxZ), new Vector3(3.5f, 6f, 6f), sb);
 
-        // ---------- (f) verifikasi aktor lama (snap hanya kalau melenceng) ----------
+        // ---------- (f) verifikasi aktor lama (snap kalau melenceng + geser menjauh rel) ----------
         foreach (var nm in new[] { "HeroBoneka_S3", "KudaGoyang_S3", "KursiGoyang_S3", "PushableBox_Halimah" })
         {
             var g = CariGameObject(nm);
             if (g == null) continue;
+            // kuda/kursi goyang ditempatkan generator lama terlalu dekat/menembus koridor rel
+            WahanaFinalUtil.GeserMenjauhRel(g.transform, pts, 1.4f, MinX, MaxX, MinZ, MaxZ, sb);
             var b = WahanaFinalUtil.BoundsGabungan(g.transform);
             if (Mathf.Abs(b.min.y - (lantaiTop + 0.01f)) > 0.05f)
             {

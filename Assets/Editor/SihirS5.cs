@@ -339,28 +339,41 @@ public static class SihirS5
         WahanaFinalUtil.PindahZona("GEN_Suasana_S5Keluar",
             WahanaFinalUtil.TitikAmbangKeluar(pts, minX, maxX, minZ, maxZ), new Vector3(3.5f, 6f, 6f), sb);
 
-        // ---------- (h) peta boneka: kaki band/penonton vs permukaan runtime + orbit ----------
+        // ---------- (h) peta boneka: kaki vs permukaan runtime + pisah tumpukan + orbit ----------
         var terpasang = new List<Transform>();
         var permukaan = new List<float>();
+        var bandDiPanggung = new List<Transform>();
+        var penontonLantai = new List<Transform>();
         float pgTop = panggung != null ? WahanaFinalUtil.BoundsGabungan(panggung.transform).max.y : lantaiTop;
         float pgR = panggung != null ? WahanaFinalUtil.HalfXZ(panggung.transform) + 0.3f : 0f;
-        int nSnap = 0;
         foreach (var gr in hidup.GetComponentsInChildren<GoyangRitmis>(true))
         {
             var t = gr.transform;
             var b = WahanaFinalUtil.BoundsGabungan(t);
             bool diPanggung = panggung != null &&
                 new Vector2(b.center.x - pgPos.x, b.center.z - pgPos.z).magnitude <= pgR;
-            float surf = diPanggung ? pgTop : lantaiTop;
-            if (Mathf.Abs(b.min.y - (surf + 0.01f)) > 0.05f)
-            {
-                float d = WahanaFinalUtil.SnapY(t, surf);
-                sb.AppendLine("    snap " + t.name + ": " + (d >= 0 ? "+" : "") + d.ToString("0.00") + " y");
-                nSnap++;
-            }
-            if (terpasang.Count < 12) { terpasang.Add(t); permukaan.Add(surf); }
+            if (diPanggung) bandDiPanggung.Add(t); else penontonLantai.Add(t);
+        }
+        // pisahkan yang saling tumpuk: band dikekang di piringan, penonton bebas (jauhi rel)
+        if (panggung != null)
+            WahanaFinalUtil.PisahkanTumpukan(bandDiPanggung, 0.12f, 4, pgPos, pgR - 0.25f, pts, 1.4f, sb);
+        WahanaFinalUtil.PisahkanTumpukan(penontonLantai, 0.25f, 4, Vector3.zero, 0f, pts, 1.6f, sb);
+        int nSnap = 0;
+        foreach (var t in bandDiPanggung)
+        {
+            if (Mathf.Abs(WahanaFinalUtil.BoundsGabungan(t).min.y - (pgTop + 0.01f)) > 0.05f)
+            { WahanaFinalUtil.SnapY(t, pgTop); nSnap++; }
+            if (terpasang.Count < 14) { terpasang.Add(t); permukaan.Add(pgTop); }
+        }
+        foreach (var t in penontonLantai)
+        {
+            if (Mathf.Abs(WahanaFinalUtil.BoundsGabungan(t).min.y - (lantaiTop + 0.01f)) > 0.05f)
+            { WahanaFinalUtil.SnapY(t, lantaiTop); nSnap++; }
+            if (terpasang.Count < 14) { terpasang.Add(t); permukaan.Add(lantaiTop); }
         }
         sb.AppendLine("  Kaki band/penonton dicek (snap " + nSnap + ").");
+        // orbit roket: hanya masalah kalau orbitnya RENDAH (memotong koridor pandang);
+        // roket tinggi (>2.8) aman walau radius overlap XZ. Radius asli generator dipulihkan.
         int nOrbit = 0;
         foreach (var ro in Object.FindObjectsByType<RoketOrbit>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
@@ -368,25 +381,43 @@ public static class SihirS5
             if (pos.x < minX - 2f || pos.x > maxX + 2f || pos.z < minZ - 2f || pos.z > maxZ + 2f) continue;
             var so = new SerializedObject(ro);
             var pRad = so.FindProperty("_radius");
+            var pTinggi = so.FindProperty("_tinggi");
             if (pRad == null) continue;
+            float tinggiOrbit = pos.y + (pTinggi != null ? pTinggi.floatValue : 0f);
+            float radiusAsli = ro.gameObject.name.EndsWith("_1") ? 2.2f : 1.8f; // nilai generator menu 43
+            if (tinggiOrbit >= 2.8f)
+            {
+                if (!Mathf.Approximately(pRad.floatValue, radiusAsli))
+                {
+                    pRad.floatValue = radiusAsli;
+                    so.ApplyModifiedProperties();
+                    sb.AppendLine("    orbit " + ro.gameObject.name + ": tinggi aman (" + tinggiOrbit.ToString("0.0") + ") — radius dipulihkan " + radiusAsli + ".");
+                }
+                continue;
+            }
             float dRel = WahanaFinalUtil.JarakKeRel(pts, pos.x, pos.z);
             if (dRel < pRad.floatValue + 1.2f)
             {
                 float baru = Mathf.Max(0.8f, dRel - 1.2f);
-                sb.AppendLine("    orbit " + ro.gameObject.name + ": radius " + pRad.floatValue.ToString("0.0") + " -> " + baru.ToString("0.0") + " (koridor).");
+                sb.AppendLine("    orbit " + ro.gameObject.name + " RENDAH: radius " + pRad.floatValue.ToString("0.0") + " -> " + baru.ToString("0.0") + ".");
                 pRad.floatValue = baru;
                 so.ApplyModifiedProperties();
                 nOrbit++;
             }
         }
+        sb.AppendLine("  Orbit roket rendah di-clamp: " + nOrbit + ".");
+        // mobile planet: angkat sampai bagian terbawah di atas koridor pandang
         if (mobile != null)
         {
             var bm = WahanaFinalUtil.BoundsGabungan(mobile.transform);
             float dm = WahanaFinalUtil.JarakKeRel(pts, bm.center.x, bm.center.z) - Mathf.Max(bm.extents.x, bm.extents.z);
-            if (dm < 1.2f && bm.min.y < 2.8f)
-                sb.AppendLine("    [WARNING] MobilePlanet dekat koridor (gap " + dm.ToString("0.00") + ") — cek visual.");
+            if (dm < 1.2f && bm.min.y < 2.9f)
+            {
+                float naik = 2.9f - bm.min.y;
+                mobile.transform.position += Vector3.up * naik;
+                sb.AppendLine("    MobilePlanet diangkat +" + naik.ToString("0.00") + " (bawahnya masuk koridor pandang).");
+            }
         }
-        sb.AppendLine("  Orbit roket di-clamp: " + nOrbit + ".");
         WahanaFinalUtil.BarisVerifikasi(terpasang, permukaan, pts, sb);
 
         // ---------- (i) statis + rebake ----------
