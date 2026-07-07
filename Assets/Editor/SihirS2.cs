@@ -515,11 +515,15 @@ public static class SihirS2
         var pts = AmbilPolylineJalur();
         sb.AppendLine("  Polyline rel terbaca: " + pts.Count + " WP.");
 
+        // ---------- (d2) PETA BONEKA: 1 monster/disc + barisan penonton (posisi jadi larangan gundukan) ----------
+        var posBoneka = PetaBonekaS2(pts, sb);
+        RelokasiDrumS2(pts, posBoneka, sb);
+
         // ---------- (e) drift skirt dinding + gundukan salju ----------
         int nSkirt = BuatSkirtDinding(root.transform, matGundukan);
         sb.AppendLine("  Skirt salju tepi dinding: " + nSkirt + " strip.");
-        int nGundukan = BuatGundukanSalju(root.transform, matGundukan, pts, rand);
-        sb.AppendLine("  Gundukan drift: " + nGundukan + " (jarak >1.8 dari rel, hindari panggung/poros/kunci/drum).");
+        int nGundukan = BuatGundukanSalju(root.transform, matGundukan, pts, rand, posBoneka);
+        sb.AppendLine("  Gundukan drift: " + nGundukan + " (hindari rel/panggung/poros/kunci/drum/boneka).");
 
         // ---------- (f) salju turun ekstra (total ~40 keping) ----------
         int nSaljuF = TambahSaljuEkstra(root.transform, rand, 15);
@@ -542,9 +546,6 @@ public static class SihirS2
 
         // ---------- (j) recolor dressing S2 (coklat lama -> tema salju/emas) ----------
         RecolorDressingS2(sb);
-
-        // ---------- (k) sebar + snap prop panggung & snowmen (Renderer.bounds) ----------
-        SnapPropKePermukaan(pts, sb);
 
         // ---------- (l) statis + rebake dekor & dressing ----------
         FlagStatisKecualiBerputar(root);
@@ -655,11 +656,11 @@ public static class SihirS2
         return 4;
     }
 
-    /// <summary>Gundukan drift (sphere gepeng) tersebar; tolak posisi dekat rel/panggung/poros/kunci/drum/pintu.</summary>
-    private static int BuatGundukanSalju(Transform parent, Material mat, List<Vector3> pts, System.Random rand)
+    /// <summary>Gundukan drift (sphere gepeng) tersebar; tolak posisi dekat rel/panggung/poros/kunci/drum/pintu/boneka.</summary>
+    private static int BuatGundukanSalju(Transform parent, Material mat, List<Vector3> pts, System.Random rand, List<Vector3> posBoneka)
     {
         // pusat area terlarang (x, z, radius)
-        var larang = new[]
+        var larangTetap = new[]
         {
             new Vector3(41.66f, -20.47f, 2.6f), // panggung 0
             new Vector3(43.33f, -25.00f, 2.6f), // panggung 1
@@ -670,6 +671,8 @@ public static class SihirS2
             new Vector3(45f,    -14f,    2.2f), // pintu masuk
             new Vector3(34.5f,  -23f,    2.2f), // keluar barat
         };
+        var larang = new List<Vector3>(larangTetap);
+        foreach (var bp in posBoneka) larang.Add(new Vector3(bp.x, bp.z, 1.0f)); // boneka jangan dikubur salju
         int dibuat = 0, coba = 0;
         while (dibuat < 14 && coba < 60)
         {
@@ -863,72 +866,213 @@ public static class SihirS2
         sb.AppendLine("  Zona keluar S2 -> ambang pintu barat (" + F(go.transform.position) + ") — restore malam pas menembus dinding.");
     }
 
-    /// <summary>Sebar monster MELINGKAR di disc (posisi world reparent bisa berimpit = numpuk!)
-    /// lalu snap ke permukaan via Renderer.bounds (prefab instance tak terbaca parser YAML).
-    /// + WARNING koridor.</summary>
-    private static void SnapPropKePermukaan(List<Vector3> pts, System.Text.StringBuilder sb)
+    /// <summary>PETA BONEKA S2 (v3): 1 monster per disc (tengah, auto-fit skala "mainan"),
+    /// Mushroom Blob & Monkroose turun jadi PENONTON lantai bersama 3 snowmen (barisan timur
+    /// menghadap panggung, slot deterministik bebas rel/orbit/poros/kunci). Posisi via
+    /// Renderer.bounds (prefab instance tak terbaca parser YAML). Return posisi semua boneka
+    /// (jadi larangan gundukan) + tabel verifikasi jarak di log.</summary>
+    private static List<Vector3> PetaBonekaS2(List<Vector3> pts, System.Text.StringBuilder sb)
     {
+        var hasil = new List<Vector3>();
+        var terpasang = new List<Transform>();
+        var permukaan = new List<float>();
+        var temenS2 = CariTransform("GEN_Temen_S2");
         var hidup = CariTransform(P_Hidup);
-        int nSnap = 0;
-        string[] discs = { "DiscPanggung_GEN_Panggung_S2_0", "DiscPanggung_GEN_Panggung_S2_1" };
-        foreach (var namaDisc in discs)
+        sb.AppendLine("  --- PETA BONEKA S2 ---");
+
+        // (1) solois disc: Frog -> panggung 0, Cactoro -> panggung 1; penghuni lain diusir.
+        var soloDisc = new[]
         {
-            var disc = hidup != null ? CariChildRekursif(hidup, namaDisc) : null;
-            if (disc == null) continue;
+            new { disc = "DiscPanggung_GEN_Panggung_S2_0", monster = "Frog" },
+            new { disc = "DiscPanggung_GEN_Panggung_S2_1", monster = "Cactoro" },
+        };
+        var pusatDisc = new List<Vector3>();
+        foreach (var slot in soloDisc)
+        {
+            var disc = hidup != null ? CariChildRekursif(hidup, slot.disc) : null;
+            if (disc == null) { sb.AppendLine("  (" + slot.disc + " tak ketemu)"); continue; }
+            pusatDisc.Add(disc.position);
             var piringan = disc.Find("Piringan");
             var mrPiring = piringan != null ? piringan.GetComponent<MeshRenderer>() : null;
             if (mrPiring == null) continue;
             float topY = mrPiring.bounds.max.y;
+            float radiusDisc = mrPiring.bounds.extents.x;
 
-            // kumpulkan prop di disc (selain piringan/cincin) lalu SEBAR merata melingkar
-            var props = new List<Transform>();
-            foreach (Transform anak in disc)
-                if (anak.name != "Piringan" && anak.name != "Cincin") props.Add(anak);
-            for (int i = 0; i < props.Count; i++)
+            for (int i = disc.childCount - 1; i >= 0; i--)
             {
-                float sudut = (360f / Mathf.Max(1, props.Count)) * i + 30f;
-                float rad = sudut * Mathf.Deg2Rad;
-                float jarak = props.Count > 1 ? 0.72f : 0f; // 1 prop = tengah; >1 = lingkaran
-                var lp = new Vector3(Mathf.Cos(rad) * jarak, props[i].localPosition.y, Mathf.Sin(rad) * jarak);
-                props[i].localPosition = lp;
-                props[i].localRotation = Quaternion.Euler(0f, -sudut + 90f, 0f); // hadap keluar
-                nSnap += SnapSatu(props[i], topY, pts, sb);
+                var anak = disc.GetChild(i);
+                if (anak.name == "Piringan" || anak.name == "Cincin" || anak.name == slot.monster) continue;
+                anak.SetParent(temenS2, true); // usir ke GEN_Temen_S2 (world-preserve)
             }
+
+            var mon = CariBonekaS2(slot.monster);
+            if (mon == null) { sb.AppendLine("  (" + slot.monster + " tak ketemu)"); continue; }
+            if (mon.parent != disc) mon.SetParent(disc, true);
+            mon.localPosition = new Vector3(0f, mon.localPosition.y, 0f);
+            mon.localRotation = Quaternion.identity;
+            AutoFit(mon, radiusDisc * 0.8f, 1.7f, sb);
+            SnapY(mon, topY);
+            hasil.Add(mon.position); terpasang.Add(mon); permukaan.Add(topY);
+            sb.AppendLine("  Disc panggung " + slot.disc.Substring(slot.disc.Length - 1) + ": " + slot.monster + " solo di tengah.");
         }
-        var temenS2 = CariTransform("GEN_Temen_S2");
-        if (temenS2 != null)
+
+        // (2) barisan penonton (menghadap panggung), slot deterministik: 2 baris timur + 2 baris barat.
+        var penonton = new[] { "Mushroom Blob", "Monkroose", "SnowmanLarge", "Snowman", "SnowmanSmall" };
+        var barisan = new[]
         {
-            string[] namaSnow = { "Snowman", "SnowmanLarge", "SnowmanSmall" };
-            foreach (var nm in namaSnow)
+            new { A = new Vector3(49.8f, LantaiY, -19.5f), B = new Vector3(51.5f, LantaiY, -26f), geser = Vector3.right * 1.1f },  // timur
+            new { A = new Vector3(37.6f, LantaiY, -18.5f), B = new Vector3(36.9f, LantaiY, -27f), geser = Vector3.left * 1.1f },   // barat
+        };
+        Vector3 targetHadap = new Vector3(42.5f, 0f, -22.7f);
+        int nDuduk = 0;
+        foreach (var nama in penonton)
+        {
+            var prop = CariBonekaS2(nama);
+            if (prop == null) { sb.AppendLine("  (" + nama + " tak ketemu — penonton dilewati)"); continue; }
+            bool diDisc = false;
+            for (var p = prop.parent; p != null; p = p.parent)
+                if (p.name.StartsWith("DiscPanggung_")) { diDisc = true; break; }
+            if (diDisc) prop.SetParent(temenS2, true);
+
+            AutoFit(prop, 99f, 1.7f, sb); // penonton: cap tinggi saja
+            float half = HalfXZ(prop);
+
+            bool dapat = false;
+            for (int seg = 0; seg < barisan.Length && !dapat; seg++)
+            for (int baris = 0; baris < 2 && !dapat; baris++)
             {
-                var snow = CariChildRekursif(temenS2, nm);
-                if (snow != null) nSnap += SnapSatu(snow, LantaiY, pts, sb);
+                for (int j = 0; j < 6 && !dapat; j++)
+                {
+                    Vector3 c = Vector3.Lerp(barisan[seg].A, barisan[seg].B, j / 5f) + barisan[seg].geser * baris;
+                    if (c.x < MinX + 1.2f || c.x > MaxX - 1.2f || c.z < MinZ + 1.2f || c.z > MaxZ - 1.2f) continue;
+                    if (JarakKeRel(pts, c.x, c.z) < 1.8f + half) continue;
+                    bool tabu = false;
+                    foreach (var pd in pusatDisc)
+                        if (new Vector2(c.x - pd.x, c.z - pd.z).magnitude < 1.1f + half + 0.4f) { tabu = true; break; }
+                    if (!tabu && new Vector2(c.x - 44f, c.z + 23f).magnitude < 2.8f) tabu = true;         // poros penari
+                    if (!tabu && new Vector2(c.x - 43.11f, c.z + 15.53f).magnitude < 1.8f) tabu = true;   // kunci
+                    if (!tabu)
+                        foreach (var lain in terpasang)
+                        {
+                            float gap = new Vector2(c.x - lain.position.x, c.z - lain.position.z).magnitude - half - HalfXZ(lain);
+                            if (gap < 0.25f) { tabu = true; break; }
+                        }
+                    if (tabu) continue;
+
+                    prop.position = new Vector3(c.x, prop.position.y, c.z);
+                    Vector3 arah = targetHadap - prop.position; arah.y = 0f;
+                    if (arah.sqrMagnitude > 0.001f) prop.rotation = Quaternion.LookRotation(arah);
+                    SnapY(prop, LantaiY);
+                    hasil.Add(prop.position); terpasang.Add(prop); permukaan.Add(LantaiY);
+                    nDuduk++; dapat = true;
+                }
             }
+            if (!dapat) sb.AppendLine("  [WARNING] " + nama + " tak dapat slot penonton — posisi dibiarkan.");
         }
-        sb.AppendLine("  Snap prop ke permukaan: " + nSnap + " objek digeser.");
+        sb.AppendLine("  Penonton ditempatkan: " + nDuduk + "/5 (barisan timur menghadap panggung).");
+
+        // (3) tabel verifikasi jarak
+        sb.AppendLine("  --- VERIFIKASI BONEKA (gap antar | jarak rel | delta kaki) ---");
+        for (int i = 0; i < terpasang.Count; i++)
+        {
+            var b = BoundsGabungan(terpasang[i]);
+            float half = Mathf.Max(b.extents.x, b.extents.z);
+            float dRel = JarakKeRel(pts, b.center.x, b.center.z) - half;
+            float gapMin = 999f;
+            for (int j = 0; j < terpasang.Count; j++)
+            {
+                if (j == i) continue;
+                var bj = BoundsGabungan(terpasang[j]);
+                float g = new Vector2(b.center.x - bj.center.x, b.center.z - bj.center.z).magnitude
+                          - half - Mathf.Max(bj.extents.x, bj.extents.z);
+                if (g < gapMin) gapMin = g;
+            }
+            float kaki = b.min.y - (permukaan[i] + 0.01f);
+            string warn = (gapMin < 0.2f ? " [WARNING gap!]" : "") + (dRel < 1.2f ? " [WARNING rel!]" : "")
+                        + (Mathf.Abs(kaki) > 0.03f ? " [WARNING kaki!]" : "");
+            sb.AppendLine("    " + terpasang[i].name + ": gap=" + gapMin.ToString("0.00")
+                        + " rel=" + dRel.ToString("0.00") + " kaki=" + kaki.ToString("0.00") + warn);
+        }
+        return hasil;
     }
 
-    private static int SnapSatu(Transform prop, float permukaanY, List<Vector3> pts, System.Text.StringBuilder sb)
+    /// <summary>Cari boneka S2 by nama: di GEN_SihirHidup_S2 (disc) dulu, lalu GEN_Temen_S2.</summary>
+    private static Transform CariBonekaS2(string nama)
+    {
+        var hidup = CariTransform(P_Hidup);
+        var t = hidup != null ? CariChildRekursif(hidup, nama) : null;
+        if (t != null) return t;
+        var temen = CariTransform("GEN_Temen_S2");
+        return temen != null ? CariChildRekursif(temen, nama) : null;
+    }
+
+    private static Bounds BoundsGabungan(Transform prop)
     {
         var rends = prop.GetComponentsInChildren<Renderer>(true);
-        if (rends.Length == 0) return 0;
+        if (rends.Length == 0) return new Bounds(prop.position, Vector3.zero);
         var b = rends[0].bounds;
         foreach (var r in rends) b.Encapsulate(r.bounds);
-        float delta = (permukaanY + 0.01f) - b.min.y;
-        int digeser = 0;
-        if (Mathf.Abs(delta) > 0.01f)
+        return b;
+    }
+
+    private static float HalfXZ(Transform prop)
+    {
+        var b = BoundsGabungan(prop);
+        return Mathf.Max(b.extents.x, b.extents.z);
+    }
+
+    /// <summary>Scale-down uniform kalau bounds melebihi batas — proporsi "mainan pajangan".</summary>
+    private static void AutoFit(Transform prop, float maxHalfXZ, float maxTinggi, System.Text.StringBuilder sb)
+    {
+        var b = BoundsGabungan(prop);
+        float f = 1f;
+        float half = Mathf.Max(b.extents.x, b.extents.z);
+        if (half > maxHalfXZ) f = Mathf.Min(f, maxHalfXZ / half);
+        if (b.size.y > maxTinggi) f = Mathf.Min(f, maxTinggi / b.size.y);
+        if (f < 0.995f)
         {
-            prop.position += Vector3.up * delta;
-            sb.AppendLine("    snap " + prop.name + ": " + (delta >= 0 ? "+" : "") + delta.ToString("0.00") + " y");
-            digeser = 1;
-            b.center += Vector3.up * delta;
+            prop.localScale *= f;
+            sb.AppendLine("    auto-fit " + prop.name + ": skala x" + f.ToString("0.00"));
         }
-        // warning koridor pandang (lateral <1.2 dari rel, ketinggian badan penumpang)
-        float dRel = JarakKeRel(pts, b.center.x, b.center.z);
-        float lebar = Mathf.Max(b.extents.x, b.extents.z);
-        if (dRel - lebar < 1.2f && b.min.y < 2.8f && b.max.y > 0.65f)
-            sb.AppendLine("    [WARNING koridor] " + prop.name + " gap=" + (dRel - lebar).ToString("0.00") + "m dari rel — cek visual saat playtest.");
-        return digeser;
+    }
+
+    /// <summary>Geser Y supaya bounds.min menapak permukaan.</summary>
+    private static void SnapY(Transform prop, float permukaanY)
+    {
+        var b = BoundsGabungan(prop);
+        float delta = (permukaanY + 0.01f) - b.min.y;
+        if (Mathf.Abs(delta) > 0.005f) prop.position += Vector3.up * delta;
+    }
+
+    /// <summary>DrumS2 lama mendarat overlap panggung 0 (TitikAcakAman) — relokasi ke spot aman;
+    /// gagal semua kandidat -> nonaktif.</summary>
+    private static void RelokasiDrumS2(List<Vector3> pts, List<Vector3> posBoneka, System.Text.StringBuilder sb)
+    {
+        var drum = CariGameObject("DrumS2");
+        if (drum == null) { sb.AppendLine("  (DrumS2 tak ketemu.)"); return; }
+        var kandidat = new[]
+        {
+            new Vector3(36.2f, 1.0f, -16.5f), new Vector3(36.5f, 1.0f, -30.2f),
+            new Vector3(52.0f, 1.0f, -29.8f), new Vector3(51.5f, 1.0f, -15.8f),
+        };
+        foreach (var c in kandidat)
+        {
+            if (JarakKeRel(pts, c.x, c.z) < 2.2f) continue;
+            if (new Vector2(c.x - 41.66f, c.z + 20.47f).magnitude < 2.5f) continue; // panggung 0
+            if (new Vector2(c.x - 43.33f, c.z + 25f).magnitude < 2.5f) continue;    // panggung 1
+            if (new Vector2(c.x - 44f, c.z + 23f).magnitude < 2.5f) continue;       // poros penari
+            if (new Vector2(c.x - 43.11f, c.z + 15.53f).magnitude < 2.5f) continue; // kunci
+            bool tabu = false;
+            foreach (var bp in posBoneka)
+                if (new Vector2(c.x - bp.x, c.z - bp.z).magnitude < 2.5f) { tabu = true; break; }
+            if (tabu) continue;
+            drum.transform.position = c;
+            drum.SetActive(true);
+            sb.AppendLine("  DrumS2 direlokasi ke " + F(c) + " (dulu overlap panggung 0).");
+            return;
+        }
+        drum.SetActive(false);
+        sb.AppendLine("  DrumS2 dinonaktifkan (tak ada spot aman).");
     }
 
     // ######################################################################
