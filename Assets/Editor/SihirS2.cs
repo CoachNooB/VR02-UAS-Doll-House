@@ -448,6 +448,402 @@ public static class SihirS2
         Debug.Log("[SihirS2] Bake dekor S2: " + n + " renderer digabung (objek berputar dikecualikan).");
     }
 
+    // ======================================================================
+    //  MENU 46 — S2 SALJU TERANG (FINAL)
+    //  Tema final: interior kotak musik BERSALJU TERANG seperti siang (Palet A:
+    //  putih kebiruan + "matahari" + bayangan biru). Salju full cover lantai +
+    //  gundukan drift (hindari rel), salju turun dilebatkan, zona ambient S2
+    //  jadi terang (hanya DI DALAM S2 — keluar tetap malam), clearance visual
+    //  koridor penumpang dibereskan (GearPlafon_1 / TrimEmas / LabelKredit),
+    //  prop panggung & snowmen di-snap ke permukaan via Renderer.bounds.
+    //  URUTAN: jalankan SETELAH menu 30-33 & Dress Temen (46 = pass terakhir;
+    //  kalau menu 30/31 di-re-run, jalankan 46 lagi). Idempotent.
+    //  Material disimpan sebagai ASSET (Assets/Generated/S2_*.mat) dan nilainya
+    //  DI-UPDATE tiap run supaya tuning warna cukup edit konstanta + re-run.
+    // ======================================================================
+    private const string P_Final = "GEN_SaljuFinal_S2";
+
+    // Palet A — siang salju cerah
+    private static readonly Color SaljuPutih = new Color(0.93f, 0.95f, 0.98f);   // lantai/gundukan fallback
+    private static readonly Color DindingSalju = new Color(0.90f, 0.93f, 0.97f); // dinding
+    private static readonly Color PlafonSalju = new Color(0.85f, 0.90f, 0.96f);  // plafon (sedikit lebih biru)
+    private static readonly Color CahayaSiang = new Color(1.00f, 0.98f, 0.94f);  // "matahari"
+    private static readonly Color ShellSiang = new Color(0.92f, 0.96f, 1.00f);   // point light shell
+
+    [MenuItem("Tools/Wahana/46 S2 Salju Terang (final)", false, 98)]
+    public static void S2SaljuTerang()
+    {
+        var sb = new System.Text.StringBuilder("=== S2 SALJU TERANG (SIANG) ===\n");
+
+        HapusParent(P_Final);
+        var root = BuatParent(P_Final);
+        var rand = new System.Random(WahanaLayout.Seed + 46);
+
+        // ---------- (a) material salju (ASSET; pakai tekstur pack kalau sudah diimpor) ----------
+        Texture2D texSalju = CariTeksturSalju(sb);
+        Material matSalju = S2MatAsset("S2_Salju", SaljuPutih, 0.45f, texSalju, 6f);
+        Material matGundukan = S2MatAsset("S2_Gundukan", SaljuPutih, 0.35f, texSalju, 2f);
+
+        // ---------- (b) dinding & plafon -> putih salju ----------
+        var matDinding = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/MatDindingS2.mat");
+        if (matDinding != null)
+        {
+            matDinding.color = DindingSalju;
+            if (matDinding.HasProperty("_BaseColor")) matDinding.SetColor("_BaseColor", DindingSalju);
+            EditorUtility.SetDirty(matDinding);
+            sb.AppendLine("  MatDindingS2.mat -> putih salju " + DindingSalju + ".");
+        }
+        else sb.AppendLine("  (MatDindingS2.mat tak ketemu — dinding dilewati)");
+        var plafon = CariGameObject("Plafon_S2");
+        if (plafon != null)
+        {
+            var mrP = plafon.GetComponent<MeshRenderer>();
+            if (mrP != null) mrP.sharedMaterial = S2MatAsset("S2_Plafon", PlafonSalju, 0.2f, null, 1f);
+            sb.AppendLine("  Plafon_S2 -> putih kebiruan.");
+        }
+
+        // ---------- (c) lantai -> salju full cover (rel ribbon tetap di atasnya) ----------
+        var lantai46 = CariGameObject("Lantai_S2");
+        if (lantai46 != null)
+        {
+            var mrL = lantai46.GetComponent<MeshRenderer>();
+            if (mrL != null) { mrL.sharedMaterial = matSalju; sb.AppendLine("  Lantai_S2 -> material salju (full cover)."); }
+        }
+        else sb.AppendLine("  (Lantai_S2 tak ketemu — lantai dilewati)");
+
+        // ---------- (d) polyline rel S2 (untuk anti-nabrak gundukan & warning koridor) ----------
+        var pts = AmbilPolylineJalur();
+        sb.AppendLine("  Polyline rel terbaca: " + pts.Count + " WP.");
+
+        // ---------- (e) drift skirt dinding + gundukan salju ----------
+        int nSkirt = BuatSkirtDinding(root.transform, matGundukan);
+        sb.AppendLine("  Skirt salju tepi dinding: " + nSkirt + " strip.");
+        int nGundukan = BuatGundukanSalju(root.transform, matGundukan, pts, rand);
+        sb.AppendLine("  Gundukan drift: " + nGundukan + " (jarak >1.8 dari rel, hindari panggung/poros/kunci/drum).");
+
+        // ---------- (f) salju turun ekstra (total ~40 keping) ----------
+        int nSaljuF = TambahSaljuEkstra(root.transform, rand, 15);
+        sb.AppendLine("  Salju turun ekstra: " + nSaljuF + " keping.");
+
+        // ---------- (g) lampu "matahari siang" + boost lampu existing ----------
+        BuatMatahariSalju(root.transform, "MatahariSalju_0", new Vector3(MaxX - 2f, PlafonY - 0.3f, MinZ + 2f));
+        BuatMatahariSalju(root.transform, "MatahariSalju_1", new Vector3(MinX + 2f, PlafonY - 0.3f, MaxZ - 2f));
+        sb.AppendLine("  2 MatahariSalju (spot lebar 3.8/26m/75°, tanpa flicker).");
+        BoostLampu("LampuShell_S2", 2.4f, ShellSiang, sb);
+        BoostLampu("LampuPintu_S2", -1f, new Color(0.85f, 0.92f, 1f), sb);
+
+        // ---------- (h) zona masuk S2 -> ambient SIANG (in-place, anti-duplikat) ----------
+        UbahZonaSiang(sb);
+
+        // ---------- (i) clearance visual koridor penumpang ----------
+        FixClearanceVisual(sb);
+
+        // ---------- (j) snap prop panggung & snowmen ke permukaan (Renderer.bounds) ----------
+        SnapPropKePermukaan(pts, sb);
+
+        // ---------- (k) statis + rebake dekor (gundukan ikut dibake? TIDAK — parent sendiri) ----------
+        FlagStatisKecualiBerputar(root);
+        S2Bake(); // rebake GEN_Sihir_S2 (posisi Gear/Trim baru masuk bake; sudah MarkDirty+Save)
+
+        Debug.Log(sb.ToString());
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+    }
+
+    // ---- helper menu 46 ----
+
+    /// <summary>Material asset di Assets/Generated (dibuat sekali, nilai DI-UPDATE tiap run).</summary>
+    private static Material S2MatAsset(string nama, Color warna, float smoothness, Texture2D tex, float tiling)
+    {
+        if (!AssetDatabase.IsValidFolder("Assets/Generated")) AssetDatabase.CreateFolder("Assets", "Generated");
+        string path = "Assets/Generated/" + nama + ".mat";
+        var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (m == null)
+        {
+            m = MatLit(warna);
+            AssetDatabase.CreateAsset(m, path);
+        }
+        m.color = warna;
+        if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", warna);
+        if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smoothness);
+        if (m.HasProperty("_BaseMap"))
+        {
+            m.SetTexture("_BaseMap", tex); // null = polos (fallback)
+            m.SetTextureScale("_BaseMap", Vector2.one * tiling);
+        }
+        EditorUtility.SetDirty(m);
+        return m;
+    }
+
+    /// <summary>Cari tekstur salju dari pack impor (mis. "4 Snow Materials"). Null kalau belum diimpor.</summary>
+    private static Texture2D CariTeksturSalju(System.Text.StringBuilder sb)
+    {
+        string pilihan = null;
+        foreach (var guid in AssetDatabase.FindAssets("t:Texture2D"))
+        {
+            string p = AssetDatabase.GUIDToAssetPath(guid);
+            if (!p.StartsWith("Assets/")) continue;
+            string pl = p.ToLowerInvariant();
+            if (!pl.Contains("snow")) continue;
+            if (pl.Contains("/generated/") || pl.Contains("/temen/") || pl.Contains("/scenes/")) continue;
+            bool albedo = pl.Contains("albedo") || pl.Contains("diff") || pl.Contains("base") || pl.Contains("color") || pl.Contains("_d.");
+            if (pilihan == null || albedo) pilihan = p;
+            if (albedo) break;
+        }
+        if (pilihan == null)
+        {
+            sb.AppendLine("  (Pack salju belum diimpor — pakai material putih fallback. Impor '4 Snow Materials' lalu re-run.)");
+            return null;
+        }
+        sb.AppendLine("  Tekstur salju pack: " + pilihan);
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(pilihan);
+    }
+
+    /// <summary>Semua posisi WP JalurUtama berurutan (polyline penuh — jarak dihitung global).</summary>
+    private static List<Vector3> AmbilPolylineJalur()
+    {
+        var pts = new List<Vector3>();
+        var jalur = CariTransform("JalurUtama");
+        if (jalur == null) return pts;
+        int i = 0;
+        for (var wp = jalur.Find("WP_" + i); wp != null; wp = jalur.Find("WP_" + (++i)))
+            pts.Add(wp.position);
+        return pts;
+    }
+
+    private static float JarakKeRel(List<Vector3> pts, float x, float z)
+    {
+        if (pts.Count < 2) return 999f;
+        float best = float.MaxValue;
+        for (int j = 0; j < pts.Count - 1; j++)
+        {
+            float ax = pts[j].x, az = pts[j].z, bx = pts[j + 1].x, bz = pts[j + 1].z;
+            float dx = bx - ax, dz = bz - az;
+            float l2 = dx * dx + dz * dz;
+            float t = l2 < 0.0001f ? 0f : Mathf.Clamp01(((x - ax) * dx + (z - az) * dz) / l2);
+            float px = ax + t * dx, pz = az + t * dz;
+            float d = Mathf.Sqrt((x - px) * (x - px) + (z - pz) * (z - pz));
+            if (d < best) best = d;
+        }
+        return best;
+    }
+
+    /// <summary>Strip salju tipis menempel sepanjang 4 dinding (kesan salju menumpuk di tepi).</summary>
+    private static int BuatSkirtDinding(Transform parent, Material mat)
+    {
+        float y = LantaiY + 0.09f;
+        BuatBoxSihir(parent, "SkirtN", new Vector3((MinX + MaxX) / 2f, y, MaxZ - 0.55f), new Vector3(MaxX - MinX - 1.2f, 0.18f, 0.9f), mat);
+        BuatBoxSihir(parent, "SkirtS", new Vector3((MinX + MaxX) / 2f, y, MinZ + 0.55f), new Vector3(MaxX - MinX - 1.2f, 0.18f, 0.9f), mat);
+        BuatBoxSihir(parent, "SkirtW", new Vector3(MinX + 0.55f, y, (MinZ + MaxZ) / 2f), new Vector3(0.9f, 0.18f, MaxZ - MinZ - 1.2f), mat);
+        BuatBoxSihir(parent, "SkirtE", new Vector3(MaxX - 0.55f, y, (MinZ + MaxZ) / 2f), new Vector3(0.9f, 0.18f, MaxZ - MinZ - 1.2f), mat);
+        return 4;
+    }
+
+    /// <summary>Gundukan drift (sphere gepeng) tersebar; tolak posisi dekat rel/panggung/poros/kunci/drum/pintu.</summary>
+    private static int BuatGundukanSalju(Transform parent, Material mat, List<Vector3> pts, System.Random rand)
+    {
+        // pusat area terlarang (x, z, radius)
+        var larang = new[]
+        {
+            new Vector3(41.66f, -20.47f, 2.6f), // panggung 0
+            new Vector3(43.33f, -25.00f, 2.6f), // panggung 1
+            new Vector3(44f,    -23f,    2.8f), // poros penari
+            new Vector3(43.11f, -15.53f, 1.8f), // kunci pemutar
+            new Vector3(38f,    -28f,    2.4f), // drum pin 1
+            new Vector3(50f,    -17f,    2.4f), // drum pin 2
+            new Vector3(45f,    -14f,    2.2f), // pintu masuk
+            new Vector3(34.5f,  -23f,    2.2f), // keluar barat
+        };
+        int dibuat = 0, coba = 0;
+        while (dibuat < 14 && coba < 60)
+        {
+            coba++;
+            float x = MinX + 1.3f + (float)rand.NextDouble() * (MaxX - MinX - 2.6f);
+            float z = MinZ + 1.3f + (float)rand.NextDouble() * (MaxZ - MinZ - 2.6f);
+            if (JarakKeRel(pts, x, z) < 1.8f) continue;
+            bool tabu = false;
+            foreach (var l in larang)
+                if ((x - l.x) * (x - l.x) + (z - l.y) * (z - l.y) < l.z * l.z) { tabu = true; break; }
+            if (tabu) continue;
+
+            float sx = 1.2f + (float)rand.NextDouble() * 1.4f;
+            float sy = 0.15f + (float)rand.NextDouble() * 0.20f;
+            var g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            g.name = "Gundukan_" + dibuat;
+            g.transform.SetParent(parent, true);
+            g.transform.position = new Vector3(x, LantaiY + sy * 0.30f, z);
+            g.transform.localScale = new Vector3(sx, sy, sx * (0.8f + (float)rand.NextDouble() * 0.4f));
+            Object.DestroyImmediate(g.GetComponent<Collider>());
+            g.GetComponent<MeshRenderer>().sharedMaterial = mat;
+            dibuat++;
+        }
+        return dibuat;
+    }
+
+    /// <summary>Keping salju turun tambahan (pola menu 31, nama beda supaya tak bentrok).</summary>
+    private static int TambahSaljuEkstra(Transform parent, System.Random rand, int jumlah)
+    {
+        var saljuRoot = new GameObject("SaljuEkstra_S2");
+        saljuRoot.transform.SetParent(parent, true);
+        saljuRoot.transform.position = Vector3.zero;
+        Material matSalju = MatUnlitHDR(EsPutih, 1.8f);
+        for (int i = 0; i < jumlah; i++)
+        {
+            float x = MinX + 1.5f + (float)rand.NextDouble() * (MaxX - MinX - 3f);
+            float z = MinZ + 1.5f + (float)rand.NextDouble() * (MaxZ - MinZ - 3f);
+            float y = LantaiY + 0.8f + (float)rand.NextDouble() * (PlafonY - LantaiY - 1f);
+            var keping = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            keping.name = "SaljuF_" + i;
+            keping.transform.SetParent(saljuRoot.transform, true);
+            keping.transform.position = new Vector3(x, y, z);
+            keping.transform.localScale = Vector3.one * (0.06f + (float)rand.NextDouble() * 0.06f);
+            Object.DestroyImmediate(keping.GetComponent<Collider>());
+            keping.GetComponent<MeshRenderer>().sharedMaterial = matSalju;
+            var sj = keping.AddComponent<SaljuJatuh>();
+            var so = new SerializedObject(sj);
+            so.FindProperty("_kecepatanTurun").floatValue = 0.28f + (float)rand.NextDouble() * 0.22f;
+            so.FindProperty("_yAtas").floatValue = PlafonY - 0.2f;
+            so.FindProperty("_yBawah").floatValue = LantaiY + 0.15f;
+            so.FindProperty("_amplitudoDrift").floatValue = 0.30f + (float)rand.NextDouble() * 0.25f;
+            so.ApplyModifiedProperties();
+        }
+        return jumlah;
+    }
+
+    /// <summary>Spot lebar "matahari siang" — steady (TANPA flicker), shadows None (WebGL).</summary>
+    private static void BuatMatahariSalju(Transform parent, string nama, Vector3 pos)
+    {
+        var go = new GameObject(nama);
+        go.transform.SetParent(parent, true);
+        go.transform.position = pos;
+        Vector3 target = new Vector3(Poros.x, LantaiY, Poros.z);
+        Vector3 arah = target - pos;
+        if (arah.sqrMagnitude > 0.001f) go.transform.rotation = Quaternion.LookRotation(arah);
+        var lampu = go.AddComponent<Light>();
+        lampu.type = LightType.Spot;
+        lampu.color = CahayaSiang;
+        lampu.intensity = 3.8f;
+        lampu.range = 26f;
+        lampu.spotAngle = 75f;
+        lampu.shadows = LightShadows.None;
+    }
+
+    private static void BoostLampu(string nama, float intensitas, Color warna, System.Text.StringBuilder sb)
+    {
+        var go = CariGameObject(nama);
+        var l = go != null ? go.GetComponent<Light>() : null;
+        if (l == null) { sb.AppendLine("  (" + nama + " tak ketemu — boost dilewati)"); return; }
+        if (intensitas > 0f) l.intensity = intensitas;
+        l.color = warna;
+        sb.AppendLine("  " + nama + " -> " + (intensitas > 0f ? "int " + intensitas + ", " : "") + "warna siang.");
+    }
+
+    /// <summary>Edit IN-PLACE zona masuk S2 jadi ambient siang salju (anti-duplikat zona).</summary>
+    private static void UbahZonaSiang(System.Text.StringBuilder sb)
+    {
+        var go = CariGameObject("GEN_Suasana_S2Masuk");
+        var sz = go != null ? go.GetComponent<SuasanaZona>() : null;
+        if (sz == null) { sb.AppendLine("  (GEN_Suasana_S2Masuk tak ketemu — jalankan menu 31 dulu!)"); return; }
+        var so = new SerializedObject(sz);
+        so.FindProperty("_fogColor").colorValue = new Color(0.80f, 0.86f, 0.94f);
+        so.FindProperty("_fogStart").floatValue = 18f;
+        so.FindProperty("_fogEnd").floatValue = 60f;
+        so.FindProperty("_ambientSky").colorValue = new Color(0.85f, 0.90f, 0.98f);   // efektif (mode Flat)
+        so.FindProperty("_ambientEquator").colorValue = new Color(0.78f, 0.82f, 0.90f);
+        so.FindProperty("_ambientGround").colorValue = new Color(0.60f, 0.66f, 0.76f);
+        so.ApplyModifiedProperties();
+        sb.AppendLine("  Zona masuk S2 -> ambient SIANG salju (fog terang 18-60).");
+    }
+
+    /// <summary>Naikkan dekor yang memotong koridor pandang penumpang (audit sweep 2026-07-07).</summary>
+    private static void FixClearanceVisual(System.Text.StringBuilder sb)
+    {
+        var gear = CariGameObject("GearPlafon_1");
+        if (gear != null)
+        {
+            var p = gear.transform.position;
+            gear.transform.position = new Vector3(p.x, 3.4f, p.z);
+            sb.AppendLine("  GearPlafon_1 -> y 3.4 (gigi terendah dulu ~1.8 = zona kepala).");
+        }
+        var trim = CariGameObject("TrimEmas_S2");
+        int nTrim = 0;
+        if (trim != null)
+        {
+            foreach (Transform t in trim.transform)
+            {
+                var p = t.position;
+                t.position = new Vector3(p.x, 2.75f, p.z);
+                nTrim++;
+            }
+            sb.AppendLine("  TrimEmas_S2 -> y 2.75 (" + nTrim + " strip; dulu 1.7 = bahu).");
+        }
+        var temen = CariTransform("GEN_Temen_S2");
+        var label = temen != null ? CariChildRekursif(temen, "LabelKredit") : null;
+        if (label != null)
+        {
+            var p = label.position;
+            label.position = new Vector3(p.x, 3.5f, p.z);
+            sb.AppendLine("  LabelKredit S2 -> y 3.5.");
+        }
+    }
+
+    /// <summary>Snap monster panggung ke permukaan disc & snowmen ke lantai via Renderer.bounds
+    /// (prefab instance tak terbaca parser YAML — bounds runtime = akurat). + WARNING koridor.</summary>
+    private static void SnapPropKePermukaan(List<Vector3> pts, System.Text.StringBuilder sb)
+    {
+        var hidup = CariTransform(P_Hidup);
+        int nSnap = 0;
+        string[] discs = { "DiscPanggung_GEN_Panggung_S2_0", "DiscPanggung_GEN_Panggung_S2_1" };
+        foreach (var namaDisc in discs)
+        {
+            var disc = hidup != null ? CariChildRekursif(hidup, namaDisc) : null;
+            if (disc == null) continue;
+            var piringan = disc.Find("Piringan");
+            var mrPiring = piringan != null ? piringan.GetComponent<MeshRenderer>() : null;
+            if (mrPiring == null) continue;
+            float topY = mrPiring.bounds.max.y;
+            foreach (Transform anak in disc)
+            {
+                if (anak.name == "Piringan" || anak.name == "Cincin") continue;
+                nSnap += SnapSatu(anak, topY, pts, sb);
+            }
+        }
+        var temenS2 = CariTransform("GEN_Temen_S2");
+        if (temenS2 != null)
+        {
+            string[] namaSnow = { "Snowman", "SnowmanLarge", "SnowmanSmall" };
+            foreach (var nm in namaSnow)
+            {
+                var snow = CariChildRekursif(temenS2, nm);
+                if (snow != null) nSnap += SnapSatu(snow, LantaiY, pts, sb);
+            }
+        }
+        sb.AppendLine("  Snap prop ke permukaan: " + nSnap + " objek digeser.");
+    }
+
+    private static int SnapSatu(Transform prop, float permukaanY, List<Vector3> pts, System.Text.StringBuilder sb)
+    {
+        var rends = prop.GetComponentsInChildren<Renderer>(true);
+        if (rends.Length == 0) return 0;
+        var b = rends[0].bounds;
+        foreach (var r in rends) b.Encapsulate(r.bounds);
+        float delta = (permukaanY + 0.01f) - b.min.y;
+        int digeser = 0;
+        if (Mathf.Abs(delta) > 0.01f)
+        {
+            prop.position += Vector3.up * delta;
+            sb.AppendLine("    snap " + prop.name + ": " + (delta >= 0 ? "+" : "") + delta.ToString("0.00") + " y");
+            digeser = 1;
+            b.center += Vector3.up * delta;
+        }
+        // warning koridor pandang (lateral <1.2 dari rel, ketinggian badan penumpang)
+        float dRel = JarakKeRel(pts, b.center.x, b.center.z);
+        float lebar = Mathf.Max(b.extents.x, b.extents.z);
+        if (dRel - lebar < 1.2f && b.min.y < 2.8f && b.max.y > 0.65f)
+            sb.AppendLine("    [WARNING koridor] " + prop.name + " gap=" + (dRel - lebar).ToString("0.00") + "m dari rel — cek visual saat playtest.");
+        return digeser;
+    }
+
     // ######################################################################
     //  HELPER STRUKTUR S2
     // ######################################################################
