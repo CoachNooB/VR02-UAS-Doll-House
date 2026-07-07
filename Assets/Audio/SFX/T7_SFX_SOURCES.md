@@ -26,3 +26,10 @@ Sumber pack:
 
 Lava ambience (`../T7_LavaAmbience.ogg`) berasal dari pass audio sebelumnya (Freesound CC0),
 lihat `docs/superpowers/specs/2026-07-02-cc0-lava-ambience-replacement-design.md`.
+
+## SFX S4 final pass (2026-07-07) — OpenGameArt, CC0
+
+| File | Asal | Dipakai untuk |
+|------|------|----------------|
+| S4_SFX_BubbleLoop.wav | "Bubble Sound Effects" (bmaczero) — https://opengameart.org/content/bubble-sound-effects / bubbles-loop1-amp.wav, dikecilkan mono 22.05 kHz (afconvert) | Loop gelembung aerator + blub S4 (ganti placeholder dengung mesin) |
+| S4_SFX_Plunge.ogg | "40 CC0 water / splash / slime SFX" (rubberduck) — https://opengameart.org/content/40-cc0-water-splash-slime-sfx / splash_01.ogg | One-shot tembus tirai air masuk gua S4 |
