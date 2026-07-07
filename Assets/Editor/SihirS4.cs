@@ -1480,7 +1480,10 @@ public static class SihirS4
     /// (feedback playtest-4).</summary>
     private static Material MatBandAir(string nama, Color warna, Texture2D tex = null, float tiling = 1f)
     {
-        var m = WahanaFinalUtil.MatAsset(nama, warna, 0.25f, tex, tiling);
+        // Smoothness ~0 WAJIB (bukti klik Izhar playtest-8: PanelPintu/LidPit_Utara SUDAH
+        // bermaterial air tapi tetap pucat = SHEEN SPEKULAR lempeng datar dari lampu cyan
+        // terang, mis. LampuPintuGua I=4.0 — smoothness 0.25 masih memantul putih lebar).
+        var m = WahanaFinalUtil.MatAsset(nama, warna, 0.03f, tex, tiling);
         if (m.HasProperty("_Cull")) m.SetFloat("_Cull", 0f);
         // NEON: semua permukaan air menyala sendiri (emission berpola kaustik) —
         // tak tergantung lampu/sudut/jarak, abu tak mungkin muncul. Max emisi
