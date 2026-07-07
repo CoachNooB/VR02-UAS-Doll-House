@@ -1268,6 +1268,7 @@ public static class SihirS4
     private static readonly Color PintuAir = new Color(0.08f, 0.18f, 0.26f);    // panel PintuKereta_S4 (mulut gua)
     private static readonly Color LantaiLaut = new Color(0.05f, 0.12f, 0.17f);  // Lantai_S4 (dulu abu 0.10,0.10,0.12)
     private static readonly Color PalkaAir = new Color(0.10f, 0.30f, 0.50f);    // palka PintuGuaLaut (kolam menyelam)
+    private static readonly Color BatuGua = new Color(0.07f, 0.16f, 0.24f);     // GuaS4 (dinding/plafon/batu gua)
     private const float NEON_EMIS = 1.2f; // mandat Izhar "biru neon nutup semua": emission
                                           // self-lit di SEMUA material air — abu mustahil,
                                           // bebas cap 8 lampu. Kurang nyala? naikkan + re-run 49c.
@@ -1433,6 +1434,24 @@ public static class SihirS4
             mr.sharedMaterial = m;
         }
 
+        // BATU GUA (playtest-7 "kok ga berubah": yang ditunjuk = mesh GuaS4 di ujung
+        // terowongan, material embedded abu 0.06,0.09,0.13 yang tak pernah tersentuh):
+        // seluruh piece GuaS4 (dinding ber-bukaan, BatuGua_*, GuaPlafon — semua CUBE,
+        // punya UV) → asset S4_BatuGua kaustik-neon. AirGua (plane air TUN_MatAir) skip.
+        var guaS4 = CariGameObject("GuaS4");
+        int nGua = 0;
+        if (guaS4 != null)
+        {
+            Material mGua = MatBandAir("S4_BatuGua", BatuGua, texRGB, 2f);
+            foreach (var mr in guaS4.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (mr.name == "AirGua") continue;
+                mr.sharedMaterial = mGua;
+                nGua++;
+            }
+        }
+        else sb.AppendLine("  [WARN] GuaS4 tak ketemu — batu gua dilewati.");
+
         // rebake GEN_Tunnel (pola GerbangGuaLaut) + pre-delete asset prefix (anti-orphan
         // pola RebakeTemenS1 — jumlah grup material berubah antar-run).
         for (int i = genTun.transform.childCount - 1; i >= 0; i--)
@@ -1451,8 +1470,8 @@ public static class SihirS4
         int nre = TemenDresser.GabungMeshStatis(genTun.transform, "GEN_Tunnel", new HashSet<string>());
         AssetDatabase.SaveAssets();
         sb.AppendLine("  Recolor terowongan: tube dangkal " + nDangkal + " / sedang " + nSedang
-                      + " / dalam " + nDalam + " chunk + bank " + nBank
-                      + " box; rebake GEN_Tunnel " + nre + " renderer.");
+                      + " / dalam " + nDalam + " chunk + bank " + nBank + " box + batu gua "
+                      + nGua + "; rebake GEN_Tunnel " + nre + " renderer.");
     }
 
     /// <summary>Material asset band air (Assets/Generated, nilai di-update tiap run).
