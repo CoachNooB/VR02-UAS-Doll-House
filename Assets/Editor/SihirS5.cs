@@ -273,11 +273,14 @@ public static class SihirS5
         sb.AppendLine("  Kaca jendela angkasa: " + nKaca + " renderer.");
 
         // ---------- (c) nebula pita + cincin galaksi ----------
-        var matNebulaA = WahanaFinalUtil.MatAssetUnlitHDR("S5_NebulaA", GalaksiNebula, 1.5f, null, 1f);
-        var matNebulaB = WahanaFinalUtil.MatAssetUnlitHDR("S5_NebulaB", GalaksiBiru, 1.4f, null, 1f);
-        BoxFinal(root.transform, "NebulaN", new Vector3(-39f, 4.1f, maxZ - 0.35f), new Vector3(9f, 0.8f, 0.1f), matNebulaA);
-        BoxFinal(root.transform, "NebulaW", new Vector3(minX + 0.35f, 3.9f, 19f), new Vector3(0.1f, 0.8f, 8f), matNebulaB);
-        BoxFinal(root.transform, "NebulaE", new Vector3(maxX - 0.35f, 4.2f, 20f), new Vector3(0.1f, 0.7f, 6f), matNebulaA);
+        // panel nebula BERTEKSTUR bintang (bukan neon polos) — glow diturunkan supaya tekstur kebaca
+        var matNebulaA = WahanaFinalUtil.MatAssetUnlitHDR("S5_NebulaA", GalaksiNebula,
+            texBintang != null ? 1.10f : 1.5f, texBintang, 1f);
+        var matNebulaB = WahanaFinalUtil.MatAssetUnlitHDR("S5_NebulaB", GalaksiBiru,
+            texBintang != null ? 1.05f : 1.4f, texBintang, 1f);
+        BoxFinal(root.transform, "NebulaN", new Vector3(-39f, 4.0f, maxZ - 0.35f), new Vector3(10f, 1.4f, 0.08f), matNebulaA);
+        BoxFinal(root.transform, "NebulaW", new Vector3(minX + 0.35f, 3.8f, 19f), new Vector3(0.08f, 1.2f, 8f), matNebulaB);
+        BoxFinal(root.transform, "NebulaE", new Vector3(maxX - 0.35f, 4.1f, 20f), new Vector3(0.08f, 1.1f, 6f), matNebulaA);
         var mobile = CariGameObject("MobilePlanet");
         Vector3 pusatCincin = mobile != null ? mobile.transform.position : Center + Vector3.up * 3.8f;
         var cincin = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -416,6 +419,29 @@ public static class SihirS5
                 float naik = 2.9f - bm.min.y;
                 mobile.transform.position += Vector3.up * naik;
                 sb.AppendLine("    MobilePlanet diangkat +" + naik.ToString("0.00") + " (bawahnya masuk koridor pandang).");
+            }
+        }
+        // spaceship backdrop: rel S5 melingkar — tidak ada spot LANTAI yang aman untuk objek
+        // sebesar ini (geser lateral gagal: gap tetap negatif). Solusi: TERBANGKAN jadi
+        // backdrop (bounds bawah >= 2.95, di atas koridor pandang); auto-kecilkan bila
+        // mentok plafon (~5.0).
+        var pesawat = CariGameObject("SpaceshipBackdrop");
+        if (pesawat != null)
+        {
+            var bp = WahanaFinalUtil.BoundsGabungan(pesawat.transform);
+            float ruangTinggi = 5.0f - 2.95f;
+            if (bp.size.y > ruangTinggi && bp.size.y > 0.01f)
+            {
+                float f = ruangTinggi / bp.size.y;
+                pesawat.transform.localScale *= f;
+                sb.AppendLine("    SpaceshipBackdrop dikecilkan x" + f.ToString("0.00") + " (muat langit-langit).");
+                bp = WahanaFinalUtil.BoundsGabungan(pesawat.transform);
+            }
+            if (bp.min.y < 2.95f)
+            {
+                float naik = 2.95f - bp.min.y;
+                pesawat.transform.position += Vector3.up * naik;
+                sb.AppendLine("    SpaceshipBackdrop diterbangkan +" + naik.ToString("0.00") + " (jadi backdrop di atas koridor).");
             }
         }
         WahanaFinalUtil.BarisVerifikasi(terpasang, permukaan, pts, sb);

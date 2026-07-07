@@ -1069,10 +1069,18 @@ public static class SihirS3
                 inst.name = "PenontonBoneka_" + warna;
                 inst.transform.position = new Vector3(c.x, lantaiTop + 0.5f, c.y);
                 WahanaFinalUtil.UnpackDanBuangFisik(inst); // doll pack bawa collider/rigidbody
+                // material bawaan pack = Built-in (magenta di URP) -> ganti porselen tema
+                var matPorselen = WahanaFinalUtil.MatAsset("S3_Porselen_" + warna, WarnaPorselenDoll(warna), 0.35f, null, 1f);
+                foreach (var r in inst.GetComponentsInChildren<Renderer>(true))
+                {
+                    var mats = r.sharedMaterials;
+                    for (int mi = 0; mi < mats.Length; mi++) mats[mi] = matPorselen;
+                    r.sharedMaterials = mats;
+                }
                 slotT = inst.transform;
             }
             if (slotT == null) { sb.AppendLine("  [WARNING] slot penonton '" + warna + "' habis."); continue; }
-            WahanaFinalUtil.AutoFit(slotT, 99f, 1.1f, sb);
+            WahanaFinalUtil.AutoFit(slotT, 99f, 1.5f, sb); // seukuran anak — kebaca sbg "penonton"
             // hadap titik rel terdekat (mereka "menonton penumpang")
             float bestD = float.MaxValue; Vector3 bestP = slotT.position + Vector3.forward;
             foreach (var p in pts)
@@ -1141,6 +1149,17 @@ public static class SihirS3
         Debug.Log(sb.ToString());
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
         EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+    }
+
+    private static Color WarnaPorselenDoll(string warna)
+    {
+        switch (warna)
+        {
+            case "pink": return new Color(0.85f, 0.55f, 0.65f);
+            case "light_blue": return new Color(0.55f, 0.65f, 0.85f);
+            case "brown": return new Color(0.55f, 0.40f, 0.30f);
+            default: return new Color(0.85f, 0.82f, 0.80f); // white porselen
+        }
     }
 
     private static void BuangCollider(GameObject go)
