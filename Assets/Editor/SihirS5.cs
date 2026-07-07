@@ -519,6 +519,11 @@ public static class SihirS5
         }
         WahanaFinalUtil.BarisVerifikasi(terpasang, permukaan, pts, sb);
 
+        // ---------- (h2) rak mainan: siluet hitam -> rak glow galaksi ----------
+        // Siluet hitam kehilangan konteks setelah shell jadi void starfield (limitless):
+        // terbaca "hitam-hitam di dinding" (feedback playtest 2026-07-07).
+        RecolorRakGlow(sb);
+
         // ---------- (i) statis + rebake ----------
         FlagStatisRekursif(root, true);
         BakeS5(); // pertahankan exclusion "Bintang"
@@ -1650,6 +1655,39 @@ public static class SihirS5
         var m = new Material(sh) { color = c };
         if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
         return m;
+    }
+
+    /// <summary>RakSiluet dibuat siluet hitam saat dinding kamar masih terang. Setelah shell
+    /// jadi void starfield, siluet hitam terbaca "noda hitam" — ubah jadi RAK MAINAN GLOW:
+    /// papan ungu redup terbaca, mainan = orb/kotak planet pastel bercahaya (mekar di Bloom).
+    /// Idempoten (assignment tiap run); dipanggil menu 48 SEBELUM rebake supaya ikut GABUNG.</summary>
+    private static void RecolorRakGlow(System.Text.StringBuilder sb)
+    {
+        var rak = CariGameObject("RakSiluet");
+        if (rak == null) { sb.AppendLine("  (RakSiluet tak ketemu — recolor rak dilewati.)"); return; }
+        var matPapan = MatGlowLit(new Color(0.30f, 0.26f, 0.52f), 0.5f); // ungu redup, edge kebaca
+        Color[] warnaMainan =
+        {
+            new Color(0.45f, 0.85f, 1.00f), // cyan
+            new Color(1.00f, 0.80f, 0.40f), // emas
+            new Color(1.00f, 0.55f, 0.80f), // pink
+            new Color(0.40f, 0.90f, 0.70f), // teal
+            new Color(0.70f, 0.60f, 1.00f), // lavender
+        };
+        int nPapan = 0, nMainan = 0;
+        foreach (var r in rak.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (r.name.StartsWith("Papan_")) { r.sharedMaterial = matPapan; nPapan++; }
+            else if (r.name.StartsWith("Mainan_"))
+            {
+                var mf = r.GetComponent<MeshFilter>();
+                bool bola = mf != null && mf.sharedMesh != null && mf.sharedMesh.name.StartsWith("Sphere");
+                Color c = warnaMainan[nMainan % warnaMainan.Length];
+                r.sharedMaterial = MatGlowLit(c, bola ? 2.2f : 1.5f); // bola = planet terang, kotak kalem
+                nMainan++;
+            }
+        }
+        sb.AppendLine("  Rak mainan: siluet hitam -> glow galaksi (" + nPapan + " papan ungu + " + nMainan + " mainan planet).");
     }
 
     private static Material MatUnlitHDR(Color c, float intensitas)
