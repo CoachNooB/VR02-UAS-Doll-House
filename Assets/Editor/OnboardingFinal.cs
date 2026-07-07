@@ -328,6 +328,16 @@ public static class OnboardingFinal
         if (GuardPlayMode()) return;
         var sb = new StringBuilder("=== 56 ONBOARDING - LOBBY TEATER ===\n");
 
+        // Pose maskot yang SUDAH ada dipertahankan lintas re-run (hormati edit
+        // manual Izhar — pola PanelPintu (1) palka S4): tangkap sebelum rebuild.
+        var poseMaskot = new System.Collections.Generic.Dictionary<string, (Vector3 pos, Quaternion rot, Vector3 skala)>();
+        foreach (string nm in new[] { "MaskotKiri", "MaskotKanan" })
+        {
+            GameObject lama = WahanaFinalUtil.CariGameObject(nm);
+            if (lama != null)
+                poseMaskot[nm] = (lama.transform.position, lama.transform.rotation, lama.transform.localScale);
+        }
+
         HapusAssetPrefix("ONB_Bake");
         HapusParent("GEN_Onboarding");
         HapusParent("GEN_OnboardingHidup");
@@ -343,8 +353,8 @@ public static class OnboardingFinal
         BangunPoster(statis, hidup, sb);
         BangunPetaWahana(statis, hidup, sb);
         BangunTeras(statis, sb);
-        BangunMaskot(hidup, sb);
-        BangunLighting(hidup, sb);
+        var posisiMaskot = BangunMaskot(hidup, poseMaskot, sb);
+        BangunLighting(hidup, posisiMaskot, sb);
         BangunKreditIzhar(hidup, sb);
 
         int nBake = TemenDresser.GabungMeshStatis(statis, "ONB_Bake", new System.Collections.Generic.HashSet<string>());
@@ -745,8 +755,11 @@ public static class OnboardingFinal
         sb.AppendLine("  Teras: 2 tiang lampu emas + gorden merah.");
     }
 
-    private static void BangunMaskot(Transform hidup, StringBuilder sb)
+    private static System.Collections.Generic.List<Vector3> BangunMaskot(Transform hidup,
+        System.Collections.Generic.Dictionary<string, (Vector3 pos, Quaternion rot, Vector3 skala)> poseLama,
+        StringBuilder sb)
     {
+        var hasil = new System.Collections.Generic.List<Vector3>();
         var grp = new GameObject("MaskotPenyambut").transform;
         grp.SetParent(hidup, false);
 
@@ -760,19 +773,29 @@ public static class OnboardingFinal
             if (src == null) continue;
 
             GameObject inst = Object.Instantiate(src);
-            inst.name = dibuat == 0 ? "MaskotKiri" : "MaskotKanan";
+            string namaMaskot = dibuat == 0 ? "MaskotKiri" : "MaskotKanan";
+            inst.name = namaMaskot;
             WahanaFinalUtil.UnpackDanBuangFisik(inst);
             inst.transform.SetParent(grp, true);
 
-            // normalisasi tinggi ~1.5 dari bounds
-            float h = WahanaFinalUtil.BoundsGabungan(inst.transform).size.y;
-            if (h > 0.01f) inst.transform.localScale *= 1.5f / h;
-
-            Vector3 p = posisi[dibuat];
-            inst.transform.position = p;
-            Vector3 arahHadap = new Vector3(-p.x * 0.3f, 0f, 1f).normalized; // hadap jalur masuk
-            inst.transform.rotation = Quaternion.LookRotation(arahHadap);
-            WahanaFinalUtil.SnapY(inst.transform, 0.02f);
+            if (poseLama.TryGetValue(namaMaskot, out var pose))
+            {
+                // pose hasil edit manual (atau run sebelumnya) dipakai apa adanya
+                inst.transform.position = pose.pos;
+                inst.transform.rotation = pose.rot;
+                inst.transform.localScale = pose.skala;
+            }
+            else
+            {
+                // default: normalisasi tinggi ~1.5 + hadap jalur masuk + duduk lantai
+                float h = WahanaFinalUtil.BoundsGabungan(inst.transform).size.y;
+                if (h > 0.01f) inst.transform.localScale *= 1.5f / h;
+                Vector3 p = posisi[dibuat];
+                inst.transform.position = p;
+                Vector3 arahHadap = new Vector3(-p.x * 0.3f, 0f, 1f).normalized;
+                inst.transform.rotation = Quaternion.LookRotation(arahHadap);
+                WahanaFinalUtil.SnapY(inst.transform, 0.02f);
+            }
 
             var goyang = inst.AddComponent<GoyangRitmis>();
             var so = new SerializedObject(goyang);
@@ -781,14 +804,17 @@ public static class OnboardingFinal
             so.FindProperty("_tempo").floatValue = 1.5f + dibuat * 0.35f;
             so.ApplyModifiedPropertiesWithoutUndo();
 
+            hasil.Add(inst.transform.position);
             dibuat++;
         }
         sb.AppendLine(dibuat > 0
-            ? "  Maskot penyambut: " + dibuat + " teddy (goyang pelan) di depan teras."
+            ? "  Maskot penyambut: " + dibuat + " teddy (goyang pelan)"
+              + (poseLama.Count > 0 ? " — pose manual dipertahankan." : " di posisi default.")
             : "  [WARN] Teddy sumber tidak ketemu — maskot dilewati.");
+        return hasil;
     }
 
-    private static void BangunLighting(Transform hidup, StringBuilder sb)
+    private static void BangunLighting(Transform hidup, System.Collections.Generic.List<Vector3> posisiMaskot, StringBuilder sb)
     {
         // Retune lampu utama lobby jadi hangat teater.
         GameObject lampu = WahanaFinalUtil.CariGameObject("Lampu_Lobby");
@@ -809,7 +835,29 @@ public static class OnboardingFinal
             new Color(1f, 0.85f, 0.6f), 2.0f, 6.5f, 52f, false);
         WahanaFinalUtil.BuatSpot(grp, "SpotBoarding", new Vector3(0.5f, 3.85f, 23.6f), new Vector3(0.5f, 0.2f, 23.5f),
             new Color(1f, 0.8f, 0.55f), 1.8f, 6.5f, 58f, false);
-        sb.AppendLine("  Lighting: Lampu_Lobby hangat + SpotLoket + SpotBoarding (total 3 light lobby).");
+
+        // TERAS (feedback playtest tahap-2): area teddy gelap — dinding & maskot
+        // tak kebaca. 1 point hangat di bawah atap teras + 1 spot kecil per maskot.
+        var lampuTeras = new GameObject("LampuTeras");
+        lampuTeras.transform.SetParent(grp, true);
+        lampuTeras.transform.position = new Vector3(0f, 2.85f, 29.7f);
+        var lt = lampuTeras.AddComponent<Light>();
+        lt.type = LightType.Point;
+        lt.color = new Color(1f, 0.82f, 0.58f);
+        lt.intensity = 1.7f;
+        lt.range = 7.5f;
+        lt.shadows = LightShadows.None;
+
+        for (int i = 0; i < posisiMaskot.Count; i++)
+        {
+            Vector3 pm = posisiMaskot[i];
+            Vector3 posSpot = new Vector3(pm.x * 0.55f, 3.0f, pm.z + 0.9f);
+            WahanaFinalUtil.BuatSpot(grp, "SpotMaskot_" + i, posSpot, pm + Vector3.up * 0.7f,
+                new Color(1f, 0.85f, 0.62f), 1.6f, 5.5f, 46f, false);
+        }
+
+        sb.AppendLine("  Lighting: Lampu_Lobby hangat + 2 spot dalam + LampuTeras + "
+            + posisiMaskot.Count + " spot maskot.");
     }
 
     private static void BangunKreditIzhar(Transform hidup, StringBuilder sb)
@@ -1092,6 +1140,90 @@ public static class OnboardingFinal
             }
         }
         return n;
+    }
+
+    // =====================================================================
+    //  MENU 57 — JENDELA LOBBY (Tahap 3)
+    //  Ganti 3 dinding solid dengan segmen + jendela kaca (bisa lihat taman
+    //  malam BNS dari dalam). Original di-SetActive(false) (revertable).
+    //  Dinding selatan menyisakan SLOT PINTU STAFF x[-3.2,-1.4] yang diisi
+    //  PanelStaffSementara — dilepas menu 60. RANTAI: 57 di-re-run => re-run 60.
+    // =====================================================================
+    private const float KacaAlpha = 0.10f;
+
+    [MenuItem("Tools/Wahana/57 Onboarding - Jendela Lobby", false, 121)]
+    public static void OnboardingJendelaLobby()
+    {
+        if (GuardPlayMode()) return;
+        var sb = new StringBuilder("=== 57 ONBOARDING - JENDELA LOBBY ===\n");
+
+        HapusAssetPrefix("ONBJdl_Bake");
+        HapusParent("GEN_JendelaLobby");
+        Transform grp = new GameObject("GEN_JendelaLobby").transform;
+
+        // 1) matikan dinding original (revert = SetActive true + hapus GEN grup ini)
+        int nMati = 0;
+        foreach (string nama in new[] { "DindingB_2", "DindingT_2", "DindingS_1" })
+        {
+            GameObject d = WahanaFinalUtil.CariGameObject(nama);
+            if (d != null && d.activeSelf) { d.SetActive(false); nMati++; }
+        }
+        sb.AppendLine("  Dinding original dimatikan: " + nMati + " (DindingB_2/T_2/S_1).");
+
+        Material dinding = WahanaFinalUtil.MatAsset("ONB_DindingTeater", WarnaDinding, 0.06f, null, 1f);
+        Material emas = WahanaFinalUtil.MatAsset("ONB_Emas", WarnaEmas, 0.5f, null, 1f);
+        Material kayu = WahanaFinalUtil.MatAsset("ONB_KayuTua", WarnaKayuTua, 0.15f, null, 1f);
+        Material kaca = WahanaRebuilder.MatLitTransparan(new Color(0.6f, 0.8f, 0.95f), KacaAlpha);
+        kaca.SetFloat("_Smoothness", 0.05f); // PELAJARAN: bidang transparan besar wajib smoothness ~0 (anti-sheen abu)
+
+        // 2) DINDING BARAT (x=-5): jendela z[23.8,25.6] y[1.0,2.2]
+        BangunJendelaSamping(grp, -5f, dinding, emas, kayu, kaca);
+        // 3) DINDING TIMUR (x=+5): mirror (SpeakerPlaza z26.2 aman di luar bukaan)
+        BangunJendelaSamping(grp, 5f, dinding, emas, kayu, kaca);
+
+        // 4) DINDING SELATAN (z=20): jendela panorama x[0.8,4.2] y[1.1,2.3]
+        //    + slot pintu staff x[-3.2,-1.4] (diisi panel sementara).
+        WahanaRebuilder.BuatBox(grp, "SegSelatan", new Vector3(-4.1f, 2f, 20f), new Vector3(1.8f, 4f, 0.3f), dinding);
+        WahanaRebuilder.BuatBox(grp, "SegSelatan", new Vector3(-0.3f, 2f, 20f), new Vector3(2.2f, 4f, 0.3f), dinding);
+        WahanaRebuilder.BuatBox(grp, "SegSelatan", new Vector3(4.6f, 2f, 20f), new Vector3(0.8f, 4f, 0.3f), dinding);
+        WahanaRebuilder.BuatBox(grp, "SegSelatanAtasPintu", new Vector3(-2.3f, 3.45f, 20f), new Vector3(1.8f, 1.1f, 0.3f), dinding);
+        WahanaRebuilder.BuatBox(grp, "SegSelatanBawahJendela", new Vector3(2.5f, 0.55f, 20f), new Vector3(3.4f, 1.1f, 0.3f), dinding);
+        WahanaRebuilder.BuatBox(grp, "SegSelatanAtasJendela", new Vector3(2.5f, 3.15f, 20f), new Vector3(3.4f, 1.7f, 0.3f), dinding);
+        WahanaRebuilder.BuatBox(grp, "PanelStaffSementara", new Vector3(-2.3f, 1.45f, 20f), new Vector3(1.8f, 2.9f, 0.3f), dinding);
+        WahanaRebuilder.BuatBox(grp, "KacaJendela", new Vector3(2.5f, 1.7f, 20f), new Vector3(3.4f, 1.2f, 0.06f), kaca);
+        WahanaRebuilder.BuatBox(grp, "KusenJendela", new Vector3(2.5f, 2.34f, 20f), new Vector3(3.56f, 0.08f, 0.1f), emas);
+        WahanaRebuilder.BuatBox(grp, "KusenJendela", new Vector3(2.5f, 1.06f, 20f), new Vector3(3.56f, 0.08f, 0.1f), emas);
+        WahanaRebuilder.BuatBox(grp, "KusenJendela", new Vector3(0.76f, 1.7f, 20f), new Vector3(0.08f, 1.36f, 0.1f), emas);
+        WahanaRebuilder.BuatBox(grp, "KusenJendela", new Vector3(4.24f, 1.7f, 20f), new Vector3(0.08f, 1.36f, 0.1f), emas);
+        WahanaRebuilder.BuatBox(grp, "KusenTengah", new Vector3(2.5f, 1.7f, 20f), new Vector3(0.06f, 1.36f, 0.08f), emas);
+        WahanaRebuilder.BuatBox(grp, "SillJendela", new Vector3(2.5f, 1.03f, 20.19f), new Vector3(3.6f, 0.05f, 0.16f), kayu);
+        sb.AppendLine("  Selatan: 6 segmen + jendela panorama 3.4x1.2 + slot pintu staff (PanelStaffSementara).");
+
+        // 5) bake statis KECUALI kaca (transparan) & panel sementara (dilepas menu 60)
+        int nBake = TemenDresser.GabungMeshStatis(grp, "ONBJdl_Bake",
+            new System.Collections.Generic.HashSet<string> { "KacaJendela", "PanelStaffSementara" });
+        sb.AppendLine("  Bake GEN_JendelaLobby: " + nBake + " renderer digabung (kaca & panel staff tetap hidup).");
+
+        SimpanScene(sb);
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>Dinding samping barat/timur (x = -5 / +5): segmen + jendela z[23.8,25.6] y[1.0,2.2].</summary>
+    private static void BangunJendelaSamping(Transform grp, float x, Material dinding, Material emas, Material kayu, Material kaca)
+    {
+        string sisi = x < 0f ? "Barat" : "Timur";
+        WahanaRebuilder.BuatBox(grp, "Seg" + sisi, new Vector3(x, 2f, 23.65f), new Vector3(0.3f, 4f, 0.3f), dinding);
+        WahanaRebuilder.BuatBox(grp, "Seg" + sisi, new Vector3(x, 2f, 26.8f), new Vector3(0.3f, 4f, 2.4f), dinding);
+        WahanaRebuilder.BuatBox(grp, "Seg" + sisi + "BawahJendela", new Vector3(x, 0.5f, 24.7f), new Vector3(0.3f, 1.0f, 1.8f), dinding);
+        WahanaRebuilder.BuatBox(grp, "Seg" + sisi + "AtasJendela", new Vector3(x, 3.1f, 24.7f), new Vector3(0.3f, 1.8f, 1.8f), dinding);
+        WahanaRebuilder.BuatBox(grp, "KacaJendela", new Vector3(x, 1.6f, 24.7f), new Vector3(0.06f, 1.2f, 1.8f), kaca);
+        WahanaRebuilder.BuatBox(grp, "KusenJendela", new Vector3(x, 2.24f, 24.7f), new Vector3(0.1f, 0.08f, 1.96f), emas);
+        WahanaRebuilder.BuatBox(grp, "KusenJendela", new Vector3(x, 0.96f, 24.7f), new Vector3(0.1f, 0.08f, 1.96f), emas);
+        WahanaRebuilder.BuatBox(grp, "KusenJendela", new Vector3(x, 1.6f, 23.76f), new Vector3(0.1f, 1.36f, 0.08f), emas);
+        WahanaRebuilder.BuatBox(grp, "KusenJendela", new Vector3(x, 1.6f, 25.64f), new Vector3(0.1f, 1.36f, 0.08f), emas);
+        WahanaRebuilder.BuatBox(grp, "KusenTengah", new Vector3(x, 1.6f, 24.7f), new Vector3(0.08f, 1.36f, 0.06f), emas);
+        float xSill = x < 0f ? x + 0.21f : x - 0.21f; // ambalan menonjol ke DALAM ruangan
+        WahanaRebuilder.BuatBox(grp, "SillJendela", new Vector3(xSill, 0.93f, 24.7f), new Vector3(0.12f, 0.05f, 2.0f), kayu);
     }
 
     // =====================================================================
