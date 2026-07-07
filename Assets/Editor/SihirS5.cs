@@ -232,14 +232,37 @@ public static class SihirS5
         var pts = WahanaFinalUtil.AmbilPolylineJalur();
         sb.AppendLine("  Polyline rel: " + pts.Count + " WP.");
 
-        // ---------- (a) material shell galaksi ----------
+        // ---------- (a-pre) TINGGIKAN bangunan (dinding 5->8, plafon ke 8) ----------
+        var shell5 = CariGameObject("GEN_Shell_S5");
+        float plafonBaru = 8f;
+        int nTinggi = 0;
+        if (shell5 != null)
+        {
+            foreach (Transform t in shell5.transform)
+            {
+                string nm = t.name;
+                if (nm.StartsWith("Dinding_S5"))
+                {
+                    var s = t.localScale; var p = t.position;
+                    if (s.y > 4.5f && s.y < 7.5f) { t.localScale = new Vector3(s.x, plafonBaru, s.z); t.position = new Vector3(p.x, plafonBaru / 2f, p.z); nTinggi++; }
+                    else if (s.y < 2.5f && p.y > 3.5f && p.y < 5f) // lintel di atas pintu (3.2 -> plafon)
+                    { t.localScale = new Vector3(s.x, plafonBaru - 3.2f, s.z); t.position = new Vector3(p.x, 3.2f + (plafonBaru - 3.2f) / 2f, p.z); nTinggi++; }
+                }
+                else if (nm == "Plafon_S5")
+                {
+                    var p = t.position;
+                    if (p.y < plafonBaru - 0.5f) { t.position = new Vector3(p.x, plafonBaru, p.z); nTinggi++; }
+                }
+            }
+        }
+        sb.AppendLine("  Bangunan ditinggikan ke " + plafonBaru + "m (" + nTinggi + " bagian shell).");
+
+        // ---------- (a) SEMUA permukaan shell -> tekstur galaksi UNLIT (limitless void) ----------
         var texBintang = WahanaFinalUtil.CariTeksturPack(
             new[] { "starfield", "skybox", "space", "nebula", "galax" }, sb, "starfield S5");
-        var matShell = WahanaFinalUtil.MatAsset("S5_ShellGalaksi", GalaksiShell, 0.2f, null, 1f);
-        var matLangit = WahanaFinalUtil.MatAsset("S5_LangitGalaksi",
-            texBintang != null ? new Color(0.55f, 0.55f, 0.75f) : GalaksiLangit, 0.1f, texBintang, 2f);
-        var matLantaiN = WahanaFinalUtil.MatAsset("S5_LantaiNavy", GalaksiLantai, 0.3f, null, 1f);
-        var shell5 = CariGameObject("GEN_Shell_S5");
+        Material matVoid = texBintang != null
+            ? WahanaFinalUtil.MatAssetUnlitHDR("S5_Void", new Color(0.75f, 0.78f, 0.95f), 0.95f, texBintang, 2.5f)
+            : WahanaFinalUtil.MatAssetUnlitHDR("S5_Void", new Color(0.06f, 0.05f, 0.14f), 1.0f, null, 1f);
         int nShell = 0;
         float lantaiTop = 0f;
         if (shell5 != null)
@@ -247,16 +270,15 @@ public static class SihirS5
             foreach (var mr in shell5.GetComponentsInChildren<MeshRenderer>(true))
             {
                 string nm = mr.gameObject.name;
-                if (nm.StartsWith("Dinding_S5")) { mr.sharedMaterial = matShell; nShell++; }
+                if (nm.StartsWith("Dinding_S5") || nm == "Plafon_S5") { mr.sharedMaterial = matVoid; nShell++; }
                 else if (nm == "Lantai_S5")
                 {
-                    mr.sharedMaterial = matLantaiN; nShell++;
+                    mr.sharedMaterial = matVoid; nShell++;
                     lantaiTop = mr.bounds.max.y; // permukaan RUNTIME (aktual 0.0)
                 }
-                else if (nm == "Plafon_S5") { mr.sharedMaterial = matLangit; nShell++; }
             }
         }
-        sb.AppendLine("  Shell galaksi: " + nShell + " renderer (lantaiTop runtime=" + lantaiTop.ToString("0.00") + ").");
+        sb.AppendLine("  Void galaksi: " + nShell + " permukaan shell (dinding+atap+lantai) bertekstur bintang unlit.");
 
         // ---------- (b) jendela "melihat angkasa" ----------
         var matJendela = WahanaFinalUtil.MatAssetUnlitHDR("S5_JendelaBintang",
@@ -279,9 +301,9 @@ public static class SihirS5
             texBintang != null ? 1.10f : 1.5f, texBintang, 1f);
         var matNebulaB = WahanaFinalUtil.MatAssetUnlitHDR("S5_NebulaB", GalaksiBiru,
             texBintang != null ? 1.05f : 1.4f, texBintang, 1f);
-        BoxFinal(root.transform, "NebulaN", new Vector3(-39f, 4.0f, maxZ - 0.35f), new Vector3(10f, 1.4f, 0.08f), matNebulaA);
-        BoxFinal(root.transform, "NebulaW", new Vector3(minX + 0.35f, 3.8f, 19f), new Vector3(0.08f, 1.2f, 8f), matNebulaB);
-        BoxFinal(root.transform, "NebulaE", new Vector3(maxX - 0.35f, 4.1f, 20f), new Vector3(0.08f, 1.1f, 6f), matNebulaA);
+        BoxFinal(root.transform, "NebulaN", new Vector3(-39f, 6.2f, maxZ - 0.35f), new Vector3(10f, 1.4f, 0.08f), matNebulaA);
+        BoxFinal(root.transform, "NebulaW", new Vector3(minX + 0.35f, 5.9f, 19f), new Vector3(0.08f, 1.2f, 8f), matNebulaB);
+        BoxFinal(root.transform, "NebulaE", new Vector3(maxX - 0.35f, 6.3f, 20f), new Vector3(0.08f, 1.1f, 6f), matNebulaA);
         var mobile = CariGameObject("MobilePlanet");
         Vector3 pusatCincin = mobile != null ? mobile.transform.position : Center + Vector3.up * 3.8f;
         var cincin = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -369,11 +391,56 @@ public static class SihirS5
             { WahanaFinalUtil.SnapY(t, pgTop); nSnap++; }
             if (terpasang.Count < 14) { terpasang.Add(t); permukaan.Add(pgTop); }
         }
+        // PANGGUNG PENONTON: lantai kini void galaksi — alien harus BERPIJAK di platform
+        float pTop = lantaiTop;
+        if (penontonLantai.Count > 0)
+        {
+            Vector3 pusatP = Vector3.zero;
+            foreach (var t in penontonLantai) pusatP += t.position;
+            pusatP /= penontonLantai.Count;
+            float radP = 1.2f;
+            foreach (var t in penontonLantai)
+            {
+                float d = new Vector2(t.position.x - pusatP.x, t.position.z - pusatP.z).magnitude + WahanaFinalUtil.HalfXZ(t) + 0.4f;
+                if (d > radP) radP = d;
+            }
+            radP = Mathf.Min(radP, 3.6f);
+            var plat = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            plat.name = "PanggungPenonton";
+            plat.transform.SetParent(root.transform, true);
+            plat.transform.position = new Vector3(pusatP.x, lantaiTop + 0.175f, pusatP.z);
+            plat.transform.localScale = new Vector3(radP * 2f, 0.175f, radP * 2f);
+            Object.DestroyImmediate(plat.GetComponent<Collider>());
+            plat.GetComponent<MeshRenderer>().sharedMaterial =
+                WahanaFinalUtil.MatAsset("S5_Platform", new Color(0.13f, 0.10f, 0.24f), 0.3f, null, 1f);
+            var trimP = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            trimP.name = "PanggungPenontonTrim";
+            trimP.transform.SetParent(root.transform, true);
+            trimP.transform.position = new Vector3(pusatP.x, lantaiTop + 0.31f, pusatP.z);
+            trimP.transform.localScale = new Vector3(radP * 2f + 0.15f, 0.02f, radP * 2f + 0.15f);
+            Object.DestroyImmediate(trimP.GetComponent<Collider>());
+            trimP.GetComponent<MeshRenderer>().sharedMaterial =
+                WahanaFinalUtil.MatAssetUnlitHDR("S5_PlatformTrim", GalaksiUngu, 1.6f, null, 1f);
+            pTop = WahanaFinalUtil.BoundsGabungan(plat.transform).max.y;
+            sb.AppendLine("  PanggungPenonton r" + radP.ToString("0.0") + " (alien berpijak, tidak melayang di void).");
+        }
         foreach (var t in penontonLantai)
         {
-            if (Mathf.Abs(WahanaFinalUtil.BoundsGabungan(t).min.y - (lantaiTop + 0.01f)) > 0.05f)
-            { WahanaFinalUtil.SnapY(t, lantaiTop); nSnap++; }
-            if (terpasang.Count < 14) { terpasang.Add(t); permukaan.Add(lantaiTop); }
+            if (Mathf.Abs(WahanaFinalUtil.BoundsGabungan(t).min.y - (pTop + 0.01f)) > 0.05f)
+            { WahanaFinalUtil.SnapY(t, pTop); nSnap++; }
+            if (terpasang.Count < 14) { terpasang.Add(t); permukaan.Add(pTop); }
+        }
+        // platform kecil di bawah depo kereta mainan (biar tak melayang di void)
+        var depo = hidup != null ? WahanaFinalUtil.CariChildRekursif(hidup.transform, "DepoKeretaMainan") : null;
+        if (depo != null)
+        {
+            var bd = WahanaFinalUtil.BoundsGabungan(depo);
+            BoxFinal(root.transform, "PlatformDepo",
+                new Vector3(bd.center.x, lantaiTop + 0.1f, bd.center.z),
+                new Vector3(bd.size.x + 0.5f, 0.2f, bd.size.z + 0.5f),
+                WahanaFinalUtil.MatAsset("S5_Platform", new Color(0.13f, 0.10f, 0.24f), 0.3f, null, 1f));
+            WahanaFinalUtil.SnapY(depo, lantaiTop + 0.2f);
+            sb.AppendLine("  PlatformDepo di bawah kereta mainan.");
         }
         sb.AppendLine("  Kaki band/penonton dicek (snap " + nSnap + ").");
         // orbit roket: hanya masalah kalau orbitnya RENDAH (memotong koridor pandang);
@@ -410,16 +477,21 @@ public static class SihirS5
             }
         }
         sb.AppendLine("  Orbit roket rendah di-clamp: " + nOrbit + ".");
-        // mobile planet: angkat sampai bagian terbawah di atas koridor pandang
+        // mobile planet: LAPIS ATAS (>=5.3, di atas zona pesawat 2.95-5.0) — tak tumpang tindih
         if (mobile != null)
         {
             var bm = WahanaFinalUtil.BoundsGabungan(mobile.transform);
-            float dm = WahanaFinalUtil.JarakKeRel(pts, bm.center.x, bm.center.z) - Mathf.Max(bm.extents.x, bm.extents.z);
-            if (dm < 1.2f && bm.min.y < 2.9f)
+            if (bm.min.y < 5.3f)
             {
-                float naik = 2.9f - bm.min.y;
+                float naik = 5.3f - bm.min.y;
                 mobile.transform.position += Vector3.up * naik;
-                sb.AppendLine("    MobilePlanet diangkat +" + naik.ToString("0.00") + " (bawahnya masuk koridor pandang).");
+                sb.AppendLine("    MobilePlanet diangkat +" + naik.ToString("0.00") + " (lapis atas, bebas pesawat).");
+            }
+            var cincinGo = CariGameObject("CincinGalaksi");
+            if (cincinGo != null)
+            {
+                var pm = mobile.transform.position;
+                cincinGo.transform.position = new Vector3(pm.x, pm.y, pm.z);
             }
         }
         // spaceship backdrop: rel S5 melingkar — tidak ada spot LANTAI yang aman untuk objek
@@ -430,7 +502,7 @@ public static class SihirS5
         if (pesawat != null)
         {
             var bp = WahanaFinalUtil.BoundsGabungan(pesawat.transform);
-            float ruangTinggi = 5.0f - 2.95f;
+            float ruangTinggi = 5.0f - 2.95f; // pesawat di lapis 2.95-5.0; planet di atasnya (>=5.3)
             if (bp.size.y > ruangTinggi && bp.size.y > 0.01f)
             {
                 float f = ruangTinggi / bp.size.y;
