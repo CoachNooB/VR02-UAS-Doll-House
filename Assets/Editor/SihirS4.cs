@@ -1298,12 +1298,15 @@ public static class SihirS4
         var segKeluar = pts.GetRange(b0, b1 - b0 + 1);
         sb.AppendLine("  Segmen masuk WP " + a0 + ".." + a1 + " | keluar WP " + b0 + ".." + b1 + ".");
 
-        // (a) recolor terowongan per-band kedalaman + rebake GEN_Tunnel
-        RecolorTerowonganAir(sb);
+        // tekstur kaustik RGB utk material opaque (dinding polos = "rasa tanah", playtest-4)
+        var texRGB = BuatTexAirRGB();
+
+        // (a) recolor terowongan per-band kedalaman (+UV tube) + rebake GEN_Tunnel
+        RecolorTerowonganAir(texRGB, sb);
 
         // (a2) sapu abu: swap material Ramp_/LidPit_/TiangPenanda (share MatRumputMalam
         // global — asset-nya jangan dicat) + sweep diagnostik sisa abu di koridor
-        SapuAbuKoridor(segMasuk, segKeluar, sb);
+        SapuAbuKoridor(segMasuk, segKeluar, texRGB, sb);
 
         // (b) grup hidup lorong (idempoten; TIDAK dibake, TANPA static flag — ada ScrollUV)
         WahanaRebuilder.HapusParent("LorongAir_S4");
@@ -1389,15 +1392,18 @@ public static class SihirS4
     /// material ASSET per-band (di-update tiap run => tuning = edit konstanta + re-run).
     /// Rebake wajib: GABUNG lama masih menggabung semua chunk dalam 1 material. Efek
     /// samping: carve 49b hilang => jalankan 49b SETELAH menu ini.</summary>
-    private static void RecolorTerowonganAir(System.Text.StringBuilder sb)
+    private static void RecolorTerowonganAir(Texture2D texRGB, System.Text.StringBuilder sb)
     {
         var genTun = CariGameObject("GEN_Tunnel");
         if (genTun == null) { sb.AppendLine("  [WARN] GEN_Tunnel tak ketemu — recolor dilewati."); return; }
 
-        Material mDangkal = MatBandAir("S4_TubeAir_Dangkal", TubeDangkal);
-        Material mSedang = MatBandAir("S4_TubeAir_Sedang", TubeSedang);
-        Material mDalam = MatBandAir("S4_TubeAir_Dalam", TubeDalam);
-        Material mBank = MatBandAir("S4_BankAir", BankAir);
+        int nUV = PastikanUVTube(genTun);
+        sb.AppendLine("  UV tube digenerate (box-map world): " + nUV + " chunk.");
+
+        Material mDangkal = MatBandAir("S4_TubeAir_Dangkal", TubeDangkal, texRGB, 1f);
+        Material mSedang = MatBandAir("S4_TubeAir_Sedang", TubeSedang, texRGB, 1f);
+        Material mDalam = MatBandAir("S4_TubeAir_Dalam", TubeDalam, texRGB, 1f);
+        Material mBank = MatBandAir("S4_BankAir", BankAir, texRGB, 2f);
 
         int nDangkal = 0, nSedang = 0, nDalam = 0, nBank = 0;
         foreach (var mr in genTun.GetComponentsInChildren<MeshRenderer>(true))
@@ -1441,12 +1447,74 @@ public static class SihirS4
     }
 
     /// <summary>Material asset band air (Assets/Generated, nilai di-update tiap run).
-    /// _Cull=0 double-sided — pola CariMatTunnel (tube dilihat dari dalam).</summary>
-    private static Material MatBandAir(string nama, Color warna)
+    /// _Cull=0 double-sided — pola CariMatTunnel (tube dilihat dari dalam).
+    /// tex = S4_TexAirRGB (kaustik) — dinding polos tanpa tekstur kebaca "tanah gelap"
+    /// (feedback playtest-4).</summary>
+    private static Material MatBandAir(string nama, Color warna, Texture2D tex = null, float tiling = 1f)
     {
-        var m = WahanaFinalUtil.MatAsset(nama, warna, 0.25f, null, 1f);
+        var m = WahanaFinalUtil.MatAsset(nama, warna, 0.25f, tex, tiling);
         if (m.HasProperty("_Cull")) m.SetFloat("_Cull", 0f);
         return m;
+    }
+
+    /// <summary>Tekstur kaustik versi RGB (pola di LUMINANCE, alpha 1) untuk material OPAQUE —
+    /// S4_TexAir lama polanya di ALPHA saja (hanya kelihatan di material transparan).
+    /// GUID stabil: overwrite pixel kalau sudah ada.</summary>
+    private static Texture2D BuatTexAirRGB()
+    {
+        const string path = "Assets/Generated/S4_TexAirRGB.asset";
+        var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        bool baru = tex == null;
+        if (baru) tex = new Texture2D(256, 256, TextureFormat.RGBA32, true);
+        var px = new Color[256 * 256];
+        for (int y = 0; y < 256; y++)
+        {
+            for (int x = 0; x < 256; x++)
+            {
+                float u = x / 256f, v = y / 256f;
+                float n = Mathf.PerlinNoise(u * 5f, v * 5f) * 0.65f
+                        + Mathf.PerlinNoise(u * 11f + 7f, v * 11f + 3f) * 0.35f;
+                float net = Mathf.Pow(1f - Mathf.Abs(n - 0.5f) * 2f, 3f); // jaring kaustik lembut
+                float l = 0.62f + net * 0.38f; // basis 0.62 -> puncak jaring 1.0
+                px[y * 256 + x] = new Color(l, l, l, 1f);
+            }
+        }
+        tex.SetPixels(px);
+        tex.wrapMode = TextureWrapMode.Repeat;
+        tex.Apply(true);
+        if (baru)
+        {
+            if (!AssetDatabase.IsValidFolder("Assets/Generated")) AssetDatabase.CreateFolder("Assets", "Generated");
+            AssetDatabase.CreateAsset(tex, path);
+        }
+        else EditorUtility.SetDirty(tex);
+        return tex;
+    }
+
+    /// <summary>Mesh tube (MeshTunnel WR:2974) TIDAK menulis UV → tekstur mustahil muncul
+    /// (gotcha yang sama dgn MeshPita). Generate UV box-map dari posisi WORLD vertex
+    /// (deterministik = idempotent). Jalankan SEBELUM rebake — GABUNG mewarisi UV chunk.</summary>
+    private static int PastikanUVTube(GameObject genTun)
+    {
+        int n = 0;
+        foreach (var mf in genTun.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (!mf.name.StartsWith("Tunnel_") || mf.sharedMesh == null) continue;
+            var mesh = mf.sharedMesh;
+            var verts = mesh.vertices;
+            var uv = new Vector2[verts.Length];
+            var l2w = mf.transform.localToWorldMatrix;
+            for (int i = 0; i < verts.Length; i++)
+            {
+                Vector3 w = l2w.MultiplyPoint3x4(verts[i]);
+                // dinding vertikal: v ikut Y; komponen (x-z) menjaga variasi di lantai/plafon
+                uv[i] = new Vector2((w.x + w.z) * 0.15f, w.y * 0.25f + (w.x - w.z) * 0.12f);
+            }
+            mesh.uv = uv;
+            EditorUtility.SetDirty(mesh);
+            n++;
+        }
+        return n;
     }
 
     /// <summary>Langkah (a2) "sapu abu" v2 — playtest-1&2. (1) SWAP MATERIAL PER-RENDERER by
@@ -1459,12 +1527,12 @@ public static class SihirS4
     /// yang false-positive di GABUNG raksasa), TANPA skip kereta (label [KERETA] info),
     /// sort by jarak, max 60 — inventaris definitif sekitar jalur kamera. Log-only.</summary>
     private static void SapuAbuKoridor(List<Vector3> segMasuk, List<Vector3> segKeluar,
-                                       System.Text.StringBuilder sb)
+                                       Texture2D texRGB, System.Text.StringBuilder sb)
     {
-        Material mRamp = MatBandAir("S4_RampAir", RampAir);
-        Material mLid = MatBandAir("S4_LidAir", LidAir);
-        Material mLantai = MatBandAir("S4_LantaiLaut", LantaiLaut);
-        Material mPintu = MatBandAir("S4_PintuAir", PintuAir);
+        Material mRamp = MatBandAir("S4_RampAir", RampAir, texRGB, 2f);
+        Material mLid = MatBandAir("S4_LidAir", LidAir, texRGB, 2f);
+        Material mLantai = MatBandAir("S4_LantaiLaut", LantaiLaut, texRGB, 8f);
+        Material mPintu = MatBandAir("S4_PintuAir", PintuAir, texRGB, 2f);
         mPintu.EnableKeyword("_EMISSION");
         mPintu.SetColor("_EmissionColor", new Color(0.1f, 0.3f, 0.5f) * 0.15f);
 
