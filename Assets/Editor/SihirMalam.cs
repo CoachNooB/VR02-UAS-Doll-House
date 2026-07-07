@@ -28,6 +28,10 @@ using UnityEngine;
 ///                        (TeksDuniaSync jaga atlas font runtime). Menu yang bikin
 ///                        TextMesh baru (19/22/23/51 dst) => re-run 54; menu 51
 ///                        sudah memanggilnya otomatis.
+///   55 Rapikan Label   : label kredit "Dibuat oleh ..." nempel dinding 0.1-0.4u
+///                        (dulu kebaca karena bug tembus) -> clamp masuk ruangan
+///                        margin 2.2u (aman ayunan Billboard). Re-run kalau menu
+///                        Temen (7-11) menaruh ulang label.
 ///
 /// RANTAI SOP:
 ///   - Menu 3 (Rebuild Layout) membangun ulang CanopyMalam → kalau pernah re-run,
@@ -1091,6 +1095,57 @@ public static class SihirMalam
         so.ApplyModifiedPropertiesWithoutUndo();
 
         sb.AppendLine("  Teks dunia: " + n + " TextMesh di-swap ke BNS_TeksDunia (ZTest normal + fog).");
+    }
+
+    // =====================================================================
+    //  MENU 55 — RAPIKAN LABEL KREDIT (nempel dinding -> masuk ruangan)
+    // =====================================================================
+    private const float MarginLabelKredit = 2.2f;
+
+    [MenuItem("Tools/Wahana/55 Malam BNS - Rapikan Label Kredit", false, 116)]
+    public static void MalamRapikanLabel()
+    {
+        if (GuardPlayMode()) return;
+        var sb = new StringBuilder("=== 55 MALAM BNS - RAPIKAN LABEL KREDIT ===\n");
+        RapikanLabelKredit(sb);
+        SimpanScene(sb);
+        Debug.Log(sb.ToString());
+    }
+
+    private static void RapikanLabelKredit(StringBuilder sb)
+    {
+        var ruangan = WahanaLayout.BuildRuangan();
+        int n = 0;
+        foreach (var tm in Object.FindObjectsByType<TextMesh>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (tm.text == null || !tm.text.ToLowerInvariant().Contains("dibuat oleh")) continue;
+            Vector3 pos = tm.transform.position;
+
+            // ruangan terdekat (jarak XZ ke rect; 0 kalau di dalam)
+            int idxBest = -1; float dBest = float.MaxValue;
+            for (int i = 0; i < ruangan.Length; i++)
+            {
+                var r = ruangan[i];
+                float dx = Mathf.Max(Mathf.Max(r.minX - pos.x, 0f), pos.x - r.maxX);
+                float dz = Mathf.Max(Mathf.Max(r.minZ - pos.z, 0f), pos.z - r.maxZ);
+                float d = Mathf.Sqrt(dx * dx + dz * dz);
+                if (d < dBest) { dBest = d; idxBest = i; }
+            }
+            if (idxBest < 0 || dBest > 4f)
+            {
+                sb.AppendLine("  [SKIP] '" + tm.text + "' jauh dari semua ruangan (" + dBest.ToString("0.0") + "u).");
+                continue;
+            }
+
+            var ru = ruangan[idxBest];
+            float x = Mathf.Clamp(pos.x, ru.minX + MarginLabelKredit, ru.maxX - MarginLabelKredit);
+            float z = Mathf.Clamp(pos.z, ru.minZ + MarginLabelKredit, ru.maxZ - MarginLabelKredit);
+            if (Mathf.Abs(x - pos.x) < 0.01f && Mathf.Abs(z - pos.z) < 0.01f) continue; // sudah aman
+            tm.transform.position = new Vector3(x, pos.y, z);
+            sb.AppendLine("  '" + tm.text + "' (" + ru.nama + "): " + F3(pos) + " -> " + F3(tm.transform.position));
+            n++;
+        }
+        sb.AppendLine("  Label kredit digeser: " + n + " (margin " + MarginLabelKredit + "u dari dinding).");
     }
 
     private static AudioClip CariClip(string[] hints)
