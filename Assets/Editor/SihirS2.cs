@@ -473,6 +473,7 @@ public static class SihirS2
     [MenuItem("Tools/Wahana/46 S2 Salju Terang (final)", false, 98)]
     public static void S2SaljuTerang()
     {
+        if (EditorApplication.isPlaying) { Debug.LogError("[Wahana] Jangan jalankan menu final saat PLAY MODE (perubahan ke-wipe saat stop)."); return; }
         var sb = new System.Text.StringBuilder("=== S2 SALJU TERANG (SIANG) ===\n");
 
         HapusParent(P_Final);

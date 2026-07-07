@@ -212,6 +212,7 @@ public static class SihirS5
     [MenuItem("Tools/Wahana/48 S5 Galaksi (final)", false, 106)]
     public static void S5Galaksi()
     {
+        if (EditorApplication.isPlaying) { Debug.LogError("[Wahana] Jangan jalankan menu final saat PLAY MODE (perubahan ke-wipe saat stop)."); return; }
         var sb = new System.Text.StringBuilder("=== S5 GALAKSI (UNGU-BIRU) ===\n");
         float minX = -50f, maxX = -28f, minZ = 10f, maxZ = 28f; // rect S5 (verifikasi inventaris)
 

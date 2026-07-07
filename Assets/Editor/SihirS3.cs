@@ -951,6 +951,7 @@ public static class SihirS3
     [MenuItem("Tools/Wahana/47 S3 Horor Teater (final)", false, 99)]
     public static void S3HororTeater()
     {
+        if (EditorApplication.isPlaying) { Debug.LogError("[Wahana] Jangan jalankan menu final saat PLAY MODE (perubahan ke-wipe saat stop)."); return; }
         var sb = new System.Text.StringBuilder("=== S3 HOROR TEATER (MERAH-UNGU) ===\n");
 
         var hidup = CariGameObject("GEN_SihirHidup_S3");
@@ -964,6 +965,11 @@ public static class SihirS3
 
         var pts = WahanaFinalUtil.AmbilPolylineJalur();
         sb.AppendLine("  Polyline rel: " + pts.Count + " WP.");
+
+        // ---------- (a0) fix magenta: material doll pack EMBEDDED di FBX (tak ada .mat utk
+        // dikonversi) -> sapu SEMUA renderer scene bershader Built-in/hilang, ganti porselen ----------
+        WahanaFinalUtil.KonversiMaterialFolderKeURP("Assets/Models/Low Poly Casual Horror Doll Pack", sb);
+        SapuRendererMagenta(sb);
 
         // ---------- (a) material tema ----------
         var texKayu = WahanaFinalUtil.CariTeksturPack(new[] { "yughues", "wooden", "wood" }, sb, "kayu S3");
@@ -1080,7 +1086,14 @@ public static class SihirS3
                 slotT = inst.transform;
             }
             if (slotT == null) { sb.AppendLine("  [WARNING] slot penonton '" + warna + "' habis."); continue; }
-            WahanaFinalUtil.AutoFit(slotT, 99f, 1.5f, sb); // seukuran anak — kebaca sbg "penonton"
+            WahanaFinalUtil.AutoFit(slotT, 99f, 1.5f, sb); // cap atas
+            var bDoll = WahanaFinalUtil.BoundsGabungan(slotT);
+            if (bDoll.size.y < 1.2f && bDoll.size.y > 0.05f)
+            {
+                float fUp = 1.45f / bDoll.size.y;
+                slotT.localScale *= fUp;
+                sb.AppendLine("    perbesar " + slotT.name + ": x" + fUp.ToString("0.0") + " (doll asli mungil, target 1.45m)");
+            }
             // hadap titik rel terdekat (mereka "menonton penumpang")
             float bestD = float.MaxValue; Vector3 bestP = slotT.position + Vector3.forward;
             foreach (var p in pts)
@@ -1149,6 +1162,48 @@ public static class SihirS3
         Debug.Log(sb.ToString());
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
         EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+    }
+
+    /// <summary>Sapu seluruh scene: renderer bershader Built-in/hilang (magenta di URP) ->
+    /// ganti porselen putih. Skip TextMesh/partikel/trail/line (shader non-URP mereka sah).</summary>
+    private static void SapuRendererMagenta(System.Text.StringBuilder sb)
+    {
+        var scene = EditorSceneManager.GetActiveScene();
+        var matGanti = WahanaFinalUtil.MatAsset("S3_Porselen_white", WarnaPorselenDoll("white"), 0.35f, null, 1f);
+        var kena = new HashSet<string>();
+        int nSlot = 0;
+        foreach (var r in Resources.FindObjectsOfTypeAll<Renderer>())
+        {
+            if (r == null || !r.gameObject.scene.IsValid() || r.gameObject.scene != scene) continue;
+            if (EditorUtility.IsPersistent(r.gameObject)) continue;
+            if (r is ParticleSystemRenderer || r is TrailRenderer || r is LineRenderer) continue;
+            if (r.GetComponent<TextMesh>() != null) continue; // font material bukan URP tapi sah
+            var mats = r.sharedMaterials;
+            bool ubah = false;
+            for (int i = 0; i < mats.Length; i++)
+            {
+                var m = mats[i];
+                string nm = (m == null || m.shader == null) ? "" : m.shader.name;
+                bool rusak = m == null || m.shader == null
+                    || nm == "Standard" || nm.StartsWith("Hidden/InternalError") || nm.StartsWith("Legacy");
+                if (!rusak) continue;
+                mats[i] = matGanti;
+                ubah = true;
+                nSlot++;
+            }
+            if (ubah)
+            {
+                r.sharedMaterials = mats;
+                kena.Add(r.transform.root.name + "/" + r.gameObject.name);
+            }
+        }
+        if (nSlot > 0)
+        {
+            sb.AppendLine("  Sapu magenta: " + nSlot + " slot material diganti porselen. Objek:");
+            int tampil = 0;
+            foreach (var k in kena) { sb.AppendLine("    - " + k); if (++tampil >= 12) { sb.AppendLine("    ..."); break; } }
+        }
+        else sb.AppendLine("  Sapu magenta: bersih (0 renderer rusak).");
     }
 
     private static Color WarnaPorselenDoll(string warna)

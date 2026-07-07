@@ -170,6 +170,32 @@ public static class WahanaFinalUtil
         return new Vector3(pos.x, pos.y + 1f, pos.z);
     }
 
+    /// <summary>Konversi semua material asset di folder ke URP/Lit (pola TemenAudit, generik):
+    /// shader hilang/Built-in = magenta di URP. Salin _MainTex->_BaseMap & _Color->_BaseColor.</summary>
+    public static int KonversiMaterialFolderKeURP(string folder, System.Text.StringBuilder sb)
+    {
+        var urp = Shader.Find("Universal Render Pipeline/Lit");
+        if (urp == null || !AssetDatabase.IsValidFolder(folder)) return 0;
+        int n = 0;
+        foreach (var guid in AssetDatabase.FindAssets("t:Material", new[] { folder }))
+        {
+            var m = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid));
+            if (m == null || m.shader == null) continue;
+            string nm = m.shader.name;
+            if (nm.StartsWith("Universal Render Pipeline")) continue;
+            Texture tex = m.HasProperty("_MainTex") ? m.GetTexture("_MainTex") : null;
+            Color warna = m.HasProperty("_Color") ? m.GetColor("_Color") : Color.white;
+            m.shader = urp;
+            if (m.HasProperty("_BaseMap") && tex != null) m.SetTexture("_BaseMap", tex);
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", warna);
+            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.25f);
+            EditorUtility.SetDirty(m);
+            n++;
+        }
+        if (n > 0) { AssetDatabase.SaveAssets(); sb.AppendLine("  Material folder di-URP-kan: " + n + " (" + folder + ")."); }
+        return n;
+    }
+
     /// <summary>Geser prop tegak-lurus MENJAUH dari rel sampai gap bounds >= targetGap
     /// (fix deterministik untuk prop existing yang menembus koridor). Return true kalau digeser.</summary>
     public static bool GeserMenjauhRel(Transform prop, List<Vector3> pts, float targetGap,
