@@ -450,6 +450,11 @@ public static class SihirS4
         WahanaFinalUtil.PindahZona("GEN_Suasana_Gua", titikTirai + Vector3.up, new Vector3(7f, 7f, 7f), sb);
         UbahZonaGua(sb);
 
+        // (e2) turunan terowongan HARUS biru-air, bukan tanah abu-abu (feedback playtest):
+        // fog portal biru + 3 lampu point biru menyapu dinding turunan + gelembung bawah garis air
+        UbahZonaPortalAir(sb);
+        BuatNuansaTunnelAir(lampuLaut.transform, lautHidup.transform, jalur, sb);
+
         // (f) hutan kelp (pita goyang + statis dibake)
         BuatKelp(lautHidup.transform, lautStatis.transform, jalur, rand, sb);
 
@@ -624,6 +629,65 @@ public static class SihirS4
         soP.ApplyModifiedProperties();
 
         sb.AppendLine("  Plunge masuk-air di " + F(titik) + " (PemicuKereta -> gelembung burst + SFX).");
+    }
+
+    /// <summary>Fog zona portal (palka masuk) ikut biru-air: turunan langsung bernuansa air,
+    /// bukan gelap-tanah (feedback playtest "masih ada abu-abu tanah").</summary>
+    private static void UbahZonaPortalAir(System.Text.StringBuilder sb)
+    {
+        var go = CariGameObject("GEN_Suasana_Portal");
+        if (go == null) { sb.AppendLine("  [WARN] GEN_Suasana_Portal tak ketemu — fog portal dilewati."); return; }
+        var sz = go.GetComponent<SuasanaZona>();
+        if (sz == null) { sb.AppendLine("  [WARN] GEN_Suasana_Portal tanpa SuasanaZona."); return; }
+        var so = new SerializedObject(sz);
+        so.FindProperty("_durasi").floatValue = 1.5f;
+        so.FindProperty("_fogColor").colorValue = new Color(0.008f, 0.035f, 0.07f);
+        so.FindProperty("_fogStart").floatValue = 4f;
+        so.FindProperty("_fogEnd").floatValue = 20f;
+        so.FindProperty("_ambientSky").colorValue = new Color(0.02f, 0.06f, 0.10f);
+        so.FindProperty("_ambientEquator").colorValue = new Color(0.015f, 0.045f, 0.08f);
+        so.FindProperty("_ambientGround").colorValue = new Color(0.01f, 0.03f, 0.05f);
+        so.ApplyModifiedProperties();
+        sb.AppendLine("  Zona portal: fog biru-air gelap (start 4 end 20) — turunan bernuansa air.");
+    }
+
+    /// <summary>3 lampu point biru di sepanjang turunan terowongan (mewarnai dinding tanah jadi
+    /// biru — material tunnel di-share seluruh wahana, JANGAN direcolor) + 1 kolom gelembung
+    /// kecil setelah garis air. Lampu di LampuLaut_S4 (ikut blackout ending).</summary>
+    private static void BuatNuansaTunnelAir(Transform lampuParent, Transform hidupParent,
+                                            List<Vector3> pts, System.Text.StringBuilder sb)
+    {
+        // segmen turunan: WP pertama y<=-0.6 s.d. WP pertama y<=-5.6 (mulut gua)
+        int iAwal = -1, iGua = -1;
+        for (int i = 0; i < pts.Count; i++)
+        {
+            if (iAwal < 0 && pts[i].y <= -0.6f) iAwal = i;
+            if (iAwal >= 0 && pts[i].y <= -5.6f) { iGua = i; break; }
+        }
+        if (iAwal < 0 || iGua <= iAwal)
+        {
+            sb.AppendLine("  [WARN] segmen turunan tak ketemu — nuansa tunnel dilewati.");
+            return;
+        }
+
+        Color biruTunnel = new Color(0.25f, 0.55f, 0.95f);
+        float[] frac = { 0.2f, 0.55f, 0.85f };
+        for (int i = 0; i < frac.Length; i++)
+        {
+            int idx = iAwal + Mathf.RoundToInt((iGua - iAwal) * frac[i]);
+            Vector3 wp = pts[Mathf.Clamp(idx, iAwal, iGua)];
+            BuatPoint(lampuParent, "LampuTunnelAir_" + i, wp + Vector3.up * 1.6f, biruTunnel, 1.3f, 7f);
+        }
+
+        // kolom gelembung kecil di ~70% turunan (sudah di bawah garis air y-2.2), offset samping rel
+        int idxMid = iAwal + Mathf.RoundToInt((iGua - iAwal) * 0.7f);
+        Vector3 wpMid = pts[Mathf.Clamp(idxMid, iAwal, iGua)];
+        Vector3 arah = WahanaRebuilder.RailDirDi(pts, wpMid);
+        Vector3 samping = Vector3.Cross(Vector3.up, arah).normalized * 1.2f;
+        Vector3 dasar = wpMid + samping + Vector3.down * 0.4f;
+        BuatKolomGelembung(hidupParent, "GelembungTunnel_S4", dasar, 2.2f, 6, false, new System.Random(4951));
+
+        sb.AppendLine("  Nuansa tunnel air: 3 lampu biru turunan (WP " + iAwal + ".." + iGua + ") + 1 kolom gelembung.");
     }
 
     /// <summary>Perketat fog zona gua jadi biru pekat "di dalam air" (edit in-place, anti-duplikat).</summary>
