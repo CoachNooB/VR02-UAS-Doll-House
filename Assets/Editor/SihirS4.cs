@@ -1255,16 +1255,18 @@ public static class SihirS4
 
     // ---- tuning 49c (WebGL lag? kecilkan N_FILM_PER_SEG, re-run 49c lalu 49b) ----
     private const int N_FILM_PER_SEG = 7;  // panel air per segmen (pola kiri/kanan/plafon)
-    private static readonly Color TubeDangkal = new Color(0.10f, 0.22f, 0.32f); // band y > -2.2
-    private static readonly Color TubeSedang = new Color(0.07f, 0.17f, 0.26f);  // band -4.5..-2.2
-    private static readonly Color TubeDalam = new Color(0.05f, 0.13f, 0.20f);   // band <= -4.5
-    private static readonly Color BankAir = new Color(0.08f, 0.17f, 0.23f);     // slab bank tanah
-    private static readonly Color RampAir = new Color(0.09f, 0.19f, 0.27f);     // ramp bawah rel (dasar terang)
-    private static readonly Color LidAir = new Color(0.05f, 0.12f, 0.17f);      // lid pit + tiang penanda
+    private static readonly Color TubeDangkal = new Color(0.12f, 0.26f, 0.38f); // band y > -2.2
+    private static readonly Color TubeSedang = new Color(0.09f, 0.21f, 0.32f);  // band -4.5..-2.2
+    private static readonly Color TubeDalam = new Color(0.07f, 0.17f, 0.26f);   // band <= -4.5
+    private static readonly Color BankAir = new Color(0.10f, 0.20f, 0.27f);     // slab bank tanah
+    private static readonly Color RampAir = new Color(0.11f, 0.23f, 0.32f);     // ramp bawah rel (dasar terang)
+    private static readonly Color LidAir = new Color(0.06f, 0.14f, 0.20f);      // lid pit + tiang penanda
+    private static readonly Color PintuAir = new Color(0.08f, 0.18f, 0.26f);    // panel PintuKereta_S4 (mulut gua)
+    private static readonly Color LantaiLaut = new Color(0.05f, 0.12f, 0.17f);  // Lantai_S4 (dulu abu 0.10,0.10,0.12)
     private static readonly Color LampuAirPermukaan = new Color(0.40f, 0.75f, 1.00f);
     private static readonly Color LampuAirDalam = new Color(0.15f, 0.40f, 0.85f);
-    private const float LampuAirIMax = 1.8f;  // intensitas dekat permukaan
-    private const float LampuAirIMin = 0.9f;  // intensitas terdalam
+    private const float LampuAirIMax = 1.8f;   // intensitas dekat permukaan
+    private const float LampuAirIMin = 1.15f;  // intensitas terdalam
 
     [MenuItem("Tools/Wahana/49c S4 Lorong Air (masuk+keluar)", false, 109)]
     public static void LorongAirS4()
@@ -1327,6 +1329,9 @@ public static class SihirS4
 
         // (d) retune lampu terowongan existing (gradient menyelam, 0 lampu baru)
         RetuneLampuAir(segMasuk, segKeluar, sb);
+
+        // (e3) fog dibirukan — fog nyaris-hitam = "kabut abu" (playtest-2)
+        UbahFogAir(sb);
 
         sb.AppendLine("  Film air total: " + nFilm + " panel.");
         sb.AppendLine("  INGAT: jalankan menu 49b SETELAH ini (rebake GEN_Tunnel menghapus carve).");
@@ -1440,68 +1445,148 @@ public static class SihirS4
         return m;
     }
 
-    /// <summary>Langkah (a2) "sapu abu" — playtest-1: dinding sudah biru tapi masih ada abu.
-    /// (1) SWAP MATERIAL PER-RENDERER by name: Ramp_* (13 box bawah rel — lempeng terang di
-    /// screenshot), LidPit_* (5, incl notch), TiangPenanda. Mereka share MatRumputMalam GLOBAL
-    /// (ground seluruh taman) → asset-nya JANGAN direcolor, renderer-nya yang dipindah ke
-    /// material air. Tidak dibake (GEN_GerbangGua_S4 bukan grup menu 14) → langsung kelihatan,
-    /// tanpa rebake. Bonus: NotchLid mewarisi sharedMaterial lid → slab notch berikutnya biru.
-    /// (2) SWEEP DIAGNOSTIK [ABU?]: log renderer lain sekitar koridor (AABB segmen ±10 lateral
-    /// ±8 vertikal) yang materialnya bukan keluarga air/glow/transparan — sisa abu ketahuan
-    /// BY NAME di console, bukan tebakan screenshot. Log-only, max 20 entri.</summary>
+    /// <summary>Langkah (a2) "sapu abu" v2 — playtest-1&2. (1) SWAP MATERIAL PER-RENDERER by
+    /// name: Ramp_* / LidPit_* / TiangPenanda (share MatRumputMalam GLOBAL — asset ground
+    /// JANGAN direcolor), Lantai_S4 (lantai gua ternyata abu 0.10,0.10,0.12 — tak pernah
+    /// direcolor menu 49), PanelPintu milik PintuKereta_S4 (MatPagar terang, kebuka menggantung
+    /// persis di mulut gua = lempeng putih playtest-2). Semua live renderer → langsung
+    /// kelihatan tanpa rebake; NotchLid mewarisi sharedMaterial lid.
+    /// (2) SWEEP v2 [ABU?]: jarak VERTEX (sampling) → titik WP segmen ≤7u (bukan AABB-intersect
+    /// yang false-positive di GABUNG raksasa), TANPA skip kereta (label [KERETA] info),
+    /// sort by jarak, max 60 — inventaris definitif sekitar jalur kamera. Log-only.</summary>
     private static void SapuAbuKoridor(List<Vector3> segMasuk, List<Vector3> segKeluar,
                                        System.Text.StringBuilder sb)
     {
         Material mRamp = MatBandAir("S4_RampAir", RampAir);
         Material mLid = MatBandAir("S4_LidAir", LidAir);
+        Material mLantai = MatBandAir("S4_LantaiLaut", LantaiLaut);
+        Material mPintu = MatBandAir("S4_PintuAir", PintuAir);
+        mPintu.EnableKeyword("_EMISSION");
+        mPintu.SetColor("_EmissionColor", new Color(0.1f, 0.3f, 0.5f) * 0.15f);
 
-        Bounds bMasuk = BoundsSegmen(segMasuk), bKeluar = BoundsSegmen(segKeluar);
-        bMasuk.Expand(new Vector3(14f, 8f, 14f));   // BoundsSegmen sudah ±3/±4 → total ±10/±8
-        bKeluar.Expand(new Vector3(14f, 8f, 14f));
+        var segs = new List<List<Vector3>> { segMasuk, segKeluar };
+        var aabb = new List<Bounds>();
+        foreach (var s in segs)
+        {
+            var b = new Bounds(s[0], Vector3.zero);
+            foreach (var p in s) b.Encapsulate(p);
+            b.Expand(new Vector3(16f, 14f, 16f)); // pre-filter kasar (murah) sebelum baca vertex
+            aabb.Add(b);
+        }
 
-        int nRamp = 0, nLid = 0;
-        var abu = new List<string>();
+        int nRamp = 0, nLid = 0, nLantai = 0, nPintu = 0;
+        var temuan = new List<KeyValuePair<float, string>>();
         foreach (var mr in Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
         {
             if (mr == null || !mr.enabled || !mr.gameObject.activeInHierarchy) continue;
             string nm = mr.name;
+            // ---- swap tertarget by name/path ----
             if (nm.StartsWith("Ramp_")) { mr.sharedMaterial = mRamp; nRamp++; continue; }
             if (nm.StartsWith("LidPit_") || nm == "TiangPenanda") { mr.sharedMaterial = mLid; nLid++; continue; }
+            if (nm == "Lantai_S4") { mr.sharedMaterial = mLantai; nLantai++; continue; }
+            if (nm == "PanelPintu" && PunyaAncestor(mr.transform, "PintuKereta_S4"))
+            { mr.sharedMaterial = mPintu; nPintu++; continue; }
 
-            // ---- sweep diagnostik sisa abu (log-only) ----
-            if (!mr.bounds.Intersects(bMasuk) && !mr.bounds.Intersects(bKeluar)) continue;
-            bool skip = false;
-            for (var a = mr.transform; a != null && !skip; a = a.parent)
-            {
-                string an = a.name;
-                if (an.StartsWith("Kereta") || an.StartsWith("Bak") || an == "SistemKereta"
-                    || an.StartsWith("Rel") || an.StartsWith("JalurUtama")
-                    || an.StartsWith("TiraiAir") || an.StartsWith("PlungeMasuk")
-                    || an.StartsWith("PlungeKeluar") || an.StartsWith("SplashKeluar")
-                    || an.StartsWith("LorongAir") || an.StartsWith("GelembungTunnel")
-                    || an.StartsWith("PintuGuaLaut") || an.StartsWith("TeksGuaLaut")
-                    || an.StartsWith("GEN_Sihir")) skip = true; // GEN_Sihir* = dekor S4 sudah biru
-            }
-            if (skip) continue;
+            // ---- sweep v2 (log-only) ----
+            bool dekat = false;
+            foreach (var b in aabb) if (mr.bounds.Intersects(b)) { dekat = true; break; }
+            if (!dekat) continue;
+
+            bool kereta = PunyaAncestor(mr.transform, "Kereta") && !PunyaAncestor(mr.transform, "PintuKereta");
             var mat = mr.sharedMaterial;
             if (mat == null) continue;
             string mn = mat.name;
-            if (mn.StartsWith("S4_") || mn.StartsWith("TUN_")) continue;           // keluarga air
-            if (mat.shader != null && mat.shader.name.Contains("Unlit")) continue; // glow/teks
-            if (mat.HasProperty("_Surface") && mat.GetFloat("_Surface") > 0.5f) continue; // transparan
+            if (!kereta)
+            {
+                if (mn.StartsWith("S4_") || mn.StartsWith("TUN_")) continue;           // keluarga air
+                if (mat.shader != null && mat.shader.name.Contains("Unlit")) continue; // glow/teks
+                if (mat.HasProperty("_Surface") && mat.GetFloat("_Surface") > 0.5f) continue; // transparan
+                bool skip = false;
+                for (var a = mr.transform; a != null && !skip; a = a.parent)
+                {
+                    string an = a.name;
+                    if (an.StartsWith("Rel") || an.StartsWith("JalurUtama")
+                        || an.StartsWith("TiraiAir") || an.StartsWith("PlungeMasuk")
+                        || an.StartsWith("PlungeKeluar") || an.StartsWith("SplashKeluar")
+                        || an.StartsWith("LorongAir") || an.StartsWith("GelembungTunnel")
+                        || an.StartsWith("PintuGuaLaut") || an.StartsWith("TeksGuaLaut")
+                        || an.StartsWith("GEN_Sihir")) skip = true; // dekor S4 sudah biru
+                }
+                if (skip) continue;
+            }
+            var mf = mr.GetComponent<MeshFilter>();
+            if (mf == null || mf.sharedMesh == null) continue;
+            float jarak = JarakMeshKeSegmen(mf, segs);
+            if (jarak > 7f) continue;
             Color c = mat.HasProperty("_BaseColor") ? mat.GetColor("_BaseColor")
                     : (mat.HasProperty("_Color") ? mat.color : Color.magenta);
-            if (abu.Count < 20)
-                abu.Add("    [ABU?] " + PathHirarki(mr.transform) + " (mat " + mn + ", "
-                        + c.r.ToString("0.00") + "," + c.g.ToString("0.00") + "," + c.b.ToString("0.00") + ")");
+            temuan.Add(new KeyValuePair<float, string>(jarak,
+                "    " + (kereta ? "[KERETA] " : "[ABU?]   ") + PathHirarki(mr.transform)
+                + " (mat " + mn + ", " + c.r.ToString("0.00") + "," + c.g.ToString("0.00") + ","
+                + c.b.ToString("0.00") + ", jarak " + jarak.ToString("0.0") + "u)"));
         }
-        sb.AppendLine("  Sapu abu: " + nRamp + " ramp -> S4_RampAir; " + nLid + " lid/tiang -> S4_LidAir.");
-        if (abu.Count == 0) sb.AppendLine("  Sweep [ABU?]: bersih — tak ada kandidat abu lain di koridor.");
+
+        sb.AppendLine("  Sapu abu: " + nRamp + " ramp; " + nLid + " lid/tiang; " + nLantai
+                      + " Lantai_S4 -> S4_LantaiLaut; " + nPintu + " PanelPintu S4 -> S4_PintuAir.");
+        temuan.Sort((x, y) => x.Key.CompareTo(y.Key));
+        if (temuan.Count == 0) sb.AppendLine("  Sweep v2: bersih (tak ada renderer non-air <=7u dari jalur).");
         else
         {
-            sb.AppendLine("  Sweep [ABU?] kandidat tersisa (log-only):");
-            foreach (var s in abu) sb.AppendLine(s);
+            sb.AppendLine("  Sweep v2 (vertex->rel <=7u, terdekat dulu, max 60):");
+            for (int i = 0; i < Mathf.Min(60, temuan.Count); i++) sb.AppendLine(temuan[i].Value);
         }
+    }
+
+    private static bool PunyaAncestor(Transform t, string prefix)
+    {
+        for (var a = t; a != null; a = a.parent) if (a.name.StartsWith(prefix)) return true;
+        return false;
+    }
+
+    /// <summary>Jarak minimum vertex mesh (sampling stride ≤400 titik) ke titik-titik WP segmen
+    /// (XZ; hanya vertex dengan |dy| ≤ 6 dari WP). WP spacing 0.5 → cukup tanpa proyeksi ruas.</summary>
+    private static float JarakMeshKeSegmen(MeshFilter mf, List<List<Vector3>> segs)
+    {
+        var verts = mf.sharedMesh.vertices;
+        var l2w = mf.transform.localToWorldMatrix;
+        int stride = Mathf.Max(1, verts.Length / 400);
+        float best = float.MaxValue;
+        for (int i = 0; i < verts.Length; i += stride)
+        {
+            Vector3 w = l2w.MultiplyPoint3x4(verts[i]);
+            foreach (var seg in segs)
+            {
+                foreach (var q in seg)
+                {
+                    if (Mathf.Abs(w.y - q.y) > 6f) continue;
+                    float dx = w.x - q.x, dz = w.z - q.z;
+                    float d = Mathf.Sqrt(dx * dx + dz * dz);
+                    if (d < best) best = d;
+                }
+            }
+        }
+        return best;
+    }
+
+    /// <summary>(e3) Fog portal & gua dibirukan lebih terang — fog nyaris-hitam bikin semua
+    /// benda jauh konvergen ke abu (temuan playtest-2). Edit in-place; menu 49 me-reset nilai
+    /// ini (e2/UbahZonaGua) => rantai 49 => 49c wajib (sudah SOP).</summary>
+    private static void UbahFogAir(System.Text.StringBuilder sb)
+    {
+        SetFogZona("GEN_Suasana_Portal", new Color(0.015f, 0.055f, 0.10f), sb);
+        SetFogZona("GEN_Suasana_Gua", new Color(0.02f, 0.10f, 0.18f), sb);
+    }
+
+    private static void SetFogZona(string nama, Color fog, System.Text.StringBuilder sb)
+    {
+        var go = CariGameObject(nama);
+        var sz = go != null ? go.GetComponent<SuasanaZona>() : null;
+        if (sz == null) { sb.AppendLine("  [WARN] " + nama + " tak ketemu — fog dilewati."); return; }
+        var so = new SerializedObject(sz);
+        so.FindProperty("_fogColor").colorValue = fog;
+        so.ApplyModifiedProperties();
+        sb.AppendLine("  Fog " + nama + " -> (" + fog.r.ToString("0.000") + "," + fog.g.ToString("0.000")
+                      + "," + fog.b.ToString("0.000") + ") lebih biru.");
     }
 
     /// <summary>Panel "air mengalir" (Quad primitif + ScrollUV) selang-seling dinding kiri/
@@ -1516,7 +1601,7 @@ public static class SihirS4
         akar.transform.position = Vector3.zero;
 
         Material mDangkal = MatFilmAir(tex, 0.30f);
-        Material mDalam = MatFilmAir(tex, 0.12f);
+        Material mDalam = MatFilmAir(tex, 0.18f);
 
         int n = 0;
         for (int k = 0; k < N_FILM_PER_SEG; k++)
