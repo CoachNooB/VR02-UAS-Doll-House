@@ -1199,13 +1199,43 @@ public static class OnboardingFinal
         WahanaRebuilder.BuatBox(grp, "SillJendela", new Vector3(2.5f, 1.03f, 20.19f), new Vector3(3.6f, 0.05f, 0.16f), kayu);
         sb.AppendLine("  Selatan: 6 segmen + jendela panorama 3.4x1.2 + slot pintu staff (PanelStaffSementara).");
 
-        // 5) bake statis KECUALI kaca (transparan) & panel sementara (dilepas menu 60)
+        // 5) DINDING TERAS -> KACA (feedback playtest: dinding samping koridor masuk
+        //    polos gelap; jadi kaca = taman malam kelihatan dari jalur spawn).
+        BangunKacaTeras(grp, emas, kayu, kaca, sb);
+
+        // 6) bake statis KECUALI kaca (transparan) & panel sementara (dilepas menu 60)
         int nBake = TemenDresser.GabungMeshStatis(grp, "ONBJdl_Bake",
-            new System.Collections.Generic.HashSet<string> { "KacaJendela", "PanelStaffSementara" });
+            new System.Collections.Generic.HashSet<string> { "KacaJendela", "KacaTeras", "PanelStaffSementara" });
         sb.AppendLine("  Bake GEN_JendelaLobby: " + nBake + " renderer digabung (kaca & panel staff tetap hidup).");
 
         SimpanScene(sb);
         Debug.Log(sb.ToString());
+    }
+
+    /// <summary>
+    /// Dinding samping teras (TerasDindingT/B, 0.3x3x5.4 di x = +-2.3, z 28..33.4)
+    /// diganti KACA berbingkai: rail bawah kayu 0.45 + kaca 2.4 + rail atas emas
+    /// + 3 tiang emas per sisi. Semua ber-collider (pengganti dinding).
+    /// </summary>
+    private static void BangunKacaTeras(Transform grp, Material emas, Material kayu, Material kaca, StringBuilder sb)
+    {
+        int nMati = 0;
+        foreach (string nama in new[] { "TerasDindingT", "TerasDindingB" })
+        {
+            GameObject d = WahanaFinalUtil.CariGameObject(nama);
+            if (d != null && d.activeSelf) { d.SetActive(false); nMati++; }
+        }
+
+        foreach (float x in new[] { 2.3f, -2.3f })
+        {
+            const float zTengah = 30.71f, panjang = 5.42f;
+            WahanaRebuilder.BuatBox(grp, "TerasRailBawah", new Vector3(x, 0.225f, zTengah), new Vector3(0.14f, 0.45f, panjang), kayu);
+            WahanaRebuilder.BuatBox(grp, "KacaTeras", new Vector3(x, 1.65f, zTengah), new Vector3(0.06f, 2.4f, panjang), kaca);
+            WahanaRebuilder.BuatBox(grp, "TerasRailAtas", new Vector3(x, 2.92f, zTengah), new Vector3(0.12f, 0.16f, panjang), emas);
+            foreach (float z in new[] { zTengah - panjang * 0.5f + 0.06f, zTengah, zTengah + panjang * 0.5f - 0.06f })
+                WahanaRebuilder.BuatBox(grp, "TerasTiangKaca", new Vector3(x, 1.5f, z), new Vector3(0.12f, 3.0f, 0.12f), emas);
+        }
+        sb.AppendLine("  Kaca teras: " + nMati + " dinding samping dimatikan -> panel kaca berbingkai emas (2 sisi).");
     }
 
     /// <summary>Dinding samping barat/timur (x = -5 / +5): segmen + jendela z[23.8,25.6] y[1.0,2.2].</summary>
