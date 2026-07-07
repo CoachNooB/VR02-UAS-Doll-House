@@ -1507,6 +1507,119 @@ public static class OnboardingFinal
     }
 
     // =====================================================================
+    //  MENU 60 — PINTU STAFF & MODE JALAN KAKI (Tahap 5)
+    //  Lepas PanelStaffSementara -> pasang PintuStaff (Instantiate PintuMasuk,
+    //  POLA TERBUKTI — Animator fresh tidak animasi) TANPA zona proximity:
+    //  buka/tutup HANYA lewat TuasStaff (ObjekInteraksi mode 10 -> AksiModeJalan
+    //  -> ModeJalanKaki). RANTAI: 57 di-re-run => re-run 60.
+    // =====================================================================
+    private static readonly Vector3 PosPintuStaff = new Vector3(-3.2f, 0f, 20f); // tepi barat slot
+    private const float LebarPanelStaff = 1.9f;
+
+    [MenuItem("Tools/Wahana/60 Onboarding - Pintu Staff", false, 124)]
+    public static void OnboardingPintuStaff()
+    {
+        if (GuardPlayMode()) return;
+        var sb = new StringBuilder("=== 60 ONBOARDING - PINTU STAFF ===\n");
+
+        // 0) idempotent teardown + lepas panel sementara dari menu 57
+        GameObject pintuLama = WahanaFinalUtil.CariGameObject("PintuStaff");
+        if (pintuLama != null) Object.DestroyImmediate(pintuLama);
+        HapusParent("GEN_PintuStaff");
+        GameObject panelTmp = WahanaFinalUtil.CariGameObject("PanelStaffSementara");
+        if (panelTmp != null)
+        {
+            Object.DestroyImmediate(panelTmp);
+            sb.AppendLine("  PanelStaffSementara dilepas (slot pintu terbuka).");
+        }
+
+        Transform grp = new GameObject("GEN_PintuStaff").transform;
+
+        // 1) PintuStaff dari PintuMasuk (Animator+controller+Door_Transform terjamin)
+        GameObject sumber = WahanaFinalUtil.CariGameObject("PintuMasuk");
+        if (sumber == null)
+        {
+            Debug.LogWarning("[OnboardingFinal] PintuMasuk tidak ketemu — menu 60 batal.");
+            return;
+        }
+        GameObject pintu = Object.Instantiate(sumber);
+        pintu.name = "PintuStaff";
+        pintu.transform.SetParent(grp, true);
+        pintu.transform.position = PosPintuStaff;
+        pintu.transform.rotation = Quaternion.identity; // klip geser +X lokal = timur, daun nyelip ke segmen dinding
+
+        // buang zona proximity & interaksi manual bawaan — pintu ini murni dikendalikan mode
+        var buang = new System.Collections.Generic.List<GameObject>();
+        foreach (Transform anak in pintu.transform)
+            if (anak.name.StartsWith("Z_")) buang.Add(anak.gameObject);
+        foreach (GameObject b in buang) Object.DestroyImmediate(b);
+        var oiBawaan = pintu.GetComponent<ObjekInteraksi>();
+        if (oiBawaan != null) Object.DestroyImmediate(oiBawaan);
+
+        // panel pas ukuran slot + reskin kayu staff + pastikan solid
+        Transform doorT = pintu.transform.Find("Door_Transform");
+        Transform panel = doorT != null ? doorT.Find("PanelPintu") : null;
+        if (panel != null)
+        {
+            panel.localScale = new Vector3(LebarPanelStaff, 2.9f, 0.12f);
+            panel.localPosition = new Vector3(LebarPanelStaff * 0.5f, 1.45f, 0f);
+            panel.GetComponent<MeshRenderer>().sharedMaterial =
+                WahanaFinalUtil.MatAsset("ONB_KayuLoket", WarnaKayuLoket, 0.2f, null, 1f);
+            var bc = panel.GetComponent<BoxCollider>();
+            if (bc == null) bc = panel.gameObject.AddComponent<BoxCollider>();
+            bc.enabled = true;
+            bc.isTrigger = false;
+        }
+        sb.AppendLine("  PintuStaff terpasang di " + PosPintuStaff + " (zona proximity dibuang, panel "
+            + LebarPanelStaff + "u kayu).");
+
+        // 2) TuasStaff (raycast E -> toggle mode) di dinding timur pintu, sisi dalam
+        Material matTuas = WahanaFinalUtil.MatAsset("ONB_TuasStaff", new Color(0.5f, 0.1f, 0.1f), 0.2f, null, 1f);
+        var tuas = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        tuas.name = "TuasStaff";
+        tuas.transform.SetParent(grp, false);
+        tuas.transform.position = new Vector3(-1.15f, 1.25f, 20.22f);
+        tuas.transform.localScale = new Vector3(0.14f, 0.34f, 0.1f);
+        tuas.layer = LayerMask.NameToLayer("Interactable");
+        tuas.GetComponent<MeshRenderer>().sharedMaterial = matTuas;
+        var oiTuas = tuas.AddComponent<ObjekInteraksi>();
+        var soTuas = new SerializedObject(oiTuas);
+        soTuas.FindProperty("_mode").intValue = 10;
+        soTuas.FindProperty("_labelInteraksi").stringValue = "Mode Jalan (Backstage Tour)";
+        soTuas.ApplyModifiedPropertiesWithoutUndo();
+        tuas.AddComponent<AksiModeJalan>();
+
+        // 3) label status + lampu indikator (auto-find ModeJalanKaki by name)
+        BuatTeks(grp, "TeksModeJalan", new Vector3(-1.15f, 1.75f, 20.22f), new Vector3(0f, 0f, -1f),
+            "MODE JALAN: OFF", Color.white, 0.018f, 44);
+        var lampuInd = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        lampuInd.name = "LampuModeJalan";
+        lampuInd.transform.SetParent(grp, false);
+        lampuInd.transform.position = new Vector3(-1.15f, 1.55f, 20.24f);
+        lampuInd.transform.localScale = Vector3.one * 0.09f;
+        lampuInd.GetComponent<MeshRenderer>().sharedMaterial = WahanaRebuilder.MatUnlit(new Color(0.55f, 0.08f, 0.08f));
+        Object.DestroyImmediate(lampuInd.GetComponent<Collider>());
+
+        // 4) papan STAFF di atas pintu + strip glow
+        BuatTeks(grp, "TeksStaf", new Vector3(-2.3f, 3.15f, 20.22f), new Vector3(0f, 0f, -1f),
+            "STAFF - BACKSTAGE TOUR", WarnaTeksEmas, 0.022f, 44);
+        WahanaRebuilder.BuatBox(grp, "GlowStaf", new Vector3(-2.3f, 2.95f, 20.2f), new Vector3(1.7f, 0.03f, 0.03f),
+            WahanaFinalUtil.MatAssetUnlitHDR("ONB_GlowEmas", new Color(1f, 0.8f, 0.45f), 1.6f, null, 1f));
+
+        // 5) SistemModeJalan (komponen pengendali — auto-find pintu/teks/lampu di Awake)
+        var sistem = new GameObject("SistemModeJalan");
+        sistem.transform.SetParent(grp, false);
+        sistem.AddComponent<ModeJalanKaki>();
+
+        sb.AppendLine("  TuasStaff (mode 10 + AksiModeJalan) + label status + lampu indikator + papan STAFF.");
+        sb.AppendLine("  SistemModeJalan (ModeJalanKaki) terpasang.");
+
+        SihirMalam.MalamPerbaikiTeks(); // TextMesh baru -> shader TeksDunia (chain SOP 54)
+        SimpanScene(sb);
+        Debug.Log(sb.ToString());
+    }
+
+    // =====================================================================
     //  HELPER BERSAMA (pola SihirMalam)
     // =====================================================================
     private static Transform CariDescendant(Transform akar, string nama)
