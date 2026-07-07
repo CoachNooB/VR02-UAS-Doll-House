@@ -575,10 +575,13 @@ public static class SihirS2
         return m;
     }
 
-    /// <summary>Cari tekstur salju dari pack impor (mis. "4 Snow Materials"). Null kalau belum diimpor.</summary>
+    /// <summary>Cari tekstur ALBEDO salju dari pack impor ("4 Snow Materials"): prioritas PNG 1024
+    /// teroptimasi bawaan pack (ringan WebGL), lalu TGA Textures/. Map _nmp/_ao/_he DIKECUALIKAN
+    /// (normal map sebagai albedo = lantai ungu). Tie-break alfabetis supaya deterministik.</summary>
     private static Texture2D CariTeksturSalju(System.Text.StringBuilder sb)
     {
         string pilihan = null;
+        int skorTerbaik = -1;
         foreach (var guid in AssetDatabase.FindAssets("t:Texture2D"))
         {
             string p = AssetDatabase.GUIDToAssetPath(guid);
@@ -586,9 +589,16 @@ public static class SihirS2
             string pl = p.ToLowerInvariant();
             if (!pl.Contains("snow")) continue;
             if (pl.Contains("/generated/") || pl.Contains("/temen/") || pl.Contains("/scenes/")) continue;
-            bool albedo = pl.Contains("albedo") || pl.Contains("diff") || pl.Contains("base") || pl.Contains("color") || pl.Contains("_d.");
-            if (pilihan == null || albedo) pilihan = p;
-            if (albedo) break;
+            if (pl.Contains("_nmp") || pl.Contains("_ao") || pl.Contains("_he") || pl.Contains("normal") || pl.Contains("height") || pl.Contains(".exr")) continue;
+            int skor = 0;
+            if (pl.Contains("optimized") || pl.Contains("png_min")) skor += 3;      // PNG 1024 bawaan pack
+            if (pl.Contains("/textures/")) skor += 2;                                // folder albedo pack
+            if (pl.Contains("albedo") || pl.Contains("diff") || pl.Contains("base") || pl.Contains("color") || pl.Contains("_d.")) skor += 2;
+            if (skor > skorTerbaik || (skor == skorTerbaik && pilihan != null && string.CompareOrdinal(p, pilihan) < 0))
+            {
+                skorTerbaik = skor;
+                pilihan = p;
+            }
         }
         if (pilihan == null)
         {
