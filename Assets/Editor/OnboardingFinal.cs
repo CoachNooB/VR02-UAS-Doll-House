@@ -1257,6 +1257,256 @@ public static class OnboardingFinal
     }
 
     // =====================================================================
+    //  MENU 58 — KERETA KENCANA (Tahap 4)
+    //  Kereta kerajaan TERBUKA (clearance terukur: mata duduk abs 2.72 vs
+    //  lintel bukaan rel lobby abs 3.0 -> atap solid mustahil; semua struktur
+    //  dijaga <= abs 2.85 = lokal 2.35). Murni visual: collider Bak*, RB, tag,
+    //  Kursi, TitikNaik, tuas, UI_PanelKereta, TeksTolakKereta TIDAK disentuh.
+    //  Dekor digabung CombineMeshes lokal (bergerak ikut kereta, TANPA static).
+    // =====================================================================
+    private static readonly Color WarnaKencanaBodi = new Color(0.38f, 0.05f, 0.08f);
+    private static readonly Color WarnaJok = new Color(0.30f, 0.04f, 0.06f);
+    private const float RadiusRoda = 0.28f;
+
+    [MenuItem("Tools/Wahana/58 Onboarding - Kereta Kencana", false, 122)]
+    public static void OnboardingKeretaKencana()
+    {
+        if (GuardPlayMode()) return;
+        var sb = new StringBuilder("=== 58 ONBOARDING - KERETA KENCANA ===\n");
+
+        GameObject kereta = GameObject.Find("Kereta");
+        if (kereta == null)
+        {
+            Debug.LogWarning("[OnboardingFinal] Kereta tidak ketemu — menu 58 batal.");
+            return;
+        }
+        Transform akar = kereta.transform;
+
+        HapusParent("KencanaDekor");
+        HapusAssetPrefix("ONB_KencanaGab");
+        Transform dekor = new GameObject("KencanaDekor").transform;
+        dekor.SetParent(akar, false);
+
+        // 1) reskin bodi & jok (asset ONB_* — nilai di-update tiap run)
+        Material bodi = WahanaFinalUtil.MatAsset("ONB_KencanaBodi", WarnaKencanaBodi, 0.25f, null, 1f);
+        Material jok = WahanaFinalUtil.MatAsset("ONB_JokBeludru", WarnaJok, 0.03f, null, 1f);
+        Material emas = WahanaFinalUtil.MatAsset("ONB_Emas", WarnaEmas, 0.5f, null, 1f);
+        Material glowLentera = WahanaFinalUtil.MatAssetUnlitHDR("ONB_LenteraGlow", new Color(1f, 0.75f, 0.4f), 2.0f, null, 1f);
+        Material glowUnder = WahanaFinalUtil.MatAssetUnlitHDR("ONB_UnderglowEmas", new Color(1f, 0.7f, 0.35f), 1.2f, null, 1f);
+        Material glowEmas = WahanaFinalUtil.MatAssetUnlitHDR("ONB_GlowEmas", new Color(1f, 0.8f, 0.45f), 1.6f, null, 1f);
+
+        int nReskin = 0;
+        foreach (Transform anak in akar)
+        {
+            var mr = anak.GetComponent<MeshRenderer>();
+            if (mr == null) continue;
+            if (anak.name.StartsWith("Bak")) { mr.sharedMaterial = bodi; nReskin++; }
+            else if (anak.name == "Bangku") { mr.sharedMaterial = jok; nReskin++; }
+            else if (anak.name == "TitikNaik") { mr.sharedMaterial = glowEmas; nReskin++; }
+        }
+        sb.AppendLine("  Reskin: " + nReskin + " bagian (bodi merah tua, jok beludru, marker naik emas glow).");
+
+        // 2) dekor statis-lokal (digabung 1 mesh emas di akhir) — SEMUA TANPA collider
+        var emasList = new System.Collections.Generic.List<GameObject>();
+        void Emas(string nama, Vector3 lpos, Vector3 skala, Vector3 euler)
+        {
+            var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            g.name = nama;
+            g.transform.SetParent(dekor, false);
+            g.transform.localPosition = lpos;
+            g.transform.localRotation = Quaternion.Euler(euler);
+            g.transform.localScale = skala;
+            Object.DestroyImmediate(g.GetComponent<Collider>());
+            emasList.Add(g);
+        }
+        void EmasBola(string nama, Vector3 lpos, float d)
+        {
+            var g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            g.name = nama;
+            g.transform.SetParent(dekor, false);
+            g.transform.localPosition = lpos;
+            g.transform.localScale = Vector3.one * d;
+            Object.DestroyImmediate(g.GetComponent<Collider>());
+            emasList.Add(g);
+        }
+
+        // rim atas bak
+        Emas("Rim", new Vector3(0f, 0.93f, 1.25f), new Vector3(1.68f, 0.06f, 0.06f), Vector3.zero);
+        Emas("Rim", new Vector3(0f, 1.33f, -1.25f), new Vector3(1.68f, 0.06f, 0.06f), Vector3.zero);
+        Emas("Rim", new Vector3(0.78f, 0.93f, 0f), new Vector3(0.06f, 0.06f, 2.66f), Vector3.zero);
+        Emas("Rim", new Vector3(-0.78f, 0.93f, 0f), new Vector3(0.06f, 0.06f, 2.66f), Vector3.zero);
+        // skirt bawah
+        Emas("Skirt", new Vector3(0.81f, 0.13f, 0f), new Vector3(0.05f, 0.1f, 2.64f), Vector3.zero);
+        Emas("Skirt", new Vector3(-0.81f, 0.13f, 0f), new Vector3(0.05f, 0.1f, 2.64f), Vector3.zero);
+        Emas("Skirt", new Vector3(0f, 0.13f, 1.29f), new Vector3(1.66f, 0.1f, 0.05f), Vector3.zero);
+        Emas("Skirt", new Vector3(0f, 0.13f, -1.29f), new Vector3(1.66f, 0.1f, 0.05f), Vector3.zero);
+        // ornamen wajik samping
+        Emas("Wajik", new Vector3(0.84f, 0.55f, 0.5f), new Vector3(0.02f, 0.16f, 0.16f), new Vector3(45f, 0f, 0f));
+        Emas("Wajik", new Vector3(0.84f, 0.55f, -0.5f), new Vector3(0.02f, 0.16f, 0.16f), new Vector3(45f, 0f, 0f));
+        Emas("Wajik", new Vector3(-0.84f, 0.55f, 0.5f), new Vector3(0.02f, 0.16f, 0.16f), new Vector3(45f, 0f, 0f));
+        Emas("Wajik", new Vector3(-0.84f, 0.55f, -0.5f), new Vector3(0.02f, 0.16f, 0.16f), new Vector3(45f, 0f, 0f));
+        // rangka terbuka: tiang depan (topang lentera) + tiang & crossbar belakang + mahkota
+        Emas("TiangDepan", new Vector3(0.66f, 1.39f, 1.19f), new Vector3(0.055f, 0.92f, 0.055f), Vector3.zero);
+        Emas("TiangDepan", new Vector3(-0.66f, 1.39f, 1.19f), new Vector3(0.055f, 0.92f, 0.055f), Vector3.zero);
+        Emas("TiangBelakang", new Vector3(0.66f, 1.69f, -1.19f), new Vector3(0.055f, 0.72f, 0.055f), Vector3.zero);
+        Emas("TiangBelakang", new Vector3(-0.66f, 1.69f, -1.19f), new Vector3(0.055f, 0.72f, 0.055f), Vector3.zero);
+        Emas("Crossbar", new Vector3(0f, 2.05f, -1.19f), new Vector3(1.38f, 0.05f, 0.05f), Vector3.zero);
+        EmasBola("Finial", new Vector3(0.66f, 2.08f, -1.19f), 0.14f);
+        EmasBola("Finial", new Vector3(-0.66f, 2.08f, -1.19f), 0.14f);
+        EmasBola("Mahkota", new Vector3(0f, 2.2f, -1.19f), 0.24f);
+        // lentera depan: frame emas (inti glow terpisah, tidak ikut gabung)
+        Emas("LenteraFrame", new Vector3(0.66f, 1.95f, 1.22f), new Vector3(0.13f, 0.17f, 0.13f), Vector3.zero);
+        Emas("LenteraFrame", new Vector3(-0.66f, 1.95f, 1.22f), new Vector3(0.13f, 0.17f, 0.13f), Vector3.zero);
+        // sandaran jok empuk (material beda — tidak ikut gabung emas)
+        var pad = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        pad.name = "JokSandaran";
+        pad.transform.SetParent(dekor, false);
+        pad.transform.localPosition = new Vector3(0f, 0.72f, -1.16f);
+        pad.transform.localScale = new Vector3(1.34f, 0.5f, 0.06f);
+        pad.GetComponent<MeshRenderer>().sharedMaterial = jok;
+        Object.DestroyImmediate(pad.GetComponent<Collider>());
+
+        // 3) roda dekoratif x4 (grup ber-RodaKencana; velg+jari digabung per roda)
+        int nRoda = 0;
+        foreach (float sx in new[] { 0.88f, -0.88f })
+        {
+            foreach (float sz in new[] { 0.75f, -0.75f })
+            {
+                var grpRoda = new GameObject("RodaKencana_" + nRoda);
+                grpRoda.transform.SetParent(dekor, false);
+                grpRoda.transform.localPosition = new Vector3(sx, -0.22f, sz);
+                var bagian = new System.Collections.Generic.List<GameObject>();
+
+                var velg = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                velg.name = "Velg";
+                velg.transform.SetParent(grpRoda.transform, false);
+                velg.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+                velg.transform.localScale = new Vector3(RadiusRoda * 2f, 0.03f, RadiusRoda * 2f);
+                Object.DestroyImmediate(velg.GetComponent<Collider>());
+                bagian.Add(velg);
+
+                for (int j = 0; j < 4; j++)
+                {
+                    var jari = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    jari.name = "Jari";
+                    jari.transform.SetParent(grpRoda.transform, false);
+                    jari.transform.localRotation = Quaternion.Euler(j * 45f, 0f, 0f);
+                    jari.transform.localScale = new Vector3(0.035f, 0.035f, RadiusRoda * 1.85f);
+                    Object.DestroyImmediate(jari.GetComponent<Collider>());
+                    bagian.Add(jari);
+                }
+
+                var hub = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                hub.name = "Hub";
+                hub.transform.SetParent(grpRoda.transform, false);
+                hub.transform.localScale = Vector3.one * 0.11f;
+                Object.DestroyImmediate(hub.GetComponent<Collider>());
+                bagian.Add(hub);
+
+                GabungKeLokal(grpRoda.transform, "ONB_KencanaGab_Roda" + nRoda, bagian, emas);
+                var rk = grpRoda.AddComponent<RodaKencana>();
+                var soRoda = new SerializedObject(rk);
+                soRoda.FindProperty("_radius").floatValue = RadiusRoda;
+                soRoda.ApplyModifiedPropertiesWithoutUndo();
+                nRoda++;
+            }
+        }
+        sb.AppendLine("  Roda dekoratif: " + nRoda + " (putar ~ KecepatanSaat, diam saat parkir).");
+
+        // 4) glow: inti lentera + underglow (HDR -> mekar di Bloom, TANPA Light baru)
+        foreach (float sx in new[] { 0.66f, -0.66f })
+        {
+            var inti = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            inti.name = "LenteraInti";
+            inti.transform.SetParent(dekor, false);
+            inti.transform.localPosition = new Vector3(sx, 1.95f, 1.22f);
+            inti.transform.localScale = Vector3.one * 0.085f;
+            inti.GetComponent<MeshRenderer>().sharedMaterial = glowLentera;
+            Object.DestroyImmediate(inti.GetComponent<Collider>());
+        }
+        var under = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        under.name = "Underglow";
+        under.transform.SetParent(dekor, false);
+        under.transform.localPosition = new Vector3(0f, 0.03f, 0f);
+        under.transform.localScale = new Vector3(1.4f, 0.04f, 2.4f);
+        under.GetComponent<MeshRenderer>().sharedMaterial = glowUnder;
+        Object.DestroyImmediate(under.GetComponent<Collider>());
+
+        // 5) nameplate KERETA KENCANA depan & belakang (lokal, anti-mirror)
+        BuatTeksLokal(dekor, "NamaKencanaDepan", new Vector3(0f, 0.62f, 1.33f), Vector3.back);
+        BuatTeksLokal(dekor, "NamaKencanaBelakang", new Vector3(0f, 1.12f, -1.33f), Vector3.forward);
+
+        // 6) gabung semua dekor emas statis-lokal jadi 1 mesh (hemat draw call)
+        int nGabung = GabungKeLokal(dekor, "ONB_KencanaGab_Emas", emasList, emas);
+        sb.AppendLine("  Dekor emas digabung: " + nGabung + " piece -> 1 mesh (+4 roda, +2 lentera, underglow, 2 nameplate).");
+        sb.AppendLine("  Clearance: struktur tertinggi lokal 2.32 (mahkota) = abs 2.82 < lintel 3.0 OK; mata duduk 2.72.");
+
+        SimpanScene(sb);
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>TextMesh kecil emas yang menempel LOKAL di kereta (ikut bergerak).</summary>
+    private static void BuatTeksLokal(Transform parent, string nama, Vector3 lpos, Vector3 arahLajuLokal)
+    {
+        var go = new GameObject(nama);
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = lpos;
+        go.transform.localRotation = Quaternion.LookRotation(arahLajuLokal);
+        var tm = go.AddComponent<TextMesh>();
+        tm.text = "KERETA KENCANA";
+        tm.anchor = TextAnchor.MiddleCenter;
+        tm.alignment = TextAlignment.Center;
+        tm.fontSize = 44;
+        tm.characterSize = 0.02f;
+        tm.color = WarnaTeksEmas;
+        tm.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        Material matTeks = AssetDatabase.LoadAssetAtPath<Material>(PathMatTeksDunia);
+        var mr = go.GetComponent<MeshRenderer>();
+        if (matTeks != null) mr.sharedMaterial = matTeks;
+        else if (tm.font != null) mr.sharedMaterial = tm.font.material;
+    }
+
+    /// <summary>
+    /// Gabungkan mesh sumber jadi SATU mesh di ruang lokal `akar` (asset GUID-stabil
+    /// via overwrite path), lalu hapus sumbernya. Untuk dekor yang BERGERAK ikut
+    /// parent (kereta) — beda dari GabungMeshStatis yang untuk objek statis dunia.
+    /// </summary>
+    private static int GabungKeLokal(Transform akar, string namaAset,
+        System.Collections.Generic.List<GameObject> sumber, Material mat)
+    {
+        var cis = new System.Collections.Generic.List<CombineInstance>();
+        foreach (var go in sumber)
+        {
+            foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null) continue;
+                cis.Add(new CombineInstance
+                {
+                    mesh = mf.sharedMesh,
+                    transform = akar.worldToLocalMatrix * mf.transform.localToWorldMatrix,
+                });
+            }
+        }
+        if (cis.Count == 0) return 0;
+
+        PastikanDirOnboarding();
+        var mesh = new Mesh();
+        mesh.CombineMeshes(cis.ToArray(), true, true);
+        mesh.name = namaAset;
+        string path = DirOnboarding + "/" + namaAset + ".asset";
+        AssetDatabase.DeleteAsset(path);
+        AssetDatabase.CreateAsset(mesh, path);
+
+        var g = new GameObject(namaAset);
+        g.transform.SetParent(akar, false);
+        g.AddComponent<MeshFilter>().sharedMesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        g.AddComponent<MeshRenderer>().sharedMaterial = mat;
+
+        foreach (var go in sumber) Object.DestroyImmediate(go);
+        return cis.Count;
+    }
+
+    // =====================================================================
     //  HELPER BERSAMA (pola SihirMalam)
     // =====================================================================
     private static Transform CariDescendant(Transform akar, string nama)
