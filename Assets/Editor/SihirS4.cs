@@ -541,17 +541,21 @@ public static class SihirS4
         akar.transform.SetParent(parent, true);
         akar.transform.position = titik;
 
-        Material matFilm = WahanaRebuilder.MatLitTransparan(BiruAir, 0.30f);
+        // Smoothness WAJIB rendah: quad transparan besar + lampu cyan 1.8 = sheen spekular
+        // PUTIH (temuan sensus 49d playtest-3 — tirai kebaca "lembaran abu pucat").
+        Material matFilm = WahanaRebuilder.MatLitTransparan(BiruAir, 0.22f);
         matFilm.EnableKeyword("_EMISSION");
         matFilm.SetColor("_EmissionColor", new Color(0.1f, 0.3f, 0.5f) * 0.2f);
         matFilm.SetTexture("_BaseMap", tex);
         matFilm.SetTextureScale("_BaseMap", new Vector2(2f, 1.5f));
+        matFilm.SetFloat("_Smoothness", 0.05f);
 
-        Material matShimmer = WahanaRebuilder.MatLitTransparan(new Color(0.35f, 0.7f, 0.95f), 0.22f);
+        Material matShimmer = WahanaRebuilder.MatLitTransparan(new Color(0.35f, 0.7f, 0.95f), 0.16f);
         matShimmer.EnableKeyword("_EMISSION");
         matShimmer.SetColor("_EmissionColor", new Color(0.12f, 0.32f, 0.5f) * 0.15f);
         matShimmer.SetTexture("_BaseMap", tex);
         matShimmer.SetTextureScale("_BaseMap", new Vector2(1.5f, 1.2f));
+        matShimmer.SetFloat("_Smoothness", 0.05f);
 
         // 2 quad saling membelakangi: kelihatan dari dua arah + paralaks shimmer
         BuatQuadTirai(akar.transform, "FilmAir", titik - arah * 0.15f + Vector3.up * 1.2f,
@@ -1589,6 +1593,147 @@ public static class SihirS4
                       + "," + fog.b.ToString("0.000") + ") lebih biru.");
     }
 
+    // =====================================================================
+    //  MENU 49d — SENSUS PANDANGAN KORIDOR (diagnostik murni, log-only)
+    //  "Apa yang SEBENARNYA mengisi layar penumpang?" — dari mata di sepanjang
+    //  kedua segmen (eye = WP+1.5, tiap 5 WP), tembak kipas ray (yaw ±22°,
+    //  pitch 0/−8/−20) dan cari TRIANGLE terdekat semua MeshRenderer aktif
+    //  (Möller–Trumbore; renderer tanpa collider tetap kena). Material
+    //  transparan dicatat lalu ray DITERUSKAN. Hit muka-BELAKANG (normal
+    //  searah ray) dilabel [BLK] — indikasi backface double-sided yang
+    //  pencahayaannya salah (kelihatan putih pudar). Scene TIDAK diubah.
+    // =====================================================================
+    [MenuItem("Tools/Wahana/49d S4 Sensus Pandangan Koridor", false, 110)]
+    public static void SensusPandanganS4()
+    {
+        var sb = new System.Text.StringBuilder("=== S4 SENSUS PANDANGAN KORIDOR ===\n");
+        var pts = PolylineUtama();
+        if (pts.Count == 0) { Debug.LogError("[S4 Sensus] JalurUtama kosong."); return; }
+        if (!SegmenKoridor(pts, false, out int a0, out int a1) || !SegmenKoridor(pts, true, out int b0, out int b1))
+        { Debug.LogError("[S4 Sensus] Segmen tak ketemu."); return; }
+        var segs = new List<List<Vector3>> { pts.GetRange(a0, a1 - a0 + 1), pts.GetRange(b0, b1 - b0 + 1) };
+
+        // kandidat renderer: bounds dekat segmen (pre-filter kasar)
+        var aabb = new List<Bounds>();
+        foreach (var s in segs)
+        {
+            var b = new Bounds(s[0], Vector3.zero);
+            foreach (var p in s) b.Encapsulate(p);
+            b.Expand(new Vector3(30f, 24f, 30f));
+            aabb.Add(b);
+        }
+        var kandidat = new List<MeshRenderer>();
+        foreach (var mr in Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+        {
+            if (mr == null || !mr.enabled || !mr.gameObject.activeInHierarchy) continue;
+            var mf0 = mr.GetComponent<MeshFilter>();
+            if (mf0 == null || mf0.sharedMesh == null) continue;
+            foreach (var b in aabb) if (mr.bounds.Intersects(b)) { kandidat.Add(mr); break; }
+        }
+        sb.AppendLine("  Kandidat renderer: " + kandidat.Count + ".");
+
+        const float MAX_DIST = 22f;
+        float[] yaws = { -22f, 0f, 22f };
+        float[] pitches = { 0f, -8f, -20f };
+        // agregasi: kunci = path|mat|face -> (hitung, jarak-min)
+        var agg = new Dictionary<string, KeyValuePair<int, float>>();
+        int nRay = 0;
+
+        foreach (var seg in segs)
+        {
+            for (int i = 0; i < seg.Count; i += 5)
+            {
+                Vector3 eye = seg[i] + Vector3.up * 1.5f;
+                Vector3 f = WahanaRebuilder.RailDirDi(seg, seg[i]);
+                Vector3 r = Vector3.Cross(Vector3.up, f).normalized;
+                foreach (float yaw in yaws)
+                {
+                    Vector3 dYaw = Quaternion.AngleAxis(yaw, Vector3.up) * f;
+                    foreach (float pitch in pitches)
+                    {
+                        Vector3 dir = (Quaternion.AngleAxis(pitch, r) * dYaw).normalized;
+                        nRay++;
+                        TembakRay(eye, dir, MAX_DIST, kandidat, agg);
+                    }
+                }
+            }
+        }
+
+        var urut = new List<KeyValuePair<string, KeyValuePair<int, float>>>(agg);
+        urut.Sort((x, y) => y.Value.Key.CompareTo(x.Value.Key));
+        sb.AppendLine("  Ray: " + nRay + ". Permukaan terlihat (hit-count desc, top 30; [BLK]=muka belakang, [TRN]=transparan dilewati):");
+        for (int i = 0; i < Mathf.Min(30, urut.Count); i++)
+            sb.AppendLine("    " + urut[i].Value.Key.ToString().PadLeft(4) + "x  " + urut[i].Key
+                          + "  (terdekat " + urut[i].Value.Value.ToString("0.0") + "u)");
+        sb.AppendLine("=== SELESAI SENSUS (scene tidak diubah) ===");
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>Cari hit triangle terdekat; material transparan dicatat lalu ray lanjut.</summary>
+    private static void TembakRay(Vector3 eye, Vector3 dir, float maxDist,
+                                  List<MeshRenderer> kandidat, Dictionary<string, KeyValuePair<int, float>> agg)
+    {
+        float sisaAwal = 0f;
+        for (int langkah = 0; langkah < 4; langkah++) // maks 4 lapis transparan
+        {
+            Vector3 asal = eye + dir * sisaAwal;
+            float bestT = maxDist - sisaAwal;
+            MeshRenderer bestMr = null; bool bestBack = false;
+            if (bestT <= 0.05f) return;
+            var ray = new Ray(asal, dir);
+            foreach (var mr in kandidat)
+            {
+                if (!mr.bounds.IntersectRay(ray, out float tB) || tB > bestT) continue;
+                var mf = mr.GetComponent<MeshFilter>();
+                var mesh = mf.sharedMesh;
+                var w2l = mf.transform.worldToLocalMatrix;
+                Vector3 lo = w2l.MultiplyPoint3x4(asal);
+                Vector3 ld = w2l.MultiplyVector(dir); // tak dinormalisasi — t lokal ≠ world, hitung ulang world
+                var verts = mesh.vertices;
+                var tris = mesh.triangles;
+                for (int t = 0; t < tris.Length; t += 3)
+                {
+                    Vector3 v0 = verts[tris[t]], v1 = verts[tris[t + 1]], v2 = verts[tris[t + 2]];
+                    // Möller–Trumbore (lokal)
+                    Vector3 e1 = v1 - v0, e2 = v2 - v0;
+                    Vector3 p = Vector3.Cross(ld, e2);
+                    float det = Vector3.Dot(e1, p);
+                    if (det > -1e-7f && det < 1e-7f) continue;
+                    float inv = 1f / det;
+                    Vector3 s = lo - v0;
+                    float u = Vector3.Dot(s, p) * inv;
+                    if (u < 0f || u > 1f) continue;
+                    Vector3 q = Vector3.Cross(s, e1);
+                    float v = Vector3.Dot(ld, q) * inv;
+                    if (v < 0f || u + v > 1f) continue;
+                    float tl = Vector3.Dot(e2, q) * inv;
+                    if (tl <= 1e-4f) continue;
+                    Vector3 hitW = mf.transform.localToWorldMatrix.MultiplyPoint3x4(lo + ld * tl);
+                    float tw = Vector3.Distance(asal, hitW);
+                    if (tw < 0.05f || tw >= bestT) continue;
+                    bestT = tw;
+                    bestMr = mr;
+                    // muka belakang = normal triangle (world) searah ray
+                    Vector3 nW = Vector3.Cross(
+                        mf.transform.TransformPoint(v1) - mf.transform.TransformPoint(v0),
+                        mf.transform.TransformPoint(v2) - mf.transform.TransformPoint(v0));
+                    bestBack = Vector3.Dot(nW, dir) > 0f;
+                }
+            }
+            if (bestMr == null) return;
+            var mat = bestMr.sharedMaterial;
+            bool transparan = mat != null && mat.HasProperty("_Surface") && mat.GetFloat("_Surface") > 0.5f;
+            string kunci = PathHirarki(bestMr.transform) + " | " + (mat != null ? mat.name : "null")
+                           + (bestBack ? " [BLK]" : "") + (transparan ? " [TRN]" : "");
+            float jarakTotal = sisaAwal + bestT;
+            agg[kunci] = agg.TryGetValue(kunci, out var lama)
+                ? new KeyValuePair<int, float>(lama.Key + 1, Mathf.Min(lama.Value, jarakTotal))
+                : new KeyValuePair<int, float>(1, jarakTotal);
+            if (!transparan) return;        // opaque = layar terisi, selesai
+            sisaAwal = jarakTotal + 0.05f;  // transparan: lanjut ray di baliknya
+        }
+    }
+
     /// <summary>Panel "air mengalir" (Quad primitif + ScrollUV) selang-seling dinding kiri/
     /// kanan (lateral 1.7, DI LUAR tabung deteksi 49b R 1.1) dan plafon (dy 2.7 &gt; DY_MAX 2.2).
     /// WAJIB Quad primitif — MeshPita TIDAK punya UV, tekstur scroll tak jalan di situ.
@@ -1636,11 +1781,14 @@ public static class SihirS4
 
     private static Material MatFilmAir(Texture2D tex, float emis)
     {
-        Material m = WahanaRebuilder.MatLitTransparan(new Color(0.25f, 0.60f, 0.90f), 0.20f);
+        // alpha tipis + smoothness ~0 — film besar kena lampu terang jangan jadi sheen putih
+        // (temuan sensus 49d: quad transparan glossy = "lembaran abu pucat")
+        Material m = WahanaRebuilder.MatLitTransparan(new Color(0.15f, 0.45f, 0.85f), 0.14f);
         m.EnableKeyword("_EMISSION");
         m.SetColor("_EmissionColor", new Color(0.20f, 0.55f, 0.85f) * emis);
         m.SetTexture("_BaseMap", tex);
         m.SetTextureScale("_BaseMap", new Vector2(2.5f, 1.8f));
+        m.SetFloat("_Smoothness", 0.05f);
         return m;
     }
 
