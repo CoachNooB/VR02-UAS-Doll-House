@@ -1449,6 +1449,8 @@ public static class WahanaRebuilder
         bloom.intensity.overrideState = true; bloom.intensity.value = 1.4f;
         bloom.scatter.overrideState = true; bloom.scatter.value = 0.72f;
         bloom.tint.overrideState = true; bloom.tint.value = new Color(0.82f, 0.9f, 1f);
+        // Tanpa ini Bloom cuma hidup di memori — profil tersimpan sebagai components:[null]
+        AssetDatabase.AddObjectToAsset(bloom, profile);
 
         vol.sharedProfile = profile;
         EditorUtility.SetDirty(profile);
