@@ -377,6 +377,9 @@ public static class SihirS4
     //  (recolor/zona/audio di sini meng-edit in-place hasil menu 38-40).
     //  Idempoten: grup output sendiri (LautStatis/LautHidup/LampuLaut_S4)
     //  dihapus-dibangun ulang tiap run; rebake otomatis di akhir.
+    //  RANTAI FINAL S4: 39 => 49 => 49c (Lorong Air) => 49b (carve TERAKHIR).
+    //  (49 me-reset lampu turunan yang diretune 49c; rebake GEN_Tunnel di 49c
+    //  menghapus carve 49b — makanya carve selalu paling akhir.)
     // =====================================================================
 
     // ---- tuning final (WebGL lag? kecilkan angka, re-run 49) ----
@@ -532,9 +535,9 @@ public static class SihirS4
     }
 
     private static void BuatTiraiAir(Transform parent, Vector3 titik, Vector3 arah, Texture2D tex,
-                                     System.Text.StringBuilder sb)
+                                     System.Text.StringBuilder sb, string nama = "TiraiAir_S4")
     {
-        var akar = new GameObject("TiraiAir_S4");
+        var akar = new GameObject(nama);
         akar.transform.SetParent(parent, true);
         akar.transform.position = titik;
 
@@ -556,7 +559,7 @@ public static class SihirS4
         BuatQuadTirai(akar.transform, "FilmAirShimmer", titik + arah * 0.15f + Vector3.up * 1.2f,
             Quaternion.LookRotation(-arah), new Vector2(4.2f, 3.3f), matShimmer, new Vector2(0f, -0.22f));
 
-        sb.AppendLine("  Tirai air di " + F(titik) + " (2 quad scroll saling membelakangi, tembus rel).");
+        sb.AppendLine("  " + nama + " di " + F(titik) + " (2 quad scroll saling membelakangi, tembus rel).");
     }
 
     private static void BuatQuadTirai(Transform parent, string nama, Vector3 pos, Quaternion rot,
@@ -578,10 +581,12 @@ public static class SihirS4
         so.ApplyModifiedProperties();
     }
 
-    /// <summary>Burst gelembung + SFX plunge saat kereta menembus tirai (pola BuatSplashKeluar).</summary>
-    private static void BuatPlungeMasuk(Transform parent, Vector3 titik, System.Text.StringBuilder sb)
+    /// <summary>Burst gelembung + SFX plunge saat kereta menembus tirai (pola BuatSplashKeluar).
+    /// Dipakai 2x: masuk (menu 49, default) + keluar (menu 49c, nama/seed beda).</summary>
+    private static void BuatPlungeMasuk(Transform parent, Vector3 titik, System.Text.StringBuilder sb,
+                                        string nama = "PlungeMasuk_S4", int seed = 4949)
     {
-        var akar = new GameObject("PlungeMasuk_S4");
+        var akar = new GameObject(nama);
         akar.transform.SetParent(parent, true);
         akar.transform.position = titik;
 
@@ -597,7 +602,7 @@ public static class SihirS4
         kolom.transform.SetParent(pemicuGo.transform, true);
         kolom.transform.position = titik + Vector3.down * 0.5f;
         Material matGel = WahanaRebuilder.MatLitTransparan(new Color(0.85f, 0.95f, 1f), 0.25f);
-        var rand = new System.Random(4949);
+        var rand = new System.Random(seed);
         for (int i = 0; i < 8; i++)
         {
             var g = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -628,7 +633,7 @@ public static class SihirS4
         soP.FindProperty("_cooldown").floatValue = 30f;
         soP.ApplyModifiedProperties();
 
-        sb.AppendLine("  Plunge masuk-air di " + F(titik) + " (PemicuKereta -> gelembung burst + SFX).");
+        sb.AppendLine("  " + nama + " di " + F(titik) + " (PemicuKereta -> gelembung burst + SFX).");
     }
 
     /// <summary>Fog zona portal (palka masuk) ikut biru-air: turunan langsung bernuansa air,
@@ -651,9 +656,12 @@ public static class SihirS4
         sb.AppendLine("  Zona portal: fog biru-air gelap (start 4 end 20) — turunan bernuansa air.");
     }
 
-    /// <summary>3 lampu point biru di sepanjang turunan terowongan (mewarnai dinding tanah jadi
-    /// biru — material tunnel di-share seluruh wahana, JANGAN direcolor) + 1 kolom gelembung
-    /// kecil setelah garis air. Lampu di LampuLaut_S4 (ikut blackout ending).</summary>
+    /// <summary>3 lampu point biru di sepanjang turunan terowongan + 1 kolom gelembung kecil
+    /// setelah garis air. Lampu di LampuLaut_S4 (ikut blackout ending). CATATAN 2026-07-07:
+    /// komentar lama "material tunnel di-share wahana, jangan direcolor" TERBUKTI SALAH —
+    /// material tube/bank = instance embedded unik milik GEN_Tunnel; recolor per-band
+    /// dikerjakan menu 49c (RecolorTerowonganAir), dan lampu-lampu ini di-retune 49c
+    /// jadi gradient menyelam (jalankan 49c setelah 49).</summary>
     private static void BuatNuansaTunnelAir(Transform lampuParent, Transform hidupParent,
                                             List<Vector3> pts, System.Text.StringBuilder sb)
     {
@@ -1023,18 +1031,21 @@ public static class SihirS4
     }
 
     // =====================================================================
-    //  MENU 49b — CARVE KORIDOR TURUNAN S4
-    //  Fix playtest "layar ketutup abu sesaat saat masuk terowongan":
-    //  bank tanah switchback nyempil ke koridor kamera. Deteksi VERTEX-level
+    //  MENU 49b — CARVE KORIDOR TURUNAN + TANJAKAN S4
+    //  Fix playtest "layar ketutup abu sesaat di terowongan": geometri
+    //  (bank tanah / lid pit) nyempil ke koridor kamera. Deteksi VERTEX-level
     //  semua renderer aktif yang masuk tabung koridor (radius 1.1, tinggi
-    //  0.25-2.2 di atas rel) di segmen turunan, lalu CARVE: dorong vertex
-    //  keluar radius 1.3 (samping) / angkat ke atas kepala (tepat di atas rel).
+    //  0.25-2.2 di atas rel) di DUA segmen (turunan masuk + tanjakan keluar
+    //  — Y-derived via SegmenKoridor), lalu CARVE: dorong vertex keluar
+    //  radius 1.3 (samping) / angkat ke atas kepala (tepat di atas rel).
     //  HANYA mesh hasil bake "GABUNG_*" (asset unik) yang di-carve — mesh
-    //  primitif bersama (Cube dll) cuma di-log [MANUAL].
-    //  CATATAN: rebake GEN_Tunnel (menu 23 kondisi portal) menghapus carve
-    //  -> re-run menu ini setelahnya.
+    //  primitif bersama (Cube dll) cuma di-log [MANUAL]; LidPit_* dibelah
+    //  jadi 4 slab menyisakan lubang (NotchLid).
+    //  CATATAN: rebake GEN_Tunnel (menu 23 kondisi portal / menu 14 /
+    //  menu 49c RecolorTerowonganAir) MENGHAPUS carve -> menu ini selalu
+    //  dijalankan TERAKHIR (rantai: 39 => 49 => 49c => 49b).
     // =====================================================================
-    [MenuItem("Tools/Wahana/49b S4 Carve Koridor Turunan", false, 108)]
+    [MenuItem("Tools/Wahana/49b S4 Carve Koridor Turunan+Tanjakan", false, 108)]
     public static void CarveKoridorS4()
     {
         if (EditorApplication.isPlaying)
@@ -1042,94 +1053,103 @@ public static class SihirS4
             Debug.LogError("[Wahana] Jangan jalankan menu ini saat PLAY MODE.");
             return;
         }
-        var sb = new System.Text.StringBuilder("=== S4 CARVE KORIDOR TURUNAN ===\n");
+        var sb = new System.Text.StringBuilder("=== S4 CARVE KORIDOR TURUNAN+TANJAKAN ===\n");
         var pts = PolylineUtama();
         if (pts.Count == 0) { Debug.LogError("[S4 Carve] JalurUtama kosong."); return; }
 
-        // segmen turunan (margin): WP pertama y<=-0.3 s.d. WP pertama y<=-5.6 (+4 WP)
-        int iAwal = -1, iGua = -1;
-        for (int i = 0; i < pts.Count; i++)
+        // 2 segmen koridor (Y-derived + margin, lihat SegmenKoridor)
+        var segs = new List<List<Vector3>>();
+        if (SegmenKoridor(pts, false, out int a0, out int a1))
         {
-            if (iAwal < 0 && pts[i].y <= -0.3f) iAwal = i;
-            if (iAwal >= 0 && pts[i].y <= -5.6f) { iGua = i; break; }
+            segs.Add(pts.GetRange(a0, a1 - a0 + 1));
+            sb.AppendLine("  Segmen TURUNAN : WP " + a0 + ".." + a1 + " (" + (a1 - a0 + 1) + " titik).");
         }
-        if (iAwal < 0 || iGua <= iAwal) { Debug.LogError("[S4 Carve] Segmen turunan tak ketemu."); return; }
-        iAwal = Mathf.Max(0, iAwal - 2);
-        iGua = Mathf.Min(iGua + 4, pts.Count - 1);
-        var seg = pts.GetRange(iAwal, iGua - iAwal + 1);
-        sb.AppendLine("  Segmen koridor: WP " + iAwal + ".." + iGua + " (" + seg.Count + " titik).");
+        if (SegmenKoridor(pts, true, out int b0, out int b1))
+        {
+            segs.Add(pts.GetRange(b0, b1 - b0 + 1));
+            sb.AppendLine("  Segmen TANJAKAN: WP " + b0 + ".." + b1 + " (" + (b1 - b0 + 1) + " titik).");
+        }
+        if (segs.Count == 0) { Debug.LogError("[S4 Carve] Segmen koridor tak ketemu."); return; }
 
         const float R_DETEKSI = 1.1f, R_CARVE = 1.3f, DY_MIN = 0.25f, DY_MAX = 2.2f;
 
-        var korAabb = new Bounds(seg[0], Vector3.zero);
-        foreach (var p in seg) korAabb.Encapsulate(p);
-        korAabb.Expand(new Vector3(2.6f, 5.5f, 2.6f));
-
         int nIntrusi = 0, nCarve = 0, nVertTotal = 0;
         var lidNotch = new List<GameObject>();
-        foreach (var mr in Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+        foreach (var seg in segs)
         {
-            if (mr == null || !mr.enabled || !mr.gameObject.activeInHierarchy) continue;
-            if (!mr.bounds.Intersects(korAabb)) continue;
+            var korAabb = new Bounds(seg[0], Vector3.zero);
+            foreach (var p in seg) korAabb.Encapsulate(p);
+            korAabb.Expand(new Vector3(2.6f, 5.5f, 2.6f));
 
-            // skip objek yang MEMANG menempel/melintang rel (ride & efek air S4)
-            bool skip = false;
-            for (var a = mr.transform; a != null && !skip; a = a.parent)
+            foreach (var mr in Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
             {
-                string an = a.name;
-                if (an.StartsWith("Kereta") || an.StartsWith("Bak") || an == "SistemKereta"
-                    || an.StartsWith("Rel") || an.StartsWith("Ramp_") || an.StartsWith("JalurUtama")
-                    || an.StartsWith("TiraiAir") || an.StartsWith("PlungeMasuk")
-                    || an.StartsWith("GelembungTunnel") || an.StartsWith("PintuGuaLaut")) skip = true;
-            }
-            if (skip) continue;
-            var mf = mr.GetComponent<MeshFilter>();
-            if (mf == null || mf.sharedMesh == null) continue;
+                if (mr == null || !mr.enabled || !mr.gameObject.activeInHierarchy) continue;
+                if (!mr.bounds.Intersects(korAabb)) continue;
 
-            var mesh = mf.sharedMesh;
-            var verts = mesh.vertices;
-            var l2w = mf.transform.localToWorldMatrix;
-            List<int> dalam = null;
-            for (int vi = 0; vi < verts.Length; vi++)
-            {
-                Vector3 w = l2w.MultiplyPoint3x4(verts[vi]);
-                if (DalamTabungKoridor(w, seg, R_DETEKSI, DY_MIN, DY_MAX, out _))
-                    (dalam = dalam ?? new List<int>()).Add(vi);
-            }
-            if (dalam == null) continue;
-            nIntrusi++;
-            nVertTotal += dalam.Count;
-            bool bolehCarve = mr.name.StartsWith("GABUNG_");
-            bool bolehNotch = mr.name.StartsWith("LidPit_");
-            sb.AppendLine("  " + (bolehCarve ? "[CARVE]  " : bolehNotch ? "[NOTCH]  " : "[MANUAL] ")
-                          + PathHirarki(mr.transform)
-                          + " (mesh " + mesh.name + "): " + dalam.Count + " vertex dalam koridor.");
-            if (bolehNotch) { lidNotch.Add(mr.gameObject); continue; }
-            if (!bolehCarve) continue;
+                // skip objek yang MEMANG menempel/melintang rel (ride & efek air S4/49c)
+                bool skip = false;
+                for (var a = mr.transform; a != null && !skip; a = a.parent)
+                {
+                    string an = a.name;
+                    if (an.StartsWith("Kereta") || an.StartsWith("Bak") || an == "SistemKereta"
+                        || an.StartsWith("Rel") || an.StartsWith("Ramp_") || an.StartsWith("JalurUtama")
+                        || an.StartsWith("TiraiAir") || an.StartsWith("PlungeMasuk")
+                        || an.StartsWith("PlungeKeluar") || an.StartsWith("SplashKeluar")
+                        || an.StartsWith("LorongAir") || an.StartsWith("GelembungTunnel")
+                        || an.StartsWith("PintuGuaLaut")) skip = true;
+                }
+                if (skip) continue;
+                var mf = mr.GetComponent<MeshFilter>();
+                if (mf == null || mf.sharedMesh == null) continue;
 
-            var w2l = mf.transform.worldToLocalMatrix;
-            foreach (int vi in dalam)
-            {
-                Vector3 w = l2w.MultiplyPoint3x4(verts[vi]);
-                DalamTabungKoridor(w, seg, R_DETEKSI, DY_MIN, DY_MAX, out Vector3 q);
-                Vector3 dXZ = new Vector3(w.x - q.x, 0f, w.z - q.z);
-                Vector3 baru;
-                if (dXZ.magnitude < 0.35f) baru = new Vector3(w.x, q.y + DY_MAX + 0.15f, w.z); // tepat di atas rel -> angkat
-                else baru = new Vector3(q.x, w.y, q.z) + dXZ.normalized * R_CARVE;             // samping -> dorong keluar
-                verts[vi] = w2l.MultiplyPoint3x4(baru);
+                var mesh = mf.sharedMesh;
+                var verts = mesh.vertices;
+                var l2w = mf.transform.localToWorldMatrix;
+                List<int> dalam = null;
+                for (int vi = 0; vi < verts.Length; vi++)
+                {
+                    Vector3 w = l2w.MultiplyPoint3x4(verts[vi]);
+                    if (DalamTabungKoridor(w, seg, R_DETEKSI, DY_MIN, DY_MAX, out _))
+                        (dalam = dalam ?? new List<int>()).Add(vi);
+                }
+                if (dalam == null) continue;
+                nIntrusi++;
+                nVertTotal += dalam.Count;
+                bool bolehCarve = mr.name.StartsWith("GABUNG_");
+                bool bolehNotch = mr.name.StartsWith("LidPit_");
+                sb.AppendLine("  " + (bolehCarve ? "[CARVE]  " : bolehNotch ? "[NOTCH]  " : "[MANUAL] ")
+                              + PathHirarki(mr.transform)
+                              + " (mesh " + mesh.name + "): " + dalam.Count + " vertex dalam koridor.");
+                if (bolehNotch) { if (!lidNotch.Contains(mr.gameObject)) lidNotch.Add(mr.gameObject); continue; }
+                if (!bolehCarve) continue;
+
+                var w2l = mf.transform.worldToLocalMatrix;
+                foreach (int vi in dalam)
+                {
+                    Vector3 w = l2w.MultiplyPoint3x4(verts[vi]);
+                    DalamTabungKoridor(w, seg, R_DETEKSI, DY_MIN, DY_MAX, out Vector3 q);
+                    Vector3 dXZ = new Vector3(w.x - q.x, 0f, w.z - q.z);
+                    Vector3 baru;
+                    if (dXZ.magnitude < 0.35f) baru = new Vector3(w.x, q.y + DY_MAX + 0.15f, w.z); // tepat di atas rel -> angkat
+                    else baru = new Vector3(q.x, w.y, q.z) + dXZ.normalized * R_CARVE;             // samping -> dorong keluar
+                    verts[vi] = w2l.MultiplyPoint3x4(baru);
+                }
+                mesh.vertices = verts;
+                mesh.RecalculateBounds();
+                EditorUtility.SetDirty(mesh);
+                nCarve++;
             }
-            mesh.vertices = verts;
-            mesh.RecalculateBounds();
-            EditorUtility.SetDirty(mesh);
-            nCarve++;
         }
-        // notch lid pit yang memotong koridor (kotak primitif — tak bisa carve, jadi dibelah)
-        foreach (var lid in lidNotch) NotchLid(lid, seg, sb);
+        // notch lid pit yang memotong koridor (kotak primitif — tak bisa carve, jadi dibelah).
+        // seg gabungan: NotchLid memfilter sendiri WP yang jatuh di footprint lid.
+        var segGabung = new List<Vector3>();
+        foreach (var s in segs) segGabung.AddRange(s);
+        foreach (var lid in lidNotch) NotchLid(lid, segGabung, sb);
 
         AssetDatabase.SaveAssets();
         sb.AppendLine("  Intrusi: " + nIntrusi + " renderer (" + nVertTotal + " vertex); carve: " + nCarve
                       + " mesh GABUNG; notch: " + lidNotch.Count + " lid.");
-        if (nIntrusi == 0) sb.AppendLine("  (Koridor turunan sudah bersih.)");
+        if (nIntrusi == 0) sb.AppendLine("  (Koridor turunan+tanjakan sudah bersih.)");
         sb.AppendLine("=== SELESAI CARVE ===");
         Selesai(sb, CariGameObject("GEN_SihirHidup_S4"));
     }
@@ -1213,6 +1233,304 @@ public static class SihirS4
         string s = t.name;
         for (var a = t.parent; a != null; a = a.parent) s = a.name + "/" + s;
         return s;
+    }
+
+    // =====================================================================
+    //  MENU 49c — LORONG AIR (MASUK + KELUAR)
+    //  Rombak visual terowongan turunan+tanjakan jadi "lorong air" (feedback
+    //  playtest: masuk/keluar masih terasa terowongan tanah abu-abu):
+    //  (a) RECOLOR dinding tube + bank per-BAND KEDALAMAN (gradient menyelam
+    //      terbake di warna dinding — bukan lampu: URP cap 8 lampu per-object
+    //      per-vertex, tube = 1 mesh GABUNG besar) + rebake GEN_Tunnel;
+    //  (b) panel "air mengalir" ScrollUV di dinding & plafon kedua segmen;
+    //  (c) tirai air kedua + plunge + kolom gelembung di tanjakan keluar
+    //      (mirror masuk; splash existing di permukaan TIDAK disentuh);
+    //  (d) retune lampu terowongan existing (0 lampu baru).
+    //  Idempoten: grup LorongAir_S4 dihapus-dibangun ulang; material = asset
+    //  Assets/Generated (di-update tiap run). RANTAI: 39 => 49 => 49c => 49b
+    //  (rebake di sini MENGHAPUS carve 49b — 49b selalu TERAKHIR).
+    // =====================================================================
+
+    // ---- tuning 49c (WebGL lag? kecilkan N_FILM_PER_SEG, re-run 49c lalu 49b) ----
+    private const int N_FILM_PER_SEG = 7;  // panel air per segmen (pola kiri/kanan/plafon)
+    private static readonly Color TubeDangkal = new Color(0.10f, 0.22f, 0.32f); // band y > -2.2
+    private static readonly Color TubeSedang = new Color(0.07f, 0.17f, 0.26f);  // band -4.5..-2.2
+    private static readonly Color TubeDalam = new Color(0.05f, 0.13f, 0.20f);   // band <= -4.5
+    private static readonly Color BankAir = new Color(0.06f, 0.14f, 0.19f);     // slab bank tanah
+    private static readonly Color LampuAirPermukaan = new Color(0.40f, 0.75f, 1.00f);
+    private static readonly Color LampuAirDalam = new Color(0.15f, 0.40f, 0.85f);
+    private const float LampuAirIMax = 1.8f;  // intensitas dekat permukaan
+    private const float LampuAirIMin = 0.9f;  // intensitas terdalam
+
+    [MenuItem("Tools/Wahana/49c S4 Lorong Air (masuk+keluar)", false, 109)]
+    public static void LorongAirS4()
+    {
+        if (EditorApplication.isPlaying)
+        {
+            Debug.LogError("[Wahana] Jangan jalankan menu ini saat PLAY MODE (perubahan ke-wipe saat stop).");
+            return;
+        }
+        var sb = new System.Text.StringBuilder("=== S4 LORONG AIR (MASUK+KELUAR) ===\n");
+        var pts = PolylineUtama();
+        if (pts.Count == 0) { Debug.LogError("[S4 LorongAir] JalurUtama kosong."); return; }
+        var hidup = CariGameObject("GEN_SihirHidup_S4");
+        if (hidup == null)
+        {
+            Debug.LogError("[S4 LorongAir] GEN_SihirHidup_S4 tak ketemu — jalankan menu 39 (lalu 49) dulu.");
+            return;
+        }
+        if (!SegmenKoridor(pts, false, out int a0, out int a1) || !SegmenKoridor(pts, true, out int b0, out int b1))
+        {
+            Debug.LogError("[S4 LorongAir] Segmen turunan/tanjakan tak ketemu di JalurUtama.");
+            return;
+        }
+        var segMasuk = pts.GetRange(a0, a1 - a0 + 1);
+        var segKeluar = pts.GetRange(b0, b1 - b0 + 1);
+        sb.AppendLine("  Segmen masuk WP " + a0 + ".." + a1 + " | keluar WP " + b0 + ".." + b1 + ".");
+
+        // (a) recolor terowongan per-band kedalaman + rebake GEN_Tunnel
+        RecolorTerowonganAir(sb);
+
+        // (b) grup hidup lorong (idempoten; TIDAK dibake, TANPA static flag — ada ScrollUV)
+        WahanaRebuilder.HapusParent("LorongAir_S4");
+        var lorong = new GameObject("LorongAir_S4");
+        lorong.transform.SetParent(hidup.transform, true);
+        lorong.transform.position = Vector3.zero;
+
+        var texAir = BuatTexAir();
+        var rand = new System.Random(4952);
+        int nFilm = BuatFilmAirSegmen(lorong.transform, segMasuk, texAir, rand, sb, "Masuk")
+                  + BuatFilmAirSegmen(lorong.transform, segKeluar, texAir, rand, sb, "Keluar");
+
+        // (c) momen KELUAR dari air: tirai kedua + plunge di crossing y~-2.2 tanjakan,
+        //     + kolom gelembung di bagian dalam tanjakan. Splash permukaan existing tetap.
+        Vector3 titikKeluar = TitikKeluarAir(pts);
+        Vector3 arahKeluar = WahanaRebuilder.RailDirDi(pts, titikKeluar);
+        BuatTiraiAir(lorong.transform, titikKeluar, arahKeluar, texAir, sb, "TiraiAirKeluar_S4");
+        BuatPlungeMasuk(lorong.transform, titikKeluar, sb, "PlungeKeluar_S4", 4953);
+
+        int idxGel = Mathf.Clamp(Mathf.RoundToInt((segKeluar.Count - 1) * 0.3f), 0, segKeluar.Count - 1);
+        Vector3 wpGel = segKeluar[idxGel];
+        Vector3 arahGel = WahanaRebuilder.RailDirDi(segKeluar, wpGel);
+        Vector3 sampingGel = Vector3.Cross(Vector3.up, arahGel).normalized * 1.2f;
+        BuatKolomGelembung(lorong.transform, "GelembungTunnel_S4_Keluar",
+            wpGel + sampingGel + Vector3.down * 0.4f, 2.2f, 6, false, new System.Random(4954));
+        sb.AppendLine("  Kolom gelembung tanjakan di " + F(wpGel) + " (offset samping rel).");
+
+        // (d) retune lampu terowongan existing (gradient menyelam, 0 lampu baru)
+        RetuneLampuAir(segMasuk, segKeluar, sb);
+
+        sb.AppendLine("  Film air total: " + nFilm + " panel.");
+        sb.AppendLine("  INGAT: jalankan menu 49b SETELAH ini (rebake GEN_Tunnel menghapus carve).");
+        sb.AppendLine("=== SELESAI LORONG AIR ===");
+        Selesai(sb, hidup);
+    }
+
+    /// <summary>Segmen koridor terowongan S4 (indeks WP inklusif, margin siap-scan/dressing).
+    /// tanjakan=false: turunan (WP pertama y&lt;=-0.3 s.d. WP pertama y&lt;=-5.6, margin -2/+4 —
+    /// identik perilaku 49b lama). tanjakan=true: tanjakan keluar (WP TERAKHIR y&lt;=-5.6 s.d.
+    /// WP pertama y&gt;=-0.3 sesudahnya, margin cermin -4/+2). Aman: profil Y wahana = satu
+    /// lembah smoothstep (gua S4, datar -6 di tengah), monoton di kedua sisi.</summary>
+    private static bool SegmenKoridor(List<Vector3> pts, bool tanjakan, out int i0, out int i1)
+    {
+        i0 = -1; i1 = -1;
+        if (!tanjakan)
+        {
+            for (int i = 0; i < pts.Count; i++)
+            {
+                if (i0 < 0 && pts[i].y <= -0.3f) i0 = i;
+                if (i0 >= 0 && pts[i].y <= -5.6f) { i1 = i; break; }
+            }
+            if (i0 < 0 || i1 <= i0) return false;
+            i0 = Mathf.Max(0, i0 - 2);
+            i1 = Mathf.Min(i1 + 4, pts.Count - 1);
+            return true;
+        }
+        for (int i = pts.Count - 1; i >= 0; i--)
+            if (pts[i].y <= -5.6f) { i0 = i; break; }   // WP terakhir lantai gua
+        if (i0 < 0) return false;
+        for (int i = i0 + 1; i < pts.Count; i++)
+            if (pts[i].y >= -0.3f) { i1 = i; break; }   // muncul ke permukaan
+        if (i1 <= i0) return false;
+        i0 = Mathf.Max(0, i0 - 4);
+        i1 = Mathf.Min(i1 + 2, pts.Count - 1);
+        return true;
+    }
+
+    /// <summary>WP TERAKHIR yang masih di bawah garis air (crossing y-2.2 sisi tanjakan keluar).
+    /// Aman: profil Y satu lembah — iterasi mundur ketemu sisi keluar dulu.</summary>
+    private static Vector3 TitikKeluarAir(List<Vector3> pts)
+    {
+        for (int i = pts.Count - 1; i >= 0; i--)
+            if (pts[i].y <= -2.2f) return pts[i];
+        return new Vector3(-43.7f, -2.5f, 1f); // fallback: sekitar tanjakan keluar
+    }
+
+    /// <summary>Recolor dinding terowongan per-BAND kedalaman lalu rebake GEN_Tunnel.
+    /// Material tube (MatLit 0.07,0.08,0.11) & bank (0.06,0.09,0.05) = instance embedded
+    /// UNIK milik GEN_Tunnel (BUKAN di-share wahana — verifikasi 2026-07-07), diganti
+    /// material ASSET per-band (di-update tiap run => tuning = edit konstanta + re-run).
+    /// Rebake wajib: GABUNG lama masih menggabung semua chunk dalam 1 material. Efek
+    /// samping: carve 49b hilang => jalankan 49b SETELAH menu ini.</summary>
+    private static void RecolorTerowonganAir(System.Text.StringBuilder sb)
+    {
+        var genTun = CariGameObject("GEN_Tunnel");
+        if (genTun == null) { sb.AppendLine("  [WARN] GEN_Tunnel tak ketemu — recolor dilewati."); return; }
+
+        Material mDangkal = MatBandAir("S4_TubeAir_Dangkal", TubeDangkal);
+        Material mSedang = MatBandAir("S4_TubeAir_Sedang", TubeSedang);
+        Material mDalam = MatBandAir("S4_TubeAir_Dalam", TubeDalam);
+        Material mBank = MatBandAir("S4_BankAir", BankAir);
+
+        int nDangkal = 0, nSedang = 0, nDalam = 0, nBank = 0;
+        foreach (var mr in genTun.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            string n = mr.name;
+            if (n.StartsWith("Bank_")) { mr.sharedMaterial = mBank; nBank++; continue; }
+            if (!n.StartsWith("Tunnel_")) continue;
+            var mf = mr.GetComponent<MeshFilter>();
+            if (mf == null || mf.sharedMesh == null) continue;
+            // rata-rata Y REL chunk dari bounds mesh: profil MeshTunnel = lantai relY-0.1,
+            // plafon relY+3.3 => relYmin = min+0.1, relYmax = max-3.3.
+            Bounds b = mf.sharedMesh.bounds;
+            float wMin = mf.transform.TransformPoint(new Vector3(b.center.x, b.min.y, b.center.z)).y;
+            float wMax = mf.transform.TransformPoint(new Vector3(b.center.x, b.max.y, b.center.z)).y;
+            float relY = ((wMin + 0.1f) + (wMax - 3.3f)) * 0.5f;
+            Material m = relY > -2.2f ? mDangkal : (relY > -4.5f ? mSedang : mDalam);
+            if (m == mDangkal) nDangkal++; else if (m == mSedang) nSedang++; else nDalam++;
+            mr.sharedMaterial = m;
+        }
+
+        // rebake GEN_Tunnel (pola GerbangGuaLaut) + pre-delete asset prefix (anti-orphan
+        // pola RebakeTemenS1 — jumlah grup material berubah antar-run).
+        for (int i = genTun.transform.childCount - 1; i >= 0; i--)
+        {
+            var c = genTun.transform.GetChild(i);
+            if (c.name.StartsWith("GABUNG_")) Object.DestroyImmediate(c.gameObject);
+        }
+        foreach (var guid in AssetDatabase.FindAssets("GEN_Tunnel", new[] { "Assets/Generated" }))
+        {
+            string p = AssetDatabase.GUIDToAssetPath(guid);
+            if (System.IO.Path.GetFileNameWithoutExtension(p).StartsWith("GEN_Tunnel"))
+                AssetDatabase.DeleteAsset(p);
+        }
+        foreach (var mr in genTun.GetComponentsInChildren<MeshRenderer>(true))
+            if (mr.gameObject.activeInHierarchy) mr.enabled = true;
+        int nre = TemenDresser.GabungMeshStatis(genTun.transform, "GEN_Tunnel", new HashSet<string>());
+        AssetDatabase.SaveAssets();
+        sb.AppendLine("  Recolor terowongan: tube dangkal " + nDangkal + " / sedang " + nSedang
+                      + " / dalam " + nDalam + " chunk + bank " + nBank
+                      + " box; rebake GEN_Tunnel " + nre + " renderer.");
+    }
+
+    /// <summary>Material asset band air (Assets/Generated, nilai di-update tiap run).
+    /// _Cull=0 double-sided — pola CariMatTunnel (tube dilihat dari dalam).</summary>
+    private static Material MatBandAir(string nama, Color warna)
+    {
+        var m = WahanaFinalUtil.MatAsset(nama, warna, 0.25f, null, 1f);
+        if (m.HasProperty("_Cull")) m.SetFloat("_Cull", 0f);
+        return m;
+    }
+
+    /// <summary>Panel "air mengalir" (Quad primitif + ScrollUV) selang-seling dinding kiri/
+    /// kanan (lateral 1.7, DI LUAR tabung deteksi 49b R 1.1) dan plafon (dy 2.7 &gt; DY_MAX 2.2).
+    /// WAJIB Quad primitif — MeshPita TIDAK punya UV, tekstur scroll tak jalan di situ.
+    /// 2 material embedded shared: emission dangkal (terang) vs dalam (redup) = gradient.</summary>
+    private static int BuatFilmAirSegmen(Transform parent, List<Vector3> seg, Texture2D tex,
+                                         System.Random rand, System.Text.StringBuilder sb, string label)
+    {
+        var akar = new GameObject("FilmAir_" + label);
+        akar.transform.SetParent(parent, true);
+        akar.transform.position = Vector3.zero;
+
+        Material mDangkal = MatFilmAir(tex, 0.30f);
+        Material mDalam = MatFilmAir(tex, 0.12f);
+
+        int n = 0;
+        for (int k = 0; k < N_FILM_PER_SEG; k++)
+        {
+            float f = (k + 1f) / (N_FILM_PER_SEG + 1f);
+            int idx = Mathf.Clamp(Mathf.RoundToInt(f * (seg.Count - 1)), 0, seg.Count - 1);
+            Vector3 wp = seg[idx];
+            Vector3 dir = WahanaRebuilder.RailDirDi(seg, wp);
+            Vector3 kanan = Vector3.Cross(Vector3.up, dir).normalized;
+            Material m = wp.y > -2.2f ? mDangkal : mDalam;
+            int jenis = k % 3; // 0=kiri, 1=kanan, 2=plafon
+            if (jenis == 2)
+            {
+                BuatQuadTirai(akar.transform, "FilmPlafon_" + label + "_" + k,
+                    wp + Vector3.up * 2.7f, Quaternion.LookRotation(Vector3.down, dir),
+                    new Vector2(3.2f, 2.8f), m,
+                    new Vector2(0f, 0.12f + (float)rand.NextDouble() * 0.08f));
+            }
+            else
+            {
+                Vector3 sisi = (jenis == 0 ? -1f : 1f) * kanan;
+                BuatQuadTirai(akar.transform, "FilmDinding_" + label + "_" + k,
+                    wp + sisi * 1.7f + Vector3.up * 1.3f, Quaternion.LookRotation(sisi),
+                    new Vector2(3.4f, 2.4f), m,
+                    new Vector2(0f, -(0.16f + (float)rand.NextDouble() * 0.12f)));
+            }
+            n++;
+        }
+        sb.AppendLine("  Film air " + label + ": " + n + " panel (dinding lateral 1.7 / plafon +2.7).");
+        return n;
+    }
+
+    private static Material MatFilmAir(Texture2D tex, float emis)
+    {
+        Material m = WahanaRebuilder.MatLitTransparan(new Color(0.25f, 0.60f, 0.90f), 0.20f);
+        m.EnableKeyword("_EMISSION");
+        m.SetColor("_EmissionColor", new Color(0.20f, 0.55f, 0.85f) * emis);
+        m.SetTexture("_BaseMap", tex);
+        m.SetTextureScale("_BaseMap", new Vector2(2.5f, 1.8f));
+        return m;
+    }
+
+    /// <summary>Retune lampu terowongan EXISTING (prefix "LampuTun" = LampuTun_* menu 4 +
+    /// LampuTunnelAir_* menu 49) jadi gradient menyelam by kedalaman rel terdekat.
+    /// 0 lampu baru — URP cap 8 lampu per-object (per-vertex WebGL) sudah penuh;
+    /// gradient utama dibawa warna dinding (RecolorTerowonganAir).</summary>
+    private static void RetuneLampuAir(List<Vector3> segMasuk, List<Vector3> segKeluar,
+                                       System.Text.StringBuilder sb)
+    {
+        Bounds bMasuk = BoundsSegmen(segMasuk), bKeluar = BoundsSegmen(segKeluar);
+        int n = 0;
+        foreach (var l in Object.FindObjectsByType<Light>(FindObjectsSortMode.None))
+        {
+            if (l == null || !l.gameObject.name.StartsWith("LampuTun")) continue;
+            Vector3 p = l.transform.position;
+            List<Vector3> seg = bMasuk.Contains(p) ? segMasuk : (bKeluar.Contains(p) ? segKeluar : null);
+            if (seg == null) continue;
+            float railY = YRelTerdekat(seg, p);
+            float t = Mathf.InverseLerp(-5.8f, -0.3f, railY);
+            l.color = Color.Lerp(LampuAirDalam, LampuAirPermukaan, t);
+            l.intensity = Mathf.Lerp(LampuAirIMin, LampuAirIMax, t);
+            l.range = Mathf.Max(l.range, 7f);
+            EditorUtility.SetDirty(l);
+            n++;
+        }
+        sb.AppendLine("  Retune lampu terowongan: " + n
+                      + " lampu (permukaan terang -> dalam redup, 0 lampu baru).");
+    }
+
+    private static Bounds BoundsSegmen(List<Vector3> seg)
+    {
+        var b = new Bounds(seg[0], Vector3.zero);
+        foreach (var p in seg) b.Encapsulate(p);
+        b.Expand(new Vector3(6f, 8f, 6f));
+        return b;
+    }
+
+    private static float YRelTerdekat(List<Vector3> seg, Vector3 p)
+    {
+        float best = float.MaxValue, y = p.y;
+        foreach (var q in seg)
+        {
+            float dx = q.x - p.x, dz = q.z - p.z, d = dx * dx + dz * dz;
+            if (d < best) { best = d; y = q.y; }
+        }
+        return y;
     }
 
     // #####################################################################
