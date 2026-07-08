@@ -3644,4 +3644,225 @@ public static class WahanaRebuilder
     }
 
     private static string F(Vector3 v) => string.Format("({0:F1},{1:F1},{2:F1})", v.x, v.y, v.z);
+
+    // #####################################################################
+    //  MENU 62 — RUMPUT TAMAN (finalisasi world)
+    //  a) isi tekstur MatRumputMalam.mat (PT_Grass_01 + tiling) — edit ASSET,
+    //     bukan scene; semua Tanah_* langsung kebagian (renderer-nya hidup).
+    //  b) sebar rumpun PT_Grass_02 (mesh LOD0 SAJA — jangan Instantiate prefab,
+    //     bawa LODGroup+LOD1/2) di ground terbuka: hindari ruangan S1-S5,
+    //     semua jalur rel, dan area Lobby.
+    //  c) bake GEN_RumputTaman via TemenDresser.GabungMeshStatis → ±1 draw call.
+    //  Idempoten: re-run = hapus GEN + asset lama, bangun ulang (seed tetap).
+    // #####################################################################
+
+    private const float RumputTilingX = 8f;     // tiling tekstur tanah (REVIEW.md §3)
+    private const float RumputTilingY = 10f;
+    private static readonly Color RumputTint = new Color(0.42f, 0.50f, 0.40f); // pola tint malam Lantai_S1
+    private const int RumputJumlah = 220;       // jumlah rumpun
+    private const int RumputSeed = 77;
+    private const float RumputJarakMinJalur = 2.6f; // jangan dempet rel (pagar di 2.2)
+    private const float RumputSkalaMin = 0.9f;
+    private const float RumputSkalaMax = 1.5f;
+
+    [MenuItem("Tools/Wahana/62 Rumput Taman", false, 126)]
+    public static void RumputTaman()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("=== MENU 62: RUMPUT TAMAN ===");
+
+        // ---------- (a) tekstur tanah (asset MatRumputMalam) ----------
+        var matTanah = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/MatRumputMalam.mat");
+        var texRumput = AssetDatabase.LoadAssetAtPath<Texture2D>(
+            "Assets/Temen/Paket/Polytope Studio/Lowpoly_Environments/Sources/Textures/PT_Grass_01.png");
+        if (matTanah != null && texRumput != null)
+        {
+            matTanah.mainTexture = texRumput;
+            matTanah.mainTextureScale = new Vector2(RumputTilingX, RumputTilingY);
+            matTanah.color = RumputTint;
+            if (matTanah.HasProperty("_BaseColor")) matTanah.SetColor("_BaseColor", RumputTint);
+            EditorUtility.SetDirty(matTanah);
+            sb.AppendLine("  MatRumputMalam: tekstur PT_Grass_01, tiling ("
+                + RumputTilingX + "," + RumputTilingY + "), tint " + RumputTint + ".");
+        }
+        else sb.AppendLine("  [WARN] MatRumputMalam / PT_Grass_01 tak ketemu — tekstur dilewati.");
+
+        // ---------- (b) scatter rumpun (idempoten) ----------
+        HapusParent("GEN_RumputTaman");
+        foreach (var guid in AssetDatabase.FindAssets("RumputTaman", new[] { "Assets/Generated" }))
+        {
+            string p = AssetDatabase.GUIDToAssetPath(guid);
+            if (System.IO.Path.GetFileNameWithoutExtension(p).StartsWith("RumputTaman"))
+                AssetDatabase.DeleteAsset(p);
+        }
+
+        // mesh + material rumpun dari prefab, ambil LOD0 saja
+        Mesh meshRumpun = null;
+        Material matRumpun = null;
+        var prefabRumpun = AssetDatabase.LoadAssetAtPath<GameObject>(
+            "Assets/Temen/Paket/Polytope Studio/Lowpoly_Environments/Prefabs/Plants/PT_Grass_02.prefab");
+        if (prefabRumpun != null)
+        {
+            var lod0 = prefabRumpun.transform.Find("PT_Grass_02_LOD0");
+            if (lod0 != null)
+            {
+                var mf = lod0.GetComponent<MeshFilter>();
+                var mr = lod0.GetComponent<MeshRenderer>();
+                if (mf != null) meshRumpun = mf.sharedMesh;
+                if (mr != null) matRumpun = mr.sharedMaterial;
+            }
+        }
+        if (meshRumpun == null)
+        {
+            Debug.LogError("[Rumput] mesh PT_Grass_02_LOD0 tidak ketemu — scatter batal.");
+            Debug.Log(sb.ToString());
+            return;
+        }
+        // anti-magenta: pastikan material URP; fallback versi URP Harry, lalu MatLit polos
+        if (matRumpun == null || matRumpun.shader == null || !matRumpun.shader.name.Contains("Universal"))
+        {
+            var urp = AssetDatabase.LoadAssetAtPath<Material>(
+                "Assets/Temen/Harry/Materials/Polytope_URP/PT_Grass_Mat_URP.mat");
+            matRumpun = urp != null ? urp : MatLit(new Color(0.35f, 0.5f, 0.3f));
+            sb.AppendLine("  [INFO] material rumpun di-fallback ke URP.");
+        }
+
+        // area terlarang: ruangan S1-S5, semua polyline jalur, bounds Lobby
+        var ruangan = WahanaLayout.BuildRuangan();
+        var jalurSemua = new List<List<Vector3>>();
+        string[] namaJalur = { "JalurUtama", "JalurKiri", "JalurKiriS1" };
+        string[] prefixJalur = { "WP_", "WK_", "WK2_" };
+        for (int i = 0; i < namaJalur.Length; i++)
+        {
+            var j = CariGameObject(namaJalur[i]);
+            if (j == null) continue;
+            int n = HitungWaypointBerurutan(j.transform, prefixJalur[i]);
+            var pts = KumpulkanWaypointWorld(j.transform, prefixJalur[i], n);
+            if (pts.Count > 1) jalurSemua.Add(pts);
+        }
+        Bounds lobbyB = new Bounds();
+        bool adaLobby = false;
+        var lobby = CariGameObject("Lobby");
+        if (lobby != null)
+        {
+            foreach (var r in lobby.GetComponentsInChildren<Renderer>())
+            {
+                if (!adaLobby) { lobbyB = r.bounds; adaLobby = true; }
+                else lobbyB.Encapsulate(r.bounds);
+            }
+        }
+
+        // sampling: pilih rect ground berbobot luas → titik acak → tolak kalau terlarang
+        var rects = WahanaLayout.BuildGroundRects();
+        var kumArea = new float[rects.Count];
+        float totalArea = 0f;
+        for (int i = 0; i < rects.Count; i++)
+        {
+            totalArea += rects[i].Lebar * rects[i].Panjang;
+            kumArea[i] = totalArea;
+        }
+        var rand = new System.Random(RumputSeed);
+        var rootRumput = new GameObject("GEN_RumputTaman");
+        rootRumput.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+        int dibuat = 0, ditolak = 0;
+        while (dibuat < RumputJumlah && ditolak < RumputJumlah * 40)
+        {
+            float rA = (float)rand.NextDouble() * totalArea;
+            int ir = 0;
+            while (ir < rects.Count - 1 && kumArea[ir] < rA) ir++;
+            var rect = rects[ir];
+            float x = Mathf.Lerp(rect.minX, rect.maxX, (float)rand.NextDouble());
+            float z = Mathf.Lerp(rect.minZ, rect.maxZ, (float)rand.NextDouble());
+            var p = new Vector3(x, 0f, z);
+
+            bool tolak = DiDalamRuangan(p, ruangan);
+            if (!tolak && adaLobby
+                && x > lobbyB.min.x - 2f && x < lobbyB.max.x + 2f
+                && z > lobbyB.min.z - 2f && z < lobbyB.max.z + 2f) tolak = true;
+            if (!tolak)
+            {
+                foreach (var pl in jalurSemua)
+                {
+                    if (JarakKePolyline(pl, p) < RumputJarakMinJalur) { tolak = true; break; }
+                }
+            }
+            if (tolak) { ditolak++; continue; }
+
+            var go = new GameObject("Rumpun_" + dibuat);
+            go.transform.SetParent(rootRumput.transform, true);
+            go.transform.position = new Vector3(x, WahanaLayout.YGround, z);
+            go.transform.rotation = Quaternion.Euler(0f, (float)rand.NextDouble() * 360f, 0f);
+            go.transform.localScale = Vector3.one
+                * Mathf.Lerp(RumputSkalaMin, RumputSkalaMax, (float)rand.NextDouble());
+            go.AddComponent<MeshFilter>().sharedMesh = meshRumpun;
+            go.AddComponent<MeshRenderer>().sharedMaterial = matRumpun; // tanpa collider — bisa ditembus jalan
+            dibuat++;
+        }
+        sb.AppendLine("  Rumpun dibuat: " + dibuat + " (sampel ditolak: " + ditolak + ").");
+
+        // ---------- (c) bake ----------
+        int ng = TemenDresser.GabungMeshStatis(rootRumput.transform, "RumputTaman", new HashSet<string>());
+        sb.AppendLine("  Bake: " + ng + " renderer digabung → GABUNG_* di GEN_RumputTaman.");
+
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+        AssetDatabase.SaveAssets();
+        sb.AppendLine("Scene + asset disimpan.");
+        Debug.Log(sb.ToString());
+    }
+
+    // #####################################################################
+    //  MENU 63 — LAMPU TIANG KORIDOR (finalisasi world)
+    //  Kepala lampu amber redup di puncak tiap tiang PagarKoridor.
+    //  TANPA komponen Light — "nyala" via MatGlowLit (emisi > threshold Bloom
+    //  0.85 → memendar halus). Hasil di-bake sendiri → ±1 draw call.
+    //  Idempoten: re-run = hapus GEN + asset lama, bangun ulang.
+    // #####################################################################
+
+    private static readonly Color LampuTiangWarna = new Color(1.0f, 0.62f, 0.28f); // amber hangat
+    private const float LampuTiangEmis = 1.3f;  // redup: sedikit di atas threshold bloom (3+ = silau)
+    private const int LampuTiangModulo = 1;     // 2 = tiap tiang kedua kalau terlalu ramai
+
+    [MenuItem("Tools/Wahana/63 Lampu Tiang Koridor", false, 127)]
+    public static void LampuTiangKoridor()
+    {
+        var pagar = CariGameObject("PagarKoridor");
+        if (pagar == null)
+        {
+            Debug.LogError("[LampuTiang] PagarKoridor tidak ditemukan — menu batal.");
+            return;
+        }
+
+        HapusParent("GEN_LampuKoridor");
+        foreach (var guid in AssetDatabase.FindAssets("LampuKoridor", new[] { "Assets/Generated" }))
+        {
+            string p = AssetDatabase.GUIDToAssetPath(guid);
+            if (System.IO.Path.GetFileNameWithoutExtension(p).StartsWith("LampuKoridor"))
+                AssetDatabase.DeleteAsset(p);
+        }
+
+        var rootLampu = new GameObject("GEN_LampuKoridor");
+        rootLampu.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+        var matKepala = MatGlowLit(LampuTiangWarna, LampuTiangEmis); // SATU material bersama → 1 GABUNG
+        matKepala.name = "MatLampuTiang";
+
+        int idx = 0, dibuat = 0;
+        foreach (Transform t in pagar.transform)
+        {
+            if (!t.name.StartsWith("Pagar_")) continue;
+            if ((idx++ % LampuTiangModulo) != 0) continue;
+            // puncak tiang = center Y + setengah tinggi; kepala nangkring 0.11 di atasnya
+            Vector3 pos = t.position + Vector3.up * (t.localScale.y * 0.5f + 0.11f);
+            BuatBox(rootLampu.transform, "LampuTiang_" + dibuat, pos,
+                new Vector3(0.26f, 0.22f, 0.26f), matKepala);
+            dibuat++;
+        }
+
+        int ng = TemenDresser.GabungMeshStatis(rootLampu.transform, "LampuKoridor", new HashSet<string>());
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+        AssetDatabase.SaveAssets();
+        Debug.Log("[LampuTiang] " + dibuat + " kepala lampu dari " + idx + " tiang; bake "
+            + ng + " renderer → GEN_LampuKoridor. Scene disimpan.");
+    }
 }
