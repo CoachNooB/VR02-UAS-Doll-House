@@ -565,6 +565,16 @@ public static class WahanaRebuilder
     //      (log+batu+api unlit+lampu flicker+audio+percikan), (c) fireflies emissive
     //      TANPA Light, (d) retune LampuShell_S1 jadi moonlight biru. Idempotent.
     // =====================================================================
+    // ---- Konstanta tuning Kemah S1 (rework 2026-07-08: api digeser dari depan kotak musik) ----
+    private const float KemahGeserX = 3.6f;      // offset X dari pusat piknik (dulu 0)
+    private const float KemahGeserZ = 1.9f;      // offset Z (dulu -2.6 = persis depan panel kotak musik)
+    private const float KemahMinKeRel = 2.6f;    // jarak minimal api ke polyline jalur
+    private const float KemahMinKeKotakMusik = 4f;
+    private const float LampuApiIntens = 3.0f;   // dulu 2.6 (pool hangat diperluas)
+    private const float LampuApiJangkau = 14f;   // dulu 12
+    private const float ApiCrackleVol = 0.35f;
+    private static readonly Color KunangGoldKemah = new Color(1f, 0.78f, 0.42f);
+
     [MenuItem("Tools/Wahana/17 S1 Kemah Api Unggun")]
     public static void KemahS1()
     {
@@ -597,8 +607,22 @@ public static class WahanaRebuilder
         Vector3 cen = new Vector3(37.9f, 0f, 16.7f);
         var teddy = CariTransform("UAS_ForestTeddySection");
         if (teddy != null) cen = new Vector3(teddy.position.x, 0f, teddy.position.z);
-        Vector3 posApi = new Vector3(cen.x, 0.7f, cen.z - 2.6f); // ~2.6u di depan (selatan) pusat picnic
-        sb.AppendLine("  Posisi api (depan picnic): " + F(posApi) + ".");
+        // Rework: digeser ke TIMUR-LAUT bukit piknik (radius bukit 4.75, tetap di flat-top
+        // y0.7). Posisi lama z-2.6 = persis depan panel kotak musik (muka selatan piknik)
+        // -> numpuk (keluhan playtest). Sisi timur-laut juga menghadap busur rel default.
+        Vector3 posApi = new Vector3(cen.x + KemahGeserX, 0.7f, cen.z + KemahGeserZ);
+        var jalurKemah = JalurS1Flat();
+        float dRelApi = MinDistXZ(jalurKemah, new Vector3(posApi.x, 0f, posApi.z));
+        float dBoxApi = -1f;
+        var kotakMusik = CariTransform("Picnic_MusicBox_Panel");
+        if (kotakMusik != null)
+            dBoxApi = Vector2.Distance(new Vector2(posApi.x, posApi.z),
+                                       new Vector2(kotakMusik.position.x, kotakMusik.position.z));
+        bool posApiOk = dRelApi >= KemahMinKeRel && (dBoxApi < 0f || dBoxApi >= KemahMinKeKotakMusik);
+        sb.AppendLine("  Posisi api (timur-laut piknik): " + F(posApi)
+            + " | jarak rel " + dRelApi.ToString("0.00") + " (min " + KemahMinKeRel + ")"
+            + " | jarak kotak musik " + (dBoxApi < 0f ? "?" : dBoxApi.ToString("0.00")) + " (min " + KemahMinKeKotakMusik + ")"
+            + (posApiOk ? "  OK" : "  <-- GAGAL: geser KemahGeserX/Z!"));
 
         var api = new GameObject("Kemah_Api");
         api.transform.SetParent(kemahRoot.transform, true);
@@ -676,30 +700,40 @@ public static class WahanaRebuilder
         var lampu = lampuGo.AddComponent<Light>();
         lampu.type = LightType.Point;
         lampu.color = new Color(1f, 0.52f, 0.2f);
-        lampu.intensity = 2.6f;
-        lampu.range = 12f;
+        lampu.intensity = LampuApiIntens;
+        lampu.range = LampuApiJangkau;
         lampu.shadows = LightShadows.None;
         var flick = lampuGo.AddComponent<LampuFlicker>();
         var soFlick = new SerializedObject(flick);
-        soFlick.FindProperty("_intensitasDasar").floatValue = 2.6f; // base kelip = intensitas api
+        soFlick.FindProperty("_intensitasDasar").floatValue = LampuApiIntens; // base kelip = intensitas api
         soFlick.ApplyModifiedProperties();
 
-        // suara api (placeholder: BaseAmbience pitch rendah = gemuruh bara; 3D memudar-jarak)
-        var clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/SFX/T7_SFX_BaseAmbience.ogg");
+        // suara api: crackle CC0 (S1_SFX_ApiCrackle, OGA "Fire Crackling" AntumDeluge).
+        // Placeholder lama (BaseAmbience pitch rendah) terdengar "dengung mesin" (review F2b,
+        // source sempat dimatikan) — kalau crackle tak ketemu, source dibiarkan MATI.
+        var clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/SFX/S1_SFX_ApiCrackle.wav");
+        var audio = api.AddComponent<AudioSource>();
+        audio.loop = true;
+        audio.playOnAwake = true;
+        audio.spatialBlend = 1f;
+        audio.rolloffMode = AudioRolloffMode.Linear;
+        audio.minDistance = 1.5f;
+        audio.maxDistance = 12f;
         if (clip != null)
         {
-            var audio = api.AddComponent<AudioSource>();
             audio.clip = clip;
-            audio.loop = true;
-            audio.playOnAwake = true;
-            audio.spatialBlend = 1f;
-            audio.pitch = 0.55f;
-            audio.volume = 0.45f;
-            audio.rolloffMode = AudioRolloffMode.Linear;
-            audio.minDistance = 1.5f;
-            audio.maxDistance = 12f;
+            audio.pitch = 1f;
+            audio.volume = ApiCrackleVol;
+            sb.AppendLine("  Audio api: S1_SFX_ApiCrackle vol " + ApiCrackleVol + ".");
         }
-        else sb.AppendLine("  (BaseAmbience.ogg tidak ketemu — audio dilewati)");
+        else
+        {
+            audio.clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/SFX/T7_SFX_BaseAmbience.ogg");
+            audio.pitch = 0.55f;
+            audio.volume = 0.2f;
+            audio.enabled = false; // keputusan F2b: hum "mesin" jangan balik
+            sb.AppendLine("  (S1_SFX_ApiCrackle.wav tak ketemu — source api DIMATIKAN)");
+        }
 
         // percikan kecil (opsional — skip TOTAL kalau shader partikel URP tak ada, anti-magenta)
         var shPartikel = Shader.Find("Universal Render Pipeline/Particles/Unlit");
@@ -727,8 +761,9 @@ public static class WahanaRebuilder
         }
         else sb.AppendLine("  (shader URP Particles/Unlit tak ada — percikan dilewati)");
 
-        // (c) fireflies: titik emissive kecil melayang, TANPA Light (budget lampu)
-        var matFirefly = MatUnlit(new Color(0.75f, 0.95f, 0.4f));
+        // (c) fireflies: titik emissive kecil melayang, TANPA Light (budget lampu).
+        // Rework: GOLD hangat + HDR (ikut bloom) — dulu MatUnlit hijau non-HDR tak memendar.
+        var matFirefly = MatUnlitHDR(KunangGoldKemah, 2.2f);
         for (int i = 0; i < 8; i++)
         {
             float rad = (float)(rand.NextDouble() * Mathf.PI * 2.0);
@@ -736,8 +771,8 @@ public static class WahanaRebuilder
             var ff = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             ff.name = "FireflyS1_" + i;
             ff.transform.SetParent(kemahRoot.transform, true);
-            ff.transform.position = cen + new Vector3(Mathf.Cos(rad) * r,
-                1.2f + (float)rand.NextDouble() * 1.0f, Mathf.Sin(rad) * r);
+            ff.transform.position = posApi + new Vector3(Mathf.Cos(rad) * r,
+                0.6f + (float)rand.NextDouble() * 1.0f, Mathf.Sin(rad) * r);
             ff.transform.localScale = Vector3.one * 0.12f;
             Object.DestroyImmediate(ff.GetComponent<Collider>());
             ff.GetComponent<MeshRenderer>().sharedMaterial = matFirefly;
@@ -874,6 +909,14 @@ public static class WahanaRebuilder
     //  di child GEN_Dressing/HutanSihirS1 -> ikut di-bake menu 14. Idempotent.
     //  URUTAN WAJIB setelah ini: menu 8 -> 15 (rebake pohon ter-scale) -> 17 -> 14.
     // =====================================================================
+    // ---- Konstanta tuning Dekor S1 (rework 2026-07-08: siluet hitam -> pohon beneran gelap) ----
+    private const float PohonMalamSkala = 1.8f;   // pengali tinggi baris siluet lama (2.9 -> ~5.2u)
+    private static readonly Color PohonMalamDaun = new Color(0.05f, 0.10f, 0.085f);     // Lit gelap kebiruan
+    private static readonly Color PohonMalamBatang = new Color(0.055f, 0.04f, 0.035f);
+    private static readonly Color KanopiMalamWarna = new Color(0.030f, 0.055f, 0.045f); // dulu unlit 0.004 = "objek hitam"
+    private static readonly Color LenteraAmberWarna = new Color(1f, 0.62f, 0.28f);      // amber pola menu 63
+    private const float LenteraAmberEmis = 1.3f;
+
     [MenuItem("Tools/Wahana/19 S1 Sihir Dekor")]
     public static void SihirDekorS1()
     {
@@ -971,28 +1014,34 @@ public static class WahanaRebuilder
         }
         sb.AppendLine("  Bukit piknik flat-top y" + TINGGI_BUKIT + " + 3 gundukan; " + nNaik + " grup picnic di-snap ke puncak.");
 
-        // ---------- (c) siluet pohon hitam 2 baris (bohong kedalaman) ----------
-        var matSiluet = MatUnlit(new Color(0.008f, 0.012f, 0.02f));
+        // ---------- (c) POHON MALAM 2 baris — dulu siluet unlit hampir-hitam, playtest:
+        // kebaca "objek hitam aneh". Kini clone pinus Polytope (LOD0) recolor Lit gelap
+        // kebiruan: tetap mood malam tapi jelas bentuk pohon. Fallback siluet lama. ----------
+        var matSiluet = MatUnlit(new Color(0.008f, 0.012f, 0.02f)); // fallback kalau pinus hilang
+        var pineTemplate = TemplatePohonMalam();
+        var matDaunMalam = MatLit(PohonMalamDaun);
+        var matBatangMalam = MatLit(PohonMalamBatang);
         int nSiluet = 0;
         // dinding: N z26, E x48, S z8, W x28; bukaan: masuk x28 z19.4-22.6, keluar z8 x40.4-43.6
         for (float x = 29.5f; x <= 46.5f; x += 3.1f) // sepanjang dinding N & S
         {
-            nSiluet += SiluetAman(root.transform, new Vector3(x + Jitter(rand, 0.7f), 0f, 24.9f + Jitter(rand, 0.4f)), 2.9f, jalur, matSiluet, rand);
-            nSiluet += SiluetAman(root.transform, new Vector3(x + Jitter(rand, 0.7f), 0f, 26.6f), 2.2f, jalur, matSiluet, rand); // baris luar (boleh "nembus" dinding visual)
+            nSiluet += PohonMalamAman(root.transform, new Vector3(x + Jitter(rand, 0.7f), 0f, 24.9f + Jitter(rand, 0.4f)), 2.9f * PohonMalamSkala, jalur, pineTemplate, matDaunMalam, matBatangMalam, matSiluet, rand);
+            nSiluet += PohonMalamAman(root.transform, new Vector3(x + Jitter(rand, 0.7f), 0f, 26.6f), 2.2f * PohonMalamSkala, jalur, pineTemplate, matDaunMalam, matBatangMalam, matSiluet, rand); // baris luar (boleh "nembus" dinding visual)
             if (x < 39f || x > 44.5f) // skip bukaan keluar
             {
-                nSiluet += SiluetAman(root.transform, new Vector3(x + Jitter(rand, 0.7f), 0f, 9.1f + Jitter(rand, 0.4f)), 2.9f, jalur, matSiluet, rand);
+                nSiluet += PohonMalamAman(root.transform, new Vector3(x + Jitter(rand, 0.7f), 0f, 9.1f + Jitter(rand, 0.4f)), 2.9f * PohonMalamSkala, jalur, pineTemplate, matDaunMalam, matBatangMalam, matSiluet, rand);
             }
         }
         for (float z = 9.5f; z <= 24.5f; z += 3.3f) // sepanjang dinding E & W
         {
-            nSiluet += SiluetAman(root.transform, new Vector3(46.9f + Jitter(rand, 0.3f), 0f, z + Jitter(rand, 0.7f)), 2.7f, jalur, matSiluet, rand);
+            nSiluet += PohonMalamAman(root.transform, new Vector3(46.9f + Jitter(rand, 0.3f), 0f, z + Jitter(rand, 0.7f)), 2.7f * PohonMalamSkala, jalur, pineTemplate, matDaunMalam, matBatangMalam, matSiluet, rand);
             if (z < 18.4f || z > 23.6f) // skip bukaan masuk
             {
-                nSiluet += SiluetAman(root.transform, new Vector3(28.9f + Jitter(rand, 0.3f), 0f, z + Jitter(rand, 0.7f)), 2.7f, jalur, matSiluet, rand);
+                nSiluet += PohonMalamAman(root.transform, new Vector3(28.9f + Jitter(rand, 0.3f), 0f, z + Jitter(rand, 0.7f)), 2.7f * PohonMalamSkala, jalur, pineTemplate, matDaunMalam, matBatangMalam, matSiluet, rand);
             }
         }
-        sb.AppendLine("  Siluet pohon: " + nSiluet + " batang (2 baris, hitam kebiruan).");
+        sb.AppendLine("  Pohon malam: " + nSiluet + " pohon ("
+            + (pineTemplate != null ? "pinus gelap kebiruan" : "FALLBACK siluet — pinus tak ketemu") + ").");
 
         // ---------- (d) langit: bintang + bulan + kanopi + shaft ----------
         float plafonY = 6f;
@@ -1024,7 +1073,8 @@ public static class WahanaRebuilder
         Object.DestroyImmediate(bulan.GetComponent<Collider>());
         bulan.GetComponent<MeshRenderer>().sharedMaterial = MatUnlitHDR(new Color(0.85f, 0.9f, 1f), 1.6f);
 
-        var matKanopi = MatUnlit(new Color(0.004f, 0.008f, 0.012f));
+        // kanopi & dahan Lit gelap (dulu unlit nyaris-hitam — bagian keluhan "objek hitam")
+        var matKanopi = MatLit(KanopiMalamWarna);
         Vector3[] posKanopi = { new Vector3(33f, plafonY - 0.5f, 17f), new Vector3(42f, plafonY - 0.6f, 13f), new Vector3(37f, plafonY - 0.45f, 22f) };
         Vector3[] sklKanopi = { new Vector3(7f, 1.4f, 7f), new Vector3(6f, 1.2f, 6f), new Vector3(5f, 1.1f, 5f) };
         for (int i = 0; i < posKanopi.Length; i++)
@@ -1126,9 +1176,10 @@ public static class WahanaRebuilder
         Object.DestroyImmediate(kolam.GetComponent<Collider>());
         kolam.GetComponent<MeshRenderer>().sharedMaterial = matAir;
 
-        // jembatan kayu TERANG + 4 lentera cyan di persilangan rel x sungai (44.75, 13.7)
+        // jembatan kayu TERANG + 4 lentera AMBER di persilangan rel x sungai (44.75, 13.7)
+        // (rework warm: lentera struktur kayu -> amber; cyan tetap milik sungai/jamur/bulan)
         var matKayu = MatLit(new Color(0.45f, 0.32f, 0.18f));
-        var matLenteraJ = MatUnlitHDR(new Color(0.3f, 0.95f, 1f), 2.6f);
+        var matLenteraJ = MatUnlitHDR(new Color(1f, 0.62f, 0.28f), 2.4f);
         // orient jembatan SEJAJAR rel di titik silang (local Z = arah rel, deck memanjang di jalur)
         var ptsUJemb = WahanaLayout.Resample(WahanaLayout.BuildNodeUtama(), true);
         Vector3 silangJemb = new Vector3(44.75f, 0f, 13.7f);
@@ -1151,7 +1202,25 @@ public static class WahanaRebuilder
         // ---------- (f) gapura x2 ----------
         BuatGapura(root.transform, new Vector3(28.8f, 0f, 21f), Vector3.right, "HUTAN BERUANG", matKayu);
         BuatGapura(root.transform, new Vector3(42f, 0f, 8.9f), Vector3.back, "SAMPAI JUMPA", matKayu);
-        sb.AppendLine("  Gapura masuk (28.8,21) + keluar (42,8.9) + lentera cyan.");
+        sb.AppendLine("  Gapura masuk (28.8,21) + keluar (42,8.9) + lentera amber.");
+
+        // ---------- (f2) lentera taman AMBER: titik hangat kecil di kantong gelap
+        // (kepala emissive pola menu 63 — warm tanpa nambah Light) ----------
+        var matLenteraAmber = MatGlowLit(LenteraAmberWarna, LenteraAmberEmis);
+        Vector3[] posLentera =
+        {
+            new Vector3(29.0f, 0f, 18.4f),  // samping tuas cabang
+            new Vector3(29.6f, 0f, 11.6f),  // kantong barat-daya
+            new Vector3(46.0f, 0f, 23.4f),  // kantong timur-laut
+        };
+        int nLentera = 0;
+        foreach (var pl in posLentera)
+        {
+            if (MinDistXZ(jalur, pl) < 1.5f) continue;
+            BuatLenteraTaman(root.transform, "LenteraTaman_" + nLentera, pl, matKayu, matLenteraAmber);
+            nLentera++;
+        }
+        sb.AppendLine("  Lentera taman amber: " + nLentera + " tiang.");
 
         // ---------- (g) lantai rumput ----------
         var texRumput = AssetDatabase.LoadAssetAtPath<Texture2D>(
@@ -1169,6 +1238,20 @@ public static class WahanaRebuilder
         else sb.AppendLine("  (tekstur rumput / Lantai_S1 tak ketemu — lantai dilewati)");
 
         FlagStatisRekursif(root, true);
+
+        // ---------- (h) auto-rebake GEN_Dressing (SCOPED) ----------
+        // Konten menu ini di-bake menu 14 (renderer asli disabled di GABUNG_*): tanpa rebake,
+        // pohon/kanopi baru tak kelihatan / yang lama nempel. JANGAN pakai menu 14 full —
+        // GEN_Tunnel ikut tergabung ulang = carve 49b mati (rantai SOP S4).
+        for (int i = dressing.childCount - 1; i >= 0; i--)
+        {
+            var cg = dressing.GetChild(i);
+            if (cg.name.StartsWith("GABUNG_")) Object.DestroyImmediate(cg.gameObject);
+        }
+        foreach (var mrd in dressing.GetComponentsInChildren<MeshRenderer>(true)) mrd.enabled = true;
+        int nGabungDress = TemenDresser.GabungMeshStatis(dressing, "GEN_Dressing", new HashSet<string>());
+        sb.AppendLine("  Rebake GEN_Dressing: " + nGabungDress + " renderer digabung.");
+
         Debug.Log(sb.ToString());
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
     }
@@ -1179,6 +1262,15 @@ public static class WahanaRebuilder
     //  lumut glow batang, api flare, SuasanaZona teal, chime. Parent root sendiri
     //  GEN_SihirHidup_S1 (TIDAK di-bake — semua beranimasi). Idempotent.
     // =====================================================================
+    // ---- Konstanta tuning Sihir Hidup S1 (rework 2026-07-08) ----
+    private const int KunangAmbientN = 40;        // dulu 20 — disebar ke kantong gelap
+    private static readonly Color KunangGold = new Color(1f, 0.78f, 0.42f); // ambient: amber-gold hangat
+    private const float KunangGoldEmis = 2.6f;
+    private const float JamurEmisSmooth = 1.4f;   // dulu 2.2 flat satu-warna; kini emission MAP x tint
+    private const float HaloJamurAlpha = 0.12f;   // dulu 0.18 (halo dikecilkan, glow utama dari tekstur)
+    private const float MusikHutanVol = 0.12f;    // pola S2 (loop 3D)
+    private const float JangkrikHutanVol = 0.08f;
+
     [MenuItem("Tools/Wahana/20 S1 Sihir Hidup")]
     public static void SihirHidupS1()
     {
@@ -1194,7 +1286,8 @@ public static class WahanaRebuilder
         var teddySection = CariTransform("UAS_ForestTeddySection");
         if (teddySection != null) cen = new Vector3(teddySection.position.x, 0f, teddySection.position.z);
 
-        var matKunang = MatUnlitHDR(new Color(0.75f, 0.95f, 0.4f), 2.6f);
+        var matKunang = MatUnlitHDR(new Color(0.75f, 0.95f, 0.4f), 2.6f); // domino: tetap hijau-kuning (aksen)
+        var matKunangGold = MatUnlitHDR(KunangGold, KunangGoldEmis);      // ambient: gold hangat (rework warm)
         var matKaca = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/MatKaca.mat");
         Material matHalo = null;
         if (matKaca != null)
@@ -1235,32 +1328,48 @@ public static class WahanaRebuilder
         // ---------- (b) kunang ambient: 20 kecil sebar ----------
         var ambient = new GameObject("KunangAmbient");
         ambient.transform.SetParent(root.transform, true);
+        // Rework: multi-cluster GOLD — pusat piknik + 4 kantong gelap pojok ruangan.
+        // Dulu cuma radius sekitar piknik = pojok tetap hitam ("masih banyak spot gelap").
+        Vector3[] pusatKunang =
+        {
+            cen,
+            new Vector3(30.5f, 0f, 12f),   // barat-daya
+            new Vector3(31f, 0f, 24f),     // barat-laut
+            new Vector3(44f, 0f, 10.8f),   // tenggara (dekat gapura keluar)
+            new Vector3(45.5f, 0f, 22f),   // timur-laut
+        };
         int nAmbient = 0, coba = 0;
-        while (nAmbient < 20 && coba < 200)
+        while (nAmbient < KunangAmbientN && coba < 400)
         {
             coba++;
+            bool diPiknik = nAmbient % pusatKunang.Length == 0;
+            Vector3 basis = pusatKunang[nAmbient % pusatKunang.Length];
             float sudut = (float)(rand.NextDouble() * Mathf.PI * 2.0);
-            float r = 3f + (float)rand.NextDouble() * 6f;
-            Vector3 pos = cen + new Vector3(Mathf.Cos(sudut) * r, 0f, Mathf.Sin(sudut) * r);
+            float r = diPiknik ? 3f + (float)rand.NextDouble() * 6f : 0.8f + (float)rand.NextDouble() * 3f;
+            Vector3 pos = basis + new Vector3(Mathf.Cos(sudut) * r, 0f, Mathf.Sin(sudut) * r);
             if (pos.x < 29f || pos.x > 47f || pos.z < 9f || pos.z > 25f) continue;
             if (MinDistXZ(jalur, pos) < 1.5f) continue;
             pos.y = 1.2f + (float)rand.NextDouble() * 1.2f;
-            BuatKunang(ambient.transform, "KunangK_" + nAmbient, pos, 0.06f, matKunang, null, false, null, rand);
+            BuatKunang(ambient.transform, "KunangK_" + nAmbient, pos, 0.06f, matKunangGold, null, false, null, rand);
             nAmbient++;
         }
-        sb.AppendLine("  Ambient: " + nAmbient + " kunang kecil.");
+        sb.AppendLine("  Ambient: " + nAmbient + " kunang GOLD (5 cluster, kantong gelap terisi).");
 
         // ---------- (c) taman jamur (terbesar mengangkangi busur cabang WK2) ----------
-        var jamurTemplate = CariGameObject("Mushroom_01");
+        // Rework "glow SMOOTH": model dari pack env (Fantasy Worlds — kalau sudah diimpor;
+        // fallback Mushroom_01 Polytope). Material = klon material asli + EMISSION MAP dari
+        // teksturnya sendiri -> gradasi glow ikut tekstur, bukan neon satu-warna flat.
+        var jamurPack = CariPrefabJamurPack();
+        var jamurTemplate = jamurPack != null ? jamurPack : CariGameObject("Mushroom_01");
         var jcyan = new Color(0.3f, 0.95f, 1f);
         var jungu = new Color(0.65f, 0.4f, 1f);
-        var matJamurCyan = MatGlowLit(jcyan, 2.2f);  // Lit+emission: jamur berdimensi + glow (bukan blob flat)
-        var matJamurUngu = MatGlowLit(jungu, 2.2f);
+        var cacheJamurCyan = new Dictionary<Material, Material>();
+        var cacheJamurUngu = new Dictionary<Material, Material>();
         Material matHaloJCyan = null, matHaloJUngu = null;
         if (matKaca != null)
         {
-            matHaloJCyan = new Material(matKaca); SetWarna(matHaloJCyan, new Color(jcyan.r, jcyan.g, jcyan.b, 0.18f));
-            matHaloJUngu = new Material(matKaca); SetWarna(matHaloJUngu, new Color(jungu.r, jungu.g, jungu.b, 0.18f));
+            matHaloJCyan = new Material(matKaca); SetWarna(matHaloJCyan, new Color(jcyan.r, jcyan.g, jcyan.b, HaloJamurAlpha));
+            matHaloJUngu = new Material(matKaca); SetWarna(matHaloJUngu, new Color(jungu.r, jungu.g, jungu.b, HaloJamurAlpha));
         }
         int nJamur = 0;
         if (jamurTemplate != null)
@@ -1278,8 +1387,9 @@ public static class WahanaRebuilder
                     Vector3 pos = arc[i] + new Vector3(Jitter(rand, 0.4f), 0f, sisi * (1.4f + (float)rand.NextDouble() * 0.5f));
                     if (MinDistXZ(jalur, pos) < 1.25f) continue;
                     bool jc = nJamur % 2 == 0;
-                    nJamur += BuatJamurGlow(taman.transform, "JamurGlow_" + nJamur, pos, jamurTemplate,
-                        jc ? matJamurCyan : matJamurUngu, jc ? matHaloJCyan : matHaloJUngu, rand);
+                    nJamur += BuatJamurSmooth(taman.transform, "JamurGlow_" + nJamur, pos, jamurTemplate,
+                        jc ? jcyan : jungu, jc ? matHaloJCyan : matHaloJUngu,
+                        jc ? cacheJamurCyan : cacheJamurUngu, rand);
                 }
             }
             // 2 cluster kecil pendukung di jalur utama (foreshadow dari kejauhan)
@@ -1291,8 +1401,9 @@ public static class WahanaRebuilder
                     Vector3 pos = pc + new Vector3(Jitter(rand, 0.9f), 0f, Jitter(rand, 0.9f));
                     if (MinDistXZ(jalur, pos) < 1.4f) continue;
                     bool jc = nJamur % 2 == 0;
-                    nJamur += BuatJamurGlow(taman.transform, "JamurGlow_" + nJamur, pos, jamurTemplate,
-                        jc ? matJamurCyan : matJamurUngu, jc ? matHaloJCyan : matHaloJUngu, rand);
+                    nJamur += BuatJamurSmooth(taman.transform, "JamurGlow_" + nJamur, pos, jamurTemplate,
+                        jc ? jcyan : jungu, jc ? matHaloJCyan : matHaloJUngu,
+                        jc ? cacheJamurCyan : cacheJamurUngu, rand);
                 }
             }
             // chime sihir di taman jamur
@@ -1301,9 +1412,10 @@ public static class WahanaRebuilder
             chimeTaman.transform.position = new Vector3(37f, 1f, 10f);
             chimeTaman.AddComponent<UAS_ProceduralChime>(); // RequireComponent otomatis menambah AudioSource 3D
             chimeTaman.AddComponent<ChimeBerkala>();
-            sb.AppendLine("  Taman jamur: " + nJamur + " jamur glow (terbesar di busur cabang) + chime.");
+            sb.AppendLine("  Taman jamur: " + nJamur + " jamur glow SMOOTH ("
+                + (jamurPack != null ? "pack: " + jamurPack.name : "fallback Polytope Mushroom_01") + ") + chime.");
         }
-        else sb.AppendLine("  (Mushroom_01 tak ketemu — jamur dilewati)");
+        else sb.AppendLine("  (template jamur tak ketemu — jamur dilewati)");
 
         // ---------- (d) lumut glow di 4 batang pohon terdekat jalur ----------
         var matLumut = MatUnlitHDR(new Color(0.4f, 1f, 0.75f), 2.3f);
@@ -1382,9 +1494,10 @@ public static class WahanaRebuilder
         sb.AppendLine("  LampuSihir_S1 cyan (1.7, r12) di taman jamur.");
 
         // ---------- (f) SuasanaZona teal masuk / restore keluar (ambient lebih PEKAT = bayangan berwarna) ----------
+        // ambient dinaikkan ~35% + equator/ground digeser hangat tipis (playtest: "spot gelap")
         BuatSatuSuasana("GEN_Suasana_S1Masuk", new Vector3(28.6f, 1f, 21f), new Vector3(6f, 6f, 8f), 0,
             new Color(0.02f, 0.07f, 0.08f), 9f, 42f,
-            new Color(0.025f, 0.08f, 0.09f), new Color(0.018f, 0.06f, 0.07f), new Color(0.01f, 0.035f, 0.045f), sb);
+            new Color(0.03f, 0.09f, 0.10f), new Color(0.032f, 0.07f, 0.072f), new Color(0.03f, 0.048f, 0.045f), sb);
         BuatSatuSuasana("GEN_Suasana_S1Keluar", new Vector3(42f, 1f, 7.6f), new Vector3(8f, 6f, 6f), 1,
             Color.black, 10f, 60f, Color.black, Color.black, Color.black, sb);
 
@@ -1399,6 +1512,47 @@ public static class WahanaRebuilder
         soBerkala.FindProperty("_jedaMax").floatValue = 16f;
         soBerkala.ApplyModifiedProperties();
         sb.AppendLine("  Chime jembatan terpasang.");
+
+        // ---------- (h) BG MUSIC hutan + jangkrik ----------
+        // S1 dulu satu-satunya section BISU: Musik_S1_Hutan.mp3 ada di project tapi tak pernah
+        // di-wire. Pola AudioSource = S2 (loop, 3D, playOnAwake).
+        var musikGo = new GameObject("MusikHutan_S1");
+        musikGo.transform.SetParent(root.transform, true);
+        musikGo.transform.position = new Vector3(38f, 2.5f, 17f);
+        var clipMusik = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Musik/Musik_S1_Hutan.mp3");
+        if (clipMusik != null)
+        {
+            var musik = musikGo.AddComponent<AudioSource>();
+            musik.clip = clipMusik;
+            musik.loop = true;
+            musik.playOnAwake = true;
+            musik.spatialBlend = 1f;
+            musik.rolloffMode = AudioRolloffMode.Linear;
+            musik.minDistance = 4f;
+            musik.maxDistance = 22f;
+            musik.volume = MusikHutanVol;
+            sb.AppendLine("  MusikHutan_S1 (Fireflies and Stardust) vol " + MusikHutanVol + ", 3D 4-22m.");
+        }
+        else sb.AppendLine("  (Musik_S1_Hutan.mp3 tak ketemu — musik dilewati)");
+
+        var jangkrikGo = new GameObject("JangkrikHutan_S1");
+        jangkrikGo.transform.SetParent(root.transform, true);
+        jangkrikGo.transform.position = new Vector3(31f, 1f, 23.5f);
+        var clipJangkrik = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/SFX/BNS_SFX_Jangkrik.wav");
+        if (clipJangkrik != null)
+        {
+            var jangkrik = jangkrikGo.AddComponent<AudioSource>();
+            jangkrik.clip = clipJangkrik;
+            jangkrik.loop = true;
+            jangkrik.playOnAwake = true;
+            jangkrik.spatialBlend = 1f;
+            jangkrik.rolloffMode = AudioRolloffMode.Linear;
+            jangkrik.minDistance = 3f;
+            jangkrik.maxDistance = 18f;
+            jangkrik.volume = JangkrikHutanVol;
+            sb.AppendLine("  JangkrikHutan_S1 vol " + JangkrikHutanVol + " (reuse BNS_SFX_Jangkrik).");
+        }
+        else sb.AppendLine("  (BNS_SFX_Jangkrik.wav tak ketemu — jangkrik dilewati)");
 
         Debug.Log(sb.ToString());
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
@@ -1968,6 +2122,225 @@ public static class WahanaRebuilder
         return 1;
     }
 
+    /// <summary>Template pinus Polytope untuk pohon malam (ambil pertama di Environment S1).</summary>
+    private static GameObject TemplatePohonMalam()
+    {
+        var temen = CariTransform("GEN_Temen_S1");
+        if (temen == null) return null;
+        foreach (var t in temen.GetComponentsInChildren<Transform>(true))
+        {
+            if (t.name.StartsWith("Pine_Tree_")) return t.gameObject;
+        }
+        return null;
+    }
+
+    /// <summary>Buang LODGroup + renderer LOD1/2, sisakan LOD0 (pola rumput menu 62 —
+    /// LODGroup pada clone bikin renderer ganda & culling aneh saat di-scale).</summary>
+    internal static void HapusLODSisakan0(GameObject go)
+    {
+        foreach (var lg in go.GetComponentsInChildren<LODGroup>(true))
+        {
+            if (lg == null) continue;
+            var lods = lg.GetLODs();
+            var keep = new HashSet<Renderer>();
+            if (lods.Length > 0)
+                foreach (var r in lods[0].renderers) if (r != null) keep.Add(r);
+            foreach (var r in lg.GetComponentsInChildren<Renderer>(true))
+            {
+                if (r == null || keep.Contains(r)) continue;
+                Object.DestroyImmediate(r.gameObject);
+            }
+            Object.DestroyImmediate(lg);
+        }
+    }
+
+    /// <summary>Pohon malam: clone pinus (LOD0 saja) di-recolor Lit gelap kebiruan — pengganti
+    /// siluet hitam (playtest: siluet kebaca "objek hitam aneh"). Fallback SiluetAman. Return 1/0.</summary>
+    internal static int PohonMalamAman(Transform parent, Vector3 pos, float tinggi, List<Vector3> jalur,
+                                       GameObject template, Material matDaun, Material matBatang,
+                                       Material matSiluetFallback, System.Random rand)
+    {
+        if (MinDistXZ(jalur, new Vector3(pos.x, 0f, pos.z)) < 1.8f) return 0;
+        if (template == null)
+            return SiluetAman(parent, pos, tinggi / PohonMalamSkala, jalur, matSiluetFallback, rand);
+
+        var pohon = Object.Instantiate(template, parent);
+        pohon.name = "PohonMalam";
+        if (PrefabUtility.IsPartOfPrefabInstance(pohon))
+            PrefabUtility.UnpackPrefabInstance(pohon, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+        pohon.transform.position = new Vector3(pos.x, 0f, pos.z);
+        pohon.transform.rotation = Quaternion.Euler(0f, (float)(rand.NextDouble() * 360.0), 0f);
+        HapusLODSisakan0(pohon);
+        foreach (var col in pohon.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(col);
+
+        var mrs = pohon.GetComponentsInChildren<MeshRenderer>(true);
+        if (mrs.Length == 0)
+        {
+            Object.DestroyImmediate(pohon);
+            return SiluetAman(parent, pos, tinggi / PohonMalamSkala, jalur, matSiluetFallback, rand);
+        }
+        Bounds b = mrs[0].bounds;
+        foreach (var mr in mrs) b.Encapsulate(mr.bounds);
+        float faktor = Mathf.Clamp(tinggi / Mathf.Max(b.size.y, 0.2f), 0.2f, 6f);
+        pohon.transform.localScale = pohon.transform.localScale * faktor;
+
+        foreach (var mr in mrs)
+        {
+            mr.enabled = true; // template mungkin sudah di-bake (renderer asli disabled)
+            var lama = mr.sharedMaterials;
+            var baru = new Material[lama.Length];
+            for (int i = 0; i < lama.Length; i++)
+            {
+                string nm = lama[i] != null ? lama[i].name.ToLowerInvariant() : "";
+                baru[i] = (nm.Contains("leaves") || nm.Contains("leaf") || nm.Contains("foliage") || nm.Contains("top"))
+                    ? matDaun : matBatang;
+            }
+            mr.sharedMaterials = baru;
+        }
+        return 1;
+    }
+
+    /// <summary>Lentera taman: tiang kayu pendek + kepala amber emissive (pola kepala menu 63).</summary>
+    internal static void BuatLenteraTaman(Transform parent, string nama, Vector3 pos, Material matTiang, Material matKepala)
+    {
+        var akar = new GameObject(nama);
+        akar.transform.SetParent(parent, true);
+        akar.transform.position = pos;
+        BuatBoxSihir(akar.transform, "Tiang", pos + Vector3.up * 0.8f, new Vector3(0.12f, 1.6f, 0.12f), matTiang);
+        BuatBoxSihir(akar.transform, "Kepala", pos + Vector3.up * 1.72f, new Vector3(0.26f, 0.22f, 0.26f), matKepala);
+    }
+
+    /// <summary>Cari model/prefab jamur dari pack env impor (Fantasy Worlds / TriForge dll).
+    /// Wajib dari folder ber-nuansa pack (skor >= 4) — aset Temen/Polytope/Kenney/prop "blob"
+    /// dikecualikan. Return null kalau pack belum diimpor (pemanggil fallback template scene).</summary>
+    internal static GameObject CariPrefabJamurPack()
+    {
+        GameObject best = null;
+        int skorBest = 3;
+        foreach (string filter in new[] { "mushroom t:prefab", "mushroom t:model" })
+        {
+            foreach (var guid in AssetDatabase.FindAssets(filter))
+            {
+                string pathAsli = AssetDatabase.GUIDToAssetPath(guid);
+                string path = pathAsli.ToLowerInvariant();
+                if (!path.StartsWith("assets/")) continue;
+                if (path.Contains("/temen/") || path.Contains("polytope") || path.Contains("kenney")) continue;
+                if (path.Contains("blob")) continue; // prop boneka S2
+                int skor = 0;
+                if (path.Contains("fantasy")) skor += 10;
+                if (path.Contains("triforge")) skor += 10;
+                if (path.Contains("forest")) skor += 4;
+                if (path.Contains("glow") || path.Contains("magic") || path.Contains("shroom")) skor += 3;
+                if (path.EndsWith(".prefab")) skor += 2;
+                if (skor <= skorBest) continue;
+                var go = AssetDatabase.LoadAssetAtPath<GameObject>(pathAsli);
+                if (go == null) continue;
+                skorBest = skor;
+                best = go;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>Klon material sumber + EMISSION MAP = tekstur albedo-nya sendiri (tint HDR) —
+    /// glow smooth mengikuti gradasi tekstur, bukan neon satu-warna. Non-URP direbuild
+    /// jadi URP Lit (anti-magenta).</summary>
+    private static Material KlonJamurGlow(Material sumber, Color tint, float emis)
+    {
+        Material m;
+        if (sumber != null && sumber.shader != null && sumber.shader.name.Contains("Universal"))
+        {
+            m = new Material(sumber);
+        }
+        else
+        {
+            m = MatLit(Color.white);
+            var texLama = (sumber != null && sumber.HasProperty("_MainTex")) ? sumber.GetTexture("_MainTex") : null;
+            if (texLama != null && m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", texLama);
+        }
+        if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.05f); // pelajaran sheen: spekular = pucat
+        m.EnableKeyword("_EMISSION");
+        m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+        Texture tex = m.HasProperty("_BaseMap") ? m.GetTexture("_BaseMap") : null;
+        if (tex != null && m.HasProperty("_EmissionMap")) m.SetTexture("_EmissionMap", tex);
+        if (m.HasProperty("_EmissionColor"))
+            m.SetColor("_EmissionColor", new Color(tint.r * emis, tint.g * emis, tint.b * emis));
+        return m;
+    }
+
+    /// <summary>Jamur glow SMOOTH: instantiate sumber (prefab pack ATAU clone scene), LOD0 saja,
+    /// normalisasi tinggi + snap dasar bounds ke tanah, material klon ber-emission-map (cache),
+    /// halo aura + denyut — pengganti BuatJamurGlow satu-warna flat. Return 1/0.</summary>
+    internal static int BuatJamurSmooth(Transform parent, string nama, Vector3 pos, GameObject sumber,
+                                        Color tint, Material matHalo,
+                                        Dictionary<Material, Material> cacheMat, System.Random rand)
+    {
+        float target = 0.8f + (float)rand.NextDouble() * 0.7f; // tinggi world 0.8-1.5u
+        var jamur = Object.Instantiate(sumber, parent);
+        jamur.name = nama;
+        if (PrefabUtility.IsPartOfPrefabInstance(jamur))
+            PrefabUtility.UnpackPrefabInstance(jamur, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+        jamur.transform.position = new Vector3(pos.x, 0f, pos.z);
+        jamur.transform.rotation = Quaternion.Euler(0f, (float)rand.NextDouble() * 360f, 0f);
+        HapusLODSisakan0(jamur);
+        foreach (var col in jamur.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(col);
+        foreach (var mb in jamur.GetComponentsInChildren<MonoBehaviour>(true))
+            if (mb != null) Object.DestroyImmediate(mb); // script bawaan pack tak dibawa
+
+        var mrs = jamur.GetComponentsInChildren<MeshRenderer>(true);
+        if (mrs.Length == 0) { Object.DestroyImmediate(jamur); return 0; }
+        Bounds b0 = mrs[0].bounds;
+        foreach (var mr in mrs) b0.Encapsulate(mr.bounds);
+        float faktor = Mathf.Clamp(target / Mathf.Max(b0.size.y, 0.05f), 0.02f, 50f);
+        jamur.transform.localScale = jamur.transform.localScale * faktor;
+        Bounds b1 = mrs[0].bounds;
+        foreach (var mr in mrs) b1.Encapsulate(mr.bounds);
+        jamur.transform.position += Vector3.up * (0f - b1.min.y); // pivot pack bisa bukan di kaki
+
+        foreach (var mr in mrs)
+        {
+            mr.enabled = true;
+            var lama = mr.sharedMaterials;
+            var baru = new Material[lama.Length];
+            for (int i = 0; i < lama.Length; i++)
+            {
+                if (lama[i] == null) { baru[i] = KlonJamurGlow(null, tint, JamurEmisSmooth); continue; }
+                Material klon;
+                if (!cacheMat.TryGetValue(lama[i], out klon))
+                {
+                    klon = KlonJamurGlow(lama[i], tint, JamurEmisSmooth);
+                    cacheMat[lama[i]] = klon;
+                }
+                baru[i] = klon;
+            }
+            mr.sharedMaterials = baru;
+        }
+
+        // HALO aura menyelimuti cap (parent = taman, skala world) — sama dgn BuatJamurGlow
+        if (matHalo != null)
+        {
+            Bounds b = mrs[0].bounds;
+            foreach (var mr in mrs) b.Encapsulate(mr.bounds);
+            Vector3 capCenter = new Vector3(b.center.x, b.max.y - b.size.y * 0.28f, b.center.z);
+            float diam = Mathf.Max(b.size.x, b.size.z) * 1.9f;
+            var halo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            halo.name = "HaloJamur";
+            halo.transform.SetParent(parent, true);
+            halo.transform.position = capCenter;
+            halo.transform.localScale = new Vector3(diam, diam * 0.8f, diam);
+            Object.DestroyImmediate(halo.GetComponent<Collider>());
+            halo.GetComponent<MeshRenderer>().sharedMaterial = matHalo;
+        }
+
+        var daJ = jamur.AddComponent<DisplayAnimasi>();
+        var soJ = new SerializedObject(daJ);
+        soJ.FindProperty("_mode").intValue = 3; // denyut
+        soJ.FindProperty("_faktorDenyut").floatValue = 1.14f;
+        soJ.FindProperty("_kecepatanDenyut").floatValue = 0.08f;
+        soJ.ApplyModifiedProperties();
+        return 1;
+    }
+
     /// <summary>Pita datar (sungai) sepanjang path — pola right-vector sama dengan MeshRel.</summary>
     internal static Mesh MeshPita(List<Vector3> path, float lebar, float yOff)
     {
@@ -2016,7 +2389,7 @@ public static class WahanaRebuilder
         Object.DestroyImmediate(palang.GetComponent<Collider>());
         palang.GetComponent<MeshRenderer>().sharedMaterial = matKayu;
 
-        var matLentera = MatUnlitHDR(new Color(0.3f, 0.95f, 1f), 2.6f);
+        var matLentera = MatUnlitHDR(new Color(1f, 0.62f, 0.28f), 2.4f); // amber hangat (rework S1; dulu cyan)
         BuatBoxSihir(akar.transform, "Lentera_L", pos - kanan * 1.9f + Vector3.up * 2.35f + arahLaju * -0.28f, new Vector3(0.22f, 0.3f, 0.22f), matLentera);
         BuatBoxSihir(akar.transform, "Lentera_R", pos + kanan * 1.9f + Vector3.up * 2.35f + arahLaju * -0.28f, new Vector3(0.22f, 0.3f, 0.22f), matLentera);
 
@@ -3284,6 +3657,10 @@ public static class WahanaRebuilder
                                         Color sky, Color equator, Color ground,
                                         System.Text.StringBuilder sb)
     {
+        // idempoten: buang SEMUA instance lama se-nama, termasuk duplikat nonaktif sisa
+        // re-run menu lama (akar temuan review F8: "GEN_Suasana_S1Masuk/Keluar x6")
+        for (var lama = CariGameObject(nama); lama != null; lama = CariGameObject(nama))
+            Object.DestroyImmediate(lama);
         var go = new GameObject(nama);
         go.transform.position = pos;
         var bc = go.AddComponent<BoxCollider>();
