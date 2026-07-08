@@ -34,6 +34,14 @@ public class InteraksiRaycast : MonoBehaviour
     [SerializeField] private TextMeshProUGUI _teksPrompt;
     [SerializeField] private TextMeshProUGUI _teksStatus;
 
+    [Header("Visibilitas HUD")]
+    [SerializeField] private CanvasGroup _grupHud;
+    [SerializeField] private float _durasiStatus = 2.5f;   // detik teks status bertahan
+    [SerializeField] private float _kecepatanFade = 6f;    // kecepatan fade kotak HUD
+
+    // batas waktu teks status terakhir masih boleh tampil
+    private float _statusHabisPada;
+
     // objek yang sedang dipegang player
     private Grabbable objekDipegang;
 
@@ -100,6 +108,31 @@ public class InteraksiRaycast : MonoBehaviour
             }
         }
 
+        // grup fade HUD di UI_HUD_Player; komponen CanvasGroup ditambah sendiri
+        // saat runtime kalau belum ada (MCP tidak bisa isi reference/komponen scene)
+        if (_grupHud == null)
+        {
+            Transform hud = transform.Find("UI_HUD_Player");
+
+            if (hud != null)
+            {
+                _grupHud = hud.GetComponent<CanvasGroup>();
+
+                if (_grupHud == null)
+                {
+                    _grupHud = hud.gameObject.AddComponent<CanvasGroup>();
+                }
+            }
+        }
+
+        if (_grupHud != null)
+        {
+            // mulai tersembunyi; muncul hanya saat memang ada informasi
+            _grupHud.alpha = 0f;
+            _grupHud.interactable = false;
+            _grupHud.blocksRaycasts = false;
+        }
+
         // peringatan di Console kalau reference tetap kosong (jangan sampai error diam-diam)
         if (_cameraTransform == null)
         {
@@ -126,6 +159,31 @@ public class InteraksiRaycast : MonoBehaviour
     {
         PerbaruiTargetDilihat();
         ProsesInput();
+        PerbaruiVisibilitasHud();
+    }
+
+    /// <summary>
+    /// HUD player hanya tampil saat memang ada informasi: teks status yang
+    /// kedaluwarsa dihapus, lalu kotak + teks di-fade mengikuti ada/tidaknya isi.
+    /// </summary>
+    private void PerbaruiVisibilitasHud()
+    {
+        // status hasil aksi hilang sendiri setelah _durasiStatus detik
+        if (_teksStatus != null && _teksStatus.text.Length > 0 && Time.time >= _statusHabisPada)
+        {
+            _teksStatus.text = "";
+        }
+
+        if (_grupHud == null)
+        {
+            return;
+        }
+
+        bool adaInfo = (_teksPrompt != null && _teksPrompt.text.Length > 0)
+            || (_teksStatus != null && _teksStatus.text.Length > 0);
+
+        _grupHud.alpha = Mathf.MoveTowards(_grupHud.alpha, adaInfo ? 1f : 0f,
+            Time.deltaTime * _kecepatanFade);
     }
 
     /// <summary>
@@ -214,7 +272,7 @@ public class InteraksiRaycast : MonoBehaviour
 
         if (grabbableDilihat != null && pushableDilihat != null)
         {
-            return "Tekan E untuk ambil / Klik kiri untuk dorong";
+            return "Tekan E untuk ambil · Klik kiri untuk dorong";
         }
 
         if (grabbableDilihat != null)
@@ -298,13 +356,14 @@ public class InteraksiRaycast : MonoBehaviour
     {
         if (grabbableDilihat == null)
         {
-            SetStatus("Tidak ada objek yang bisa diambil");
+            SetStatus("Tidak ada yang bisa diambil di sini");
             return;
         }
 
         if (_holdPoint == null)
         {
-            SetStatus("HoldPoint tidak ditemukan");
+            // masalah setup, bukan urusan player — cukup ke Console
+            Debug.Log("[InteraksiRaycast] HoldPoint tidak ditemukan — grab dibatalkan.");
             return;
         }
 
@@ -324,7 +383,7 @@ public class InteraksiRaycast : MonoBehaviour
         }
 
         objekDipegang.Drop();
-        SetStatus("Melepas: " + objekDipegang.gameObject.name);
+        SetStatus("Menaruh: " + objekDipegang.gameObject.name);
         objekDipegang = null;
     }
 
@@ -371,7 +430,8 @@ public class InteraksiRaycast : MonoBehaviour
     {
         if (_spawner == null)
         {
-            SetStatus("Spawner tidak ditemukan");
+            // masalah setup, bukan urusan player — cukup ke Console
+            Debug.Log("[InteraksiRaycast] Spawner tidak ditemukan — spawn dibatalkan.");
             return;
         }
 
@@ -400,6 +460,9 @@ public class InteraksiRaycast : MonoBehaviour
         {
             _teksStatus.text = pesan;
         }
+
+        // perpanjang umur tampil; PerbaruiVisibilitasHud yang menghapusnya nanti
+        _statusHabisPada = Time.time + _durasiStatus;
 
         Debug.Log("[InteraksiRaycast] " + pesan);
     }
