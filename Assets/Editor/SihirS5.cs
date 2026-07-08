@@ -61,14 +61,10 @@ public static class SihirS5
         //     dibangun menu 43 supaya PutarPelan tak ikut dibake). Di sini hanya penanda poros.
         //     Lengan+planet dibangun di Hidup (menu 43).
 
-        // (3) jendela kamar raksasa di dinding utara (Z max) — frame + kaca gelap + bulan + bintang.
-        BuatJendela(root.transform, sb);
-
-        // (4) tirai kain (2 box tipis bergelombang statis) mengapit jendela.
-        BuatTirai(root.transform, sb);
-
-        // (5) rak mainan raksasa (siluet) di dinding barat.
-        BuatRakSiluet(root.transform, rand, sb);
+        // (3-5) DIHAPUS (touch-up 2026-07-08, keputusan Izhar): jendela+tirai+rak mainan
+        //     dibuang — konsep S5 pivot ke "beneran di luar angkasa" (masuk via portal,
+        //     dinding murni void starfield / limitless). Focal point pengganti = planet
+        //     raksasa + cincin, dibangun menu 48 (BuatPlanetDinding).
 
         // (6) stiker bintang glow-in-the-dark STATIS (bentuk) di plafon+dinding atas —
         //     objek visual; komponen twinkle dipasang di menu 43.
@@ -258,11 +254,25 @@ public static class SihirS5
         sb.AppendLine("  Bangunan ditinggikan ke " + plafonBaru + "m (" + nTinggi + " bagian shell).");
 
         // ---------- (a) SEMUA permukaan shell -> tekstur galaksi UNLIT (limitless void) ----------
+        // Per-FACE material beda (tiling/offset/tint) supaya pola bintang tidak "nyambung
+        // salah" di sudut ruangan — seam kotak jadi tak terbaca (limitless+ 2026-07-08).
         var texBintang = WahanaFinalUtil.CariTeksturPack(
             new[] { "starfield", "skybox", "space", "nebula", "galax" }, sb, "starfield S5");
         Material matVoid = texBintang != null
             ? WahanaFinalUtil.MatAssetUnlitHDR("S5_Void", new Color(0.75f, 0.78f, 0.95f), 0.95f, texBintang, 2.5f)
             : WahanaFinalUtil.MatAssetUnlitHDR("S5_Void", new Color(0.06f, 0.05f, 0.14f), 1.0f, null, 1f);
+        Material matVoidPlafon = texBintang != null
+            ? WahanaFinalUtil.MatAssetUnlitHDR("S5_Void_Plafon", new Color(0.65f, 0.70f, 1.0f), 0.90f, texBintang, 1.6f)
+            : WahanaFinalUtil.MatAssetUnlitHDR("S5_Void_Plafon", new Color(0.05f, 0.04f, 0.13f), 1.0f, null, 1f);
+        Material matVoidLantai = texBintang != null
+            ? WahanaFinalUtil.MatAssetUnlitHDR("S5_Void_Lantai", new Color(0.55f, 0.58f, 0.80f), 0.85f, texBintang, 3.2f)
+            : WahanaFinalUtil.MatAssetUnlitHDR("S5_Void_Lantai", new Color(0.04f, 0.03f, 0.10f), 1.0f, null, 1f);
+        // offset beda per orientasi = pola tak identik antar-permukaan (asset di-update in-place).
+        matVoidPlafon.SetTextureOffset("_BaseMap", new Vector2(0.37f, 0.13f));
+        matVoidLantai.SetTextureOffset("_BaseMap", new Vector2(0.63f, 0.41f));
+        EditorUtility.SetDirty(matVoidPlafon);
+        EditorUtility.SetDirty(matVoidLantai);
+        AssetDatabase.SaveAssets();
         int nShell = 0;
         float lantaiTop = 0f;
         if (shell5 != null)
@@ -270,30 +280,31 @@ public static class SihirS5
             foreach (var mr in shell5.GetComponentsInChildren<MeshRenderer>(true))
             {
                 string nm = mr.gameObject.name;
-                if (nm.StartsWith("Dinding_S5") || nm == "Plafon_S5") { mr.sharedMaterial = matVoid; nShell++; }
+                if (nm.StartsWith("Dinding_S5")) { mr.sharedMaterial = matVoid; nShell++; }
+                else if (nm == "Plafon_S5") { mr.sharedMaterial = matVoidPlafon; nShell++; }
                 else if (nm == "Lantai_S5")
                 {
-                    mr.sharedMaterial = matVoid; nShell++;
+                    mr.sharedMaterial = matVoidLantai; nShell++;
                     lantaiTop = mr.bounds.max.y; // permukaan RUNTIME (aktual 0.0)
                 }
             }
         }
-        sb.AppendLine("  Void galaksi: " + nShell + " permukaan shell (dinding+atap+lantai) bertekstur bintang unlit.");
+        sb.AppendLine("  Void galaksi per-face: " + nShell + " permukaan shell (dinding/plafon/lantai beda tiling+offset).");
 
-        // ---------- (b) jendela "melihat angkasa" ----------
-        var matJendela = WahanaFinalUtil.MatAssetUnlitHDR("S5_JendelaBintang",
-            texBintang != null ? new Color(0.75f, 0.80f, 1.0f) : new Color(0.25f, 0.30f, 0.70f),
-            texBintang != null ? 1.15f : 1.6f, texBintang, 1f);
-        int nKaca = 0;
-        var jendela = sihir != null ? WahanaFinalUtil.CariChildRekursif(sihir.transform, "Jendela") : null;
-        if (jendela != null)
-            foreach (var mr in jendela.GetComponentsInChildren<MeshRenderer>(true))
-                if (mr.gameObject.name.ToLowerInvariant().Contains("kaca")) { mr.sharedMaterial = matJendela; nKaca++; }
+        // ---------- (b) panel JendelaBintangS5 (ShellTematik) DIHAPUS ----------
+        // Touch-up 2026-07-08: semua "jendela" dibuang — dinding harus murni void.
+        // DestroyImmediate SEBELUM GabungGenStatis() di blok (i) supaya GABUNG_*_
+        // S5_JendelaBintang tidak dibangun ulang (objek terhapus otomatis hilang dari bake).
+        int nHapusJendela = 0;
         var shellTem5 = CariGameObject("ShellTematik");
         if (shellTem5 != null)
+        {
+            var matiJendela = new List<GameObject>();
             foreach (var mr in shellTem5.GetComponentsInChildren<MeshRenderer>(true))
-                if (mr.gameObject.name.StartsWith("JendelaBintangS5")) { mr.sharedMaterial = matJendela; nKaca++; }
-        sb.AppendLine("  Kaca jendela angkasa: " + nKaca + " renderer.");
+                if (mr.gameObject.name.StartsWith("JendelaBintangS5")) matiJendela.Add(mr.gameObject);
+            foreach (var g in matiJendela) { Object.DestroyImmediate(g); nHapusJendela++; }
+        }
+        sb.AppendLine("  Panel JendelaBintangS5 dihapus: " + nHapusJendela + " (dinding murni void).");
 
         // ---------- (c) nebula pita + cincin galaksi ----------
         // panel nebula BERTEKSTUR bintang (bukan neon polos) — glow diturunkan supaya tekstur kebaca
@@ -301,7 +312,9 @@ public static class SihirS5
             texBintang != null ? 1.10f : 1.5f, texBintang, 1f);
         var matNebulaB = WahanaFinalUtil.MatAssetUnlitHDR("S5_NebulaB", GalaksiBiru,
             texBintang != null ? 1.05f : 1.4f, texBintang, 1f);
-        BoxFinal(root.transform, "NebulaN", new Vector3(-39f, 6.2f, maxZ - 0.35f), new Vector3(10f, 1.4f, 0.08f), matNebulaA);
+        // NebulaN digeser ke timur (x -33): area barat dinding utara kini ditempati
+        // PlanetDinding (touch-up 2026-07-08) — panel tipis jangan memotong bola planet.
+        BoxFinal(root.transform, "NebulaN", new Vector3(-33f, 6.2f, maxZ - 0.35f), new Vector3(8f, 1.4f, 0.08f), matNebulaA);
         BoxFinal(root.transform, "NebulaW", new Vector3(minX + 0.35f, 5.9f, 19f), new Vector3(0.08f, 1.2f, 8f), matNebulaB);
         BoxFinal(root.transform, "NebulaE", new Vector3(maxX - 0.35f, 6.3f, 20f), new Vector3(0.08f, 1.1f, 6f), matNebulaA);
         var mobile = CariGameObject("MobilePlanet");
@@ -322,14 +335,20 @@ public static class SihirS5
         soC.ApplyModifiedProperties();
         sb.AppendLine("  3 pita nebula + CincinGalaksi (ikut ending-slow).");
 
+        // ---------- (c2) LIMITLESS+ (touch-up 2026-07-08): planet raksasa + underglow rel
+        //             + nebula sudut ----------
+        BuatPlanetDinding(root.transform, hidupBaru.transform, sb);
+        BuatUnderglowRel(root.transform, pts, lantaiTop, sb);
+        BuatNebulaSudut(root.transform, matNebulaA, matNebulaB, sb);
+
         // ---------- (d) lampu galaksi (di LampuGalaksi_S5 -> ikut ending-dim) ----------
         PointFinal(lampuRoot.transform, "LampuGalaksi_0", new Vector3(maxX - 3f, 3.6f, maxZ - 3f), GalaksiUngu, 1.8f, 16f);
         PointFinal(lampuRoot.transform, "LampuGalaksi_1", new Vector3(minX + 3f, 3.6f, minZ + 2.5f), GalaksiUngu, 1.8f, 16f);
         var panggung = CariGameObject("PanggungBand");
         Vector3 pgPos = panggung != null ? WahanaFinalUtil.BoundsGabungan(panggung.transform).center : Center;
-        WahanaFinalUtil.BuatSpot(lampuRoot.transform, "SorotBulanJendela",
-            new Vector3(-35f, 4.4f, minZ + 1.2f), pgPos, new Color(0.60f, 0.65f, 1.0f), 2.0f, 18f, 60f, false);
-        sb.AppendLine("  2 point + 1 sorot galaksi di LampuGalaksi_S5.");
+        // SorotBulanJendela DIHAPUS (touch-up 2026-07-08): jendela tidak ada lagi;
+        // -1 spot realtime (hemat WebGL). pgPos tetap dipakai blok (h).
+        sb.AppendLine("  2 point galaksi di LampuGalaksi_S5.");
         var moon = CariGameObject("Moonlight_S5");
         var moonL = moon != null ? moon.GetComponent<Light>() : null;
         if (moonL != null) { moonL.color = new Color(0.55f, 0.50f, 0.95f); sb.AppendLine("  Moonlight_S5 -> ungu-biru."); }
@@ -519,15 +538,13 @@ public static class SihirS5
         }
         WahanaFinalUtil.BarisVerifikasi(terpasang, permukaan, pts, sb);
 
-        // ---------- (h2) rak mainan: siluet hitam -> rak glow galaksi ----------
-        // Siluet hitam kehilangan konteks setelah shell jadi void starfield (limitless):
-        // terbaca "hitam-hitam di dinding" (feedback playtest 2026-07-07).
-        RecolorRakGlow(sb);
-
         // ---------- (i) statis + rebake ----------
         FlagStatisRekursif(root, true);
         BakeS5(); // pertahankan exclusion "Bintang"
-        TemenDresser.GabungGenStatis(); // JendelaBintangS5 recolor (dressing) kelihatan
+        TemenDresser.GabungGenStatis(); // rebake dressing (panel JendelaBintangS5 yang dihapus ikut hilang dari GABUNG)
+        // bersih-bersih: material jendela tak terpakai lagi (setelah rebake, 0 referensi).
+        if (AssetDatabase.LoadAssetAtPath<Material>(GenDir + "/S5_JendelaBintang.mat") != null)
+            AssetDatabase.DeleteAsset(GenDir + "/S5_JendelaBintang.mat");
 
         Debug.Log(sb.ToString());
         Simpan();
@@ -557,15 +574,136 @@ public static class SihirS5
         l.shadows = LightShadows.None;
     }
 
+    // =====================================================================
+    //  (48) LIMITLESS+ (touch-up 2026-07-08) — planet raksasa + cincin
+    //  (focal point dinding utara, pengganti jendela), underglow rel,
+    //  nebula sudut.
+    // =====================================================================
+
+    /// <summary>Planet raksasa "setengah nyelem" di dinding utara bekas jendela + cincin
+    /// tersegmen berputar pelan. Planet = statis (GEN_GalaksiFinal_S5); cincin = pivot
+    /// PutarPelan di GalaksiHidup_S5 (ikut ending-slow). Clearance rel: WP terdekat
+    /// (-42,26) jarak horizontal 3.85 > radius 3.0; cincin y ±3.2-6.8 di atas mata
+    /// penumpang (2.72).</summary>
+    private static void BuatPlanetDinding(Transform rootStatis, Transform rootHidup, System.Text.StringBuilder sb)
+    {
+        Vector3 pusat = new Vector3(-40.2f, 5.0f, 29.4f); // di balik dinding utara (muka dalam z 27.85)
+        var planet = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        planet.name = "PlanetDinding";
+        planet.transform.SetParent(rootStatis, true);
+        planet.transform.position = pusat;
+        planet.transform.localScale = Vector3.one * 6f; // radius 3 -> nongol ±1.55m ke ruangan
+        Object.DestroyImmediate(planet.GetComponent<Collider>());
+        planet.GetComponent<MeshRenderer>().sharedMaterial =
+            MatGlowLit(new Color(0.55f, 0.45f, 1.0f), 0.6f); // Lit+emission: ada BENTUK + glow
+
+        // Cincin tersegmen (12 box, anulus berlubang — planet tetap kebaca; disc solid
+        // justru menutupi planet). Segmen sisi belakang "nyelem" dinding = kesan menembus.
+        var pivot = new GameObject("CincinPlanet");
+        pivot.transform.SetParent(rootHidup, true);
+        pivot.transform.position = pusat;
+        pivot.transform.rotation = Quaternion.Euler(25f, 0f, 10f);
+        var matCincin = WahanaFinalUtil.MatAssetUnlitHDR("S5_CincinPlanet",
+            new Color(0.85f, 0.55f, 1.0f), 1.8f, null, 1f);
+        for (int i = 0; i < 12; i++)
+        {
+            float a = i * 30f * Mathf.Deg2Rad;
+            var seg = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            seg.name = "SegCincin_" + i;
+            seg.transform.SetParent(pivot.transform, false);
+            seg.transform.localPosition = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * 4.2f;
+            seg.transform.localRotation = Quaternion.Euler(0f, -(i * 30f + 90f), 0f); // sumbu panjang tangensial
+            seg.transform.localScale = new Vector3(1.9f, 0.05f, 0.55f);
+            Object.DestroyImmediate(seg.GetComponent<Collider>());
+            seg.GetComponent<MeshRenderer>().sharedMaterial = matCincin;
+        }
+        var pp = pivot.AddComponent<PutarPelan>();
+        var soPp = new SerializedObject(pp);
+        soPp.FindProperty("_sumbu").vector3Value = Vector3.up;
+        soPp.FindProperty("_derajatPerDetik").floatValue = 3f;
+        soPp.ApplyModifiedProperties();
+        sb.AppendLine("  PlanetDinding r3 + CincinPlanet 12 segmen (focal dinding utara, ikut ending-slow).");
+    }
+
+    /// <summary>Strip glow tipis di bawah jalur rel dalam S5 — "rel melayang di angkasa".
+    /// Segmen box mengikuti polyline WP (stride 8 WP ≈ 4u), y pas di atas lantai void.</summary>
+    private static void BuatUnderglowRel(Transform rootStatis, List<Vector3> pts, float lantaiTop, System.Text.StringBuilder sb)
+    {
+        var akar = new GameObject("UnderglowRel_S5");
+        akar.transform.SetParent(rootStatis, true);
+        var matGlowRel = WahanaFinalUtil.MatAssetUnlitHDR("S5_UnderglowRel",
+            new Color(0.50f, 0.35f, 1.0f), 1.6f, null, 1f);
+
+        // Kumpulkan indeks WP di dalam rect S5 (margin 0.6 dari dinding).
+        var idx = new List<int>();
+        for (int i = 0; i < pts.Count; i++)
+        {
+            var p = pts[i];
+            if (p.x >= MinX + 0.6f && p.x <= MaxX - 0.6f && p.z >= MinZ + 0.6f && p.z <= MaxZ - 0.6f)
+                idx.Add(i);
+        }
+        int n = 0;
+        const int stride = 8; // ~4u per segmen (WP spacing 0.5)
+        for (int k = 0; k + stride < idx.Count; k += stride)
+        {
+            // hanya segmen kontigu (indeks WP berurutan, tak melompat keluar rect).
+            if (idx[k + stride] - idx[k] != stride) continue;
+            Vector3 a = pts[idx[k]], b = pts[idx[k + stride]];
+            Vector3 tengah = (a + b) * 0.5f;
+            Vector3 arah = b - a; arah.y = 0f;
+            if (arah.sqrMagnitude < 0.01f) continue;
+            var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            g.name = "Underglow_" + n;
+            g.transform.SetParent(akar.transform, true);
+            g.transform.position = new Vector3(tengah.x, lantaiTop + 0.02f, tengah.z);
+            g.transform.rotation = Quaternion.LookRotation(arah.normalized);
+            g.transform.localScale = new Vector3(1.6f, 0.04f, arah.magnitude + 0.3f);
+            Object.DestroyImmediate(g.GetComponent<Collider>());
+            g.GetComponent<MeshRenderer>().sharedMaterial = matGlowRel;
+            n++;
+        }
+        sb.AppendLine("  UnderglowRel_S5: " + n + " segmen (rel melayang di void).");
+    }
+
+    /// <summary>4 panel nebula diagonal tipis menutup sudut vertikal ruangan — pertemuan
+    /// tegak dua dinding (bukti paling jelas "ini kotak") tersamarkan.</summary>
+    private static void BuatNebulaSudut(Transform rootStatis, Material matA, Material matB, System.Text.StringBuilder sb)
+    {
+        var akar = new GameObject("NebulaSudut");
+        akar.transform.SetParent(rootStatis, true);
+        Vector3[] sudut =
+        {
+            new Vector3(MinX + 1.1f, 4.0f, MinZ + 1.1f),
+            new Vector3(MinX + 1.1f, 4.0f, MaxZ - 1.1f),
+            new Vector3(MaxX - 1.1f, 4.0f, MinZ + 1.1f),
+            new Vector3(MaxX - 1.1f, 4.0f, MaxZ - 1.1f),
+        };
+        float[] yawSudut = { 45f, 135f, -45f, -135f }; // diagonal memotong sudut
+        for (int i = 0; i < 4; i++)
+        {
+            var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            g.name = "NebulaSudut_" + i;
+            g.transform.SetParent(akar.transform, true);
+            g.transform.position = sudut[i];
+            g.transform.rotation = Quaternion.Euler(0f, yawSudut[i], 0f);
+            g.transform.localScale = new Vector3(3.2f, 6.5f, 0.08f);
+            Object.DestroyImmediate(g.GetComponent<Collider>());
+            g.GetComponent<MeshRenderer>().sharedMaterial = (i % 2 == 0) ? matA : matB;
+        }
+        sb.AppendLine("  NebulaSudut: 4 panel diagonal (sudut kotak tersamar).");
+    }
+
     private static void UbahZonaS5Masuk(System.Text.StringBuilder sb)
     {
         var go = CariGameObject("GEN_Suasana_S5Masuk");
         var sz = go != null ? go.GetComponent<SuasanaZona>() : null;
         if (sz == null) { sb.AppendLine("  (GEN_Suasana_S5Masuk tak ketemu!)"); return; }
         var so = new SerializedObject(sz);
-        so.FindProperty("_fogColor").colorValue = new Color(0.05f, 0.03f, 0.12f);
-        so.FindProperty("_fogStart").floatValue = 12f;
-        so.FindProperty("_fogEnd").floatValue = 55f;
+        // Fog nyaris hitam-ungu + didorong menjauh: kabut abu bisa "mencuci" void starfield
+        // (limitless+ 2026-07-08). Transisi lerp 2s berjalan tertutup layar putih portal.
+        so.FindProperty("_fogColor").colorValue = new Color(0.02f, 0.01f, 0.05f);
+        so.FindProperty("_fogStart").floatValue = 14f;
+        so.FindProperty("_fogEnd").floatValue = 60f;
         so.FindProperty("_ambientSky").colorValue = new Color(0.10f, 0.07f, 0.22f);
         so.FindProperty("_ambientEquator").colorValue = new Color(0.07f, 0.05f, 0.16f);
         so.FindProperty("_ambientGround").colorValue = new Color(0.04f, 0.03f, 0.10f);
@@ -610,119 +748,8 @@ public static class SihirS5
         sb.AppendLine("  Recolor shell S5: " + n + " renderer -> ungu-gelap.");
     }
 
-    // =====================================================================
-    //  (42) JENDELA KAMAR RAKSASA (dinding utara Z max)
-    // =====================================================================
-    private static void BuatJendela(Transform parent, System.Text.StringBuilder sb)
-    {
-        var akar = new GameObject("Jendela");
-        akar.transform.SetParent(parent, true);
-        Vector3 pj = new Vector3(-39f, 2.8f, MaxZ - 0.15f); // di dinding utara, sedikit di dalam
-
-        var matFrame = MatLit(new Color(0.14f, 0.12f, 0.2f));
-        var matKaca = MatLitTransparan(new Color(0.05f, 0.06f, 0.14f), 0.55f);
-        var matBulan = MatUnlitHDR(new Color(0.9f, 0.94f, 1f), 1.9f);
-        var matBintangKecil = MatUnlitHDR(new Color(0.85f, 0.9f, 1f), 1.4f);
-
-        // frame (4 batang) mengelilingi bukaan 6x4.
-        float lw = 6f, lh = 4f;
-        BuatBox(akar.transform, "Frame_Atas", pj + Vector3.up * (lh * 0.5f), new Vector3(lw + 0.4f, 0.4f, 0.3f), matFrame, false);
-        BuatBox(akar.transform, "Frame_Bawah", pj - Vector3.up * (lh * 0.5f), new Vector3(lw + 0.4f, 0.4f, 0.3f), matFrame, false);
-        BuatBox(akar.transform, "Frame_Kiri", pj - Vector3.right * (lw * 0.5f), new Vector3(0.4f, lh, 0.3f), matFrame, false);
-        BuatBox(akar.transform, "Frame_Kanan", pj + Vector3.right * (lw * 0.5f), new Vector3(0.4f, lh, 0.3f), matFrame, false);
-        // palang tengah (jendela kamar klasik).
-        BuatBox(akar.transform, "Palang_V", pj, new Vector3(0.14f, lh, 0.28f), matFrame, false);
-        BuatBox(akar.transform, "Palang_H", pj, new Vector3(lw, 0.14f, 0.28f), matFrame, false);
-
-        // kaca gelap.
-        BuatBox(akar.transform, "Kaca", pj + Vector3.forward * 0.05f, new Vector3(lw, lh, 0.05f), matKaca, false);
-
-        // di balik kaca: bulan putih terang + bintang kecil (sedikit lebih ke luar Z).
-        float zLuar = MaxZ + 0.8f;
-        var bulan = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        bulan.name = "Bulan";
-        bulan.transform.SetParent(akar.transform, true);
-        bulan.transform.position = new Vector3(-40.5f, 3.6f, zLuar);
-        bulan.transform.localScale = Vector3.one * 1.5f;
-        Object.DestroyImmediate(bulan.GetComponent<Collider>());
-        bulan.GetComponent<MeshRenderer>().sharedMaterial = matBulan;
-
-        var rb = new System.Random(420);
-        for (int i = 0; i < 14; i++)
-        {
-            var b = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            b.name = "BintangJendela_" + i;
-            b.transform.SetParent(akar.transform, true);
-            b.transform.position = new Vector3(
-                -42f + (float)rb.NextDouble() * 6f,
-                1.2f + (float)rb.NextDouble() * 3.4f,
-                zLuar + (float)rb.NextDouble() * 0.6f);
-            b.transform.localScale = Vector3.one * (0.06f + (float)rb.NextDouble() * 0.06f);
-            Object.DestroyImmediate(b.GetComponent<Collider>());
-            b.GetComponent<MeshRenderer>().sharedMaterial = matBintangKecil;
-        }
-        sb.AppendLine("  Jendela kamar raksasa (frame+kaca gelap+bulan+14 bintang) di dinding utara.");
-    }
-
-    // =====================================================================
-    //  (42) TIRAI KAIN (2 box tipis bergelombang statis)
-    // =====================================================================
-    private static void BuatTirai(Transform parent, System.Text.StringBuilder sb)
-    {
-        var akar = new GameObject("Tirai");
-        akar.transform.SetParent(parent, true);
-        var matTirai = MatLit(new Color(0.22f, 0.16f, 0.3f));
-        // 2 tirai mengapit jendela (kiri & kanan), sedikit miring (bergelombang statis).
-        for (int s = -1; s <= 1; s += 2)
-        {
-            var tirai = BuatBox(akar.transform, "Tirai_" + (s + 1),
-                new Vector3(-39f + s * 3.4f, 2.8f, MaxZ - 0.5f),
-                new Vector3(1.2f, 4.2f, 0.12f), matTirai, false);
-            tirai.transform.rotation = Quaternion.Euler(0f, 0f, s * 4f); // sedikit bergelombang
-        }
-        sb.AppendLine("  Tirai kain 2 panel mengapit jendela.");
-    }
-
-    // =====================================================================
-    //  (42) RAK MAINAN RAKSASA (siluet, dinding barat)
-    // =====================================================================
-    private static void BuatRakSiluet(Transform parent, System.Random rand, System.Text.StringBuilder sb)
-    {
-        var akar = new GameObject("RakSiluet");
-        akar.transform.SetParent(parent, true);
-        var matHitam = MatUnlit(new Color(0.02f, 0.02f, 0.04f));
-        Vector3 baseP = new Vector3(MinX + 0.9f, 0f, 19f); // dinding barat
-
-        // 3 tingkat rak (box hitam bertingkat).
-        for (int t = 0; t < 3; t++)
-        {
-            float y = LantaiY + 0.6f + t * 1.4f;
-            BuatBox(akar.transform, "Papan_" + t, new Vector3(baseP.x, y, baseP.z),
-                new Vector3(0.5f, 0.12f, 9f), matHitam, false);
-            // siluet mainan di tiap tingkat (box/sphere gepeng acak).
-            for (int i = 0; i < 4; i++)
-            {
-                float z = 15f + i * 2.3f + (float)rand.NextDouble();
-                if (rand.NextDouble() < 0.5)
-                {
-                    BuatBox(akar.transform, "Mainan_" + t + "_" + i,
-                        new Vector3(baseP.x + 0.3f, y + 0.5f, z),
-                        new Vector3(0.4f, 0.9f + (float)rand.NextDouble() * 0.5f, 0.4f), matHitam, false);
-                }
-                else
-                {
-                    var s = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                    s.name = "Mainan_" + t + "_" + i;
-                    s.transform.SetParent(akar.transform, true);
-                    s.transform.position = new Vector3(baseP.x + 0.3f, y + 0.5f, z);
-                    s.transform.localScale = Vector3.one * (0.5f + (float)rand.NextDouble() * 0.4f);
-                    Object.DestroyImmediate(s.GetComponent<Collider>());
-                    s.GetComponent<MeshRenderer>().sharedMaterial = matHitam;
-                }
-            }
-        }
-        sb.AppendLine("  Rak mainan siluet 3 tingkat di dinding barat.");
-    }
+    // (42) BuatJendela / BuatTirai / BuatRakSiluet DIHAPUS (touch-up 2026-07-08):
+    // konsep S5 pivot ke "beneran di luar angkasa" — dinding murni void starfield.
 
     // =====================================================================
     //  (42) BINTANG GLOW-IN-THE-DARK STATIS (bentuk bintang = 2 quad silang)
@@ -1505,26 +1532,19 @@ public static class SihirS5
 
         var ending = go.AddComponent<EndingKamarS5>();
 
-        // siluet kepala anak di jendela (child EndingKamarS5 auto-find "SiluetKepala").
-        var siluet = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        siluet.name = "SiluetKepala";
-        siluet.transform.SetParent(go.transform, true);
-        siluet.transform.position = new Vector3(-40.5f, 3.3f, MaxZ + 0.4f); // di jendela
-        siluet.transform.localScale = new Vector3(1.3f, 1.6f, 0.6f); // kepala gelap
-        Object.DestroyImmediate(siluet.GetComponent<Collider>());
-        // material transparan gelap (EndingKamarS5 fade alpha via MPB).
-        siluet.GetComponent<MeshRenderer>().sharedMaterial = MatLitTransparan(new Color(0.02f, 0.02f, 0.04f), 0f);
+        // SILUET kepala anak DIHAPUS (touch-up 2026-07-08, keputusan Izhar): jendela dibuang
+        // (konsep pivot "beneran di luar angkasa") sehingga siluet kehilangan konteks.
+        // EndingKamarS5 null-safe: redup lampu + mobile melambat + musik turun tetap jalan.
 
-        // wiring eksplisit grup S5 + siluet + musik ke EndingKamarS5.
+        // wiring eksplisit grup S5 + musik ke EndingKamarS5.
         var grupHidup = CariGameObject("GEN_SihirHidup_S5");
         var musik = CariGameObject("MusikBandS5");
         var soE = new SerializedObject(ending);
         if (grupHidup != null) soE.FindProperty("_grupS5").objectReferenceValue = grupHidup.transform;
-        soE.FindProperty("_siluetKepala").objectReferenceValue = siluet.GetComponent<Renderer>();
         if (musik != null) soE.FindProperty("_musik").objectReferenceValue = musik.GetComponent<AudioSource>();
         soE.ApplyModifiedProperties();
 
-        sb.AppendLine("  Zona ending (PemicuKereta 60s + EndingKamarS5) di " + F(posZona) + " + siluet kepala di jendela.");
+        sb.AppendLine("  Zona ending (PemicuKereta 60s + EndingKamarS5) di " + F(posZona) + " (tanpa siluet — redup+melambat saja).");
     }
 
     // #####################################################################
@@ -1657,38 +1677,7 @@ public static class SihirS5
         return m;
     }
 
-    /// <summary>RakSiluet dibuat siluet hitam saat dinding kamar masih terang. Setelah shell
-    /// jadi void starfield, siluet hitam terbaca "noda hitam" — ubah jadi RAK MAINAN GLOW:
-    /// papan ungu redup terbaca, mainan = orb/kotak planet pastel bercahaya (mekar di Bloom).
-    /// Idempoten (assignment tiap run); dipanggil menu 48 SEBELUM rebake supaya ikut GABUNG.</summary>
-    private static void RecolorRakGlow(System.Text.StringBuilder sb)
-    {
-        var rak = CariGameObject("RakSiluet");
-        if (rak == null) { sb.AppendLine("  (RakSiluet tak ketemu — recolor rak dilewati.)"); return; }
-        var matPapan = MatGlowLit(new Color(0.30f, 0.26f, 0.52f), 0.5f); // ungu redup, edge kebaca
-        Color[] warnaMainan =
-        {
-            new Color(0.45f, 0.85f, 1.00f), // cyan
-            new Color(1.00f, 0.80f, 0.40f), // emas
-            new Color(1.00f, 0.55f, 0.80f), // pink
-            new Color(0.40f, 0.90f, 0.70f), // teal
-            new Color(0.70f, 0.60f, 1.00f), // lavender
-        };
-        int nPapan = 0, nMainan = 0;
-        foreach (var r in rak.GetComponentsInChildren<MeshRenderer>(true))
-        {
-            if (r.name.StartsWith("Papan_")) { r.sharedMaterial = matPapan; nPapan++; }
-            else if (r.name.StartsWith("Mainan_"))
-            {
-                var mf = r.GetComponent<MeshFilter>();
-                bool bola = mf != null && mf.sharedMesh != null && mf.sharedMesh.name.StartsWith("Sphere");
-                Color c = warnaMainan[nMainan % warnaMainan.Length];
-                r.sharedMaterial = MatGlowLit(c, bola ? 2.2f : 1.5f); // bola = planet terang, kotak kalem
-                nMainan++;
-            }
-        }
-        sb.AppendLine("  Rak mainan: siluet hitam -> glow galaksi (" + nPapan + " papan ungu + " + nMainan + " mainan planet).");
-    }
+    // RecolorRakGlow DIHAPUS (touch-up 2026-07-08): RakSiluet tidak dibangun lagi.
 
     private static Material MatUnlitHDR(Color c, float intensitas)
     {
