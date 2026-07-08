@@ -1383,7 +1383,7 @@ public static class SihirS3
             var go = new GameObject("Huruf_" + i);
             go.transform.SetParent(blok, false);
             go.transform.localPosition = arah[i] * half;
-            go.transform.localRotation = Quaternion.LookRotation(arah[i]);
+            go.transform.localRotation = Quaternion.LookRotation(-arah[i]); // anti-mirror: forward menjauhi pembaca
             var tm = go.AddComponent<TextMesh>();
             tm.text = huruf;
             tm.anchor = TextAnchor.MiddleCenter;
