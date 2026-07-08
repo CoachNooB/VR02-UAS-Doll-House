@@ -565,6 +565,25 @@ public static class WahanaRebuilder
     //      (log+batu+api unlit+lampu flicker+audio+percikan), (c) fireflies emissive
     //      TANPA Light, (d) retune LampuShell_S1 jadi moonlight biru. Idempotent.
     // =====================================================================
+    // =====================================================================
+    //  MENU 64 — IMPOR NESTED PACK TRIFORGE (URP)
+    //  Pack "Fantasy Worlds: Forest FREE" menaruh mesh/prefab/material di
+    //  unitypackage BERSARANG (varian URP & BiRP). Menu ini impor varian URP
+    //  non-interaktif. Jalankan SEKALI setelah impor pack dari My Assets.
+    // =====================================================================
+    [MenuItem("Tools/Wahana/64 Impor Pack TriForge URP (nested)")]
+    public static void ImporPackTriForgeURP()
+    {
+        const string path = "Assets/TriForge Assets/_URP Content - Fantasy Worlds - Old Forest DEMO.unitypackage";
+        if (!System.IO.File.Exists(path))
+        {
+            Debug.LogError("[Impor Pack] Tidak ketemu: " + path + " — impor pack dari My Assets dulu.");
+            return;
+        }
+        AssetDatabase.ImportPackage(path, false); // non-interaktif (async, tunggu refresh selesai)
+        Debug.Log("[Impor Pack] Impor URP content TriForge dimulai — cek folder setelah selesai.");
+    }
+
     // ---- Konstanta tuning Kemah S1 (rework 2026-07-08: api digeser dari depan kotak musik) ----
     private const float KemahGeserX = 3.6f;      // offset X dari pusat piknik (dulu 0)
     private const float KemahGeserZ = 1.9f;      // offset Z (dulu -2.6 = persis depan panel kotak musik)
@@ -4041,6 +4060,14 @@ public static class WahanaRebuilder
     private const float RumputJarakMinJalur = 2.6f; // jangan dempet rel (pagar di 2.2)
     private const float RumputSkalaMin = 0.9f;
     private const float RumputSkalaMax = 1.5f;
+    // -- rumput pack TriForge (2026-07-08, permintaan Izhar "env grass"; fallback Polytope tetap) --
+    private const string RumputPackPrefab = "Assets/TriForge Assets/Fantasy Worlds - DEMO Content/Prefabs/P_fwOF_Grass_M_1.prefab";
+    private const string RumputPackTexTanah = "Assets/TriForge Assets/Fantasy Worlds - DEMO Content/Textures/Terrain/T_fwOF_GrassTerrain_01_BC.png";
+    private const string RumputPackTexBilah = "Assets/TriForge Assets/Fantasy Worlds - DEMO Content/Textures/T_fwOF_Grass_BC.png";
+    private const float RumputPackTilingX = 4f;         // tekstur terrain high-detail: tiling lebih renggang
+    private const float RumputPackTilingY = 5f;
+    private const float RumputPackTargetTinggi = 0.45f; // normalisasi tinggi rumpun pack (unit world)
+    private static readonly Color RumputPackTintBilah = new Color(0.55f, 0.62f, 0.52f); // tint malam bilah
 
     [MenuItem("Tools/Wahana/62 Rumput Taman", false, 126)]
     public static void RumputTaman()
@@ -4050,19 +4077,25 @@ public static class WahanaRebuilder
 
         // ---------- (a) tekstur tanah (asset MatRumputMalam) ----------
         var matTanah = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/MatRumputMalam.mat");
-        var texRumput = AssetDatabase.LoadAssetAtPath<Texture2D>(
+        // prefer terrain-grass pack TriForge (permintaan "env grass"); fallback Polytope lama
+        var texRumputPack = AssetDatabase.LoadAssetAtPath<Texture2D>(RumputPackTexTanah);
+        var texRumput = texRumputPack != null ? texRumputPack : AssetDatabase.LoadAssetAtPath<Texture2D>(
             "Assets/Temen/Paket/Polytope Studio/Lowpoly_Environments/Sources/Textures/PT_Grass_01.png");
+        var tilingTanah = texRumputPack != null
+            ? new Vector2(RumputPackTilingX, RumputPackTilingY)
+            : new Vector2(RumputTilingX, RumputTilingY);
         if (matTanah != null && texRumput != null)
         {
             matTanah.mainTexture = texRumput;
-            matTanah.mainTextureScale = new Vector2(RumputTilingX, RumputTilingY);
+            matTanah.mainTextureScale = tilingTanah;
             matTanah.color = RumputTint;
             if (matTanah.HasProperty("_BaseColor")) matTanah.SetColor("_BaseColor", RumputTint);
             EditorUtility.SetDirty(matTanah);
-            sb.AppendLine("  MatRumputMalam: tekstur PT_Grass_01, tiling ("
-                + RumputTilingX + "," + RumputTilingY + "), tint " + RumputTint + ".");
+            sb.AppendLine("  MatRumputMalam: tekstur " + texRumput.name + " ("
+                + (texRumputPack != null ? "pack TriForge" : "fallback Polytope") + "), tiling "
+                + tilingTanah + ", tint " + RumputTint + ".");
         }
-        else sb.AppendLine("  [WARN] MatRumputMalam / PT_Grass_01 tak ketemu — tekstur dilewati.");
+        else sb.AppendLine("  [WARN] MatRumputMalam / tekstur rumput tak ketemu — tekstur dilewati.");
 
         // ---------- (b) scatter rumpun (idempoten) ----------
         HapusParent("GEN_RumputTaman");
@@ -4073,36 +4106,66 @@ public static class WahanaRebuilder
                 AssetDatabase.DeleteAsset(p);
         }
 
-        // mesh + material rumpun dari prefab, ambil LOD0 saja
+        // mesh + material rumpun: prefer rumput pack TriForge (P_fwOF_Grass_M_1 — "env grass");
+        // fallback Polytope PT_Grass_02 LOD0 (perilaku lama persis, tanpa normalisasi)
         Mesh meshRumpun = null;
         Material matRumpun = null;
-        var prefabRumpun = AssetDatabase.LoadAssetAtPath<GameObject>(
-            "Assets/Temen/Paket/Polytope Studio/Lowpoly_Environments/Prefabs/Plants/PT_Grass_02.prefab");
-        if (prefabRumpun != null)
+        float skalaNorm = 1f;
+        var prefabPack = AssetDatabase.LoadAssetAtPath<GameObject>(RumputPackPrefab);
+        if (prefabPack != null)
         {
-            var lod0 = prefabRumpun.transform.Find("PT_Grass_02_LOD0");
-            if (lod0 != null)
+            var mfPack = prefabPack.GetComponentInChildren<MeshFilter>();
+            if (mfPack != null) meshRumpun = mfPack.sharedMesh;
+            if (meshRumpun != null)
             {
-                var mf = lod0.GetComponent<MeshFilter>();
-                var mr = lod0.GetComponent<MeshRenderer>();
-                if (mf != null) meshRumpun = mf.sharedMesh;
-                if (mr != null) matRumpun = mr.sharedMaterial;
+                // material SENDIRI: URP Lit alpha-clip + tekstur bilah pack — TANPA shader
+                // custom/wind TriForge (dependensi tekstur wind 26MB & belum teruji WebGL)
+                var texBilah = AssetDatabase.LoadAssetAtPath<Texture2D>(RumputPackTexBilah);
+                var mg = MatLit(RumputPackTintBilah);
+                if (texBilah != null && mg.HasProperty("_BaseMap")) mg.SetTexture("_BaseMap", texBilah);
+                mg.SetFloat("_AlphaClip", 1f);
+                mg.EnableKeyword("_ALPHATEST_ON");
+                if (mg.HasProperty("_Cutoff")) mg.SetFloat("_Cutoff", 0.4f);
+                mg.SetFloat("_Cull", 0f); // bilah kelihatan dua sisi
+                if (mg.HasProperty("_Smoothness")) mg.SetFloat("_Smoothness", 0.05f);
+                matRumpun = mg;
+                skalaNorm = RumputPackTargetTinggi / Mathf.Max(meshRumpun.bounds.size.y, 0.05f);
+                sb.AppendLine("  Rumpun: mesh pack TriForge " + meshRumpun.name
+                    + " (normalisasi skala " + skalaNorm.ToString("0.00") + ", alpha-clip).");
             }
         }
         if (meshRumpun == null)
         {
-            Debug.LogError("[Rumput] mesh PT_Grass_02_LOD0 tidak ketemu — scatter batal.");
-            Debug.Log(sb.ToString());
-            return;
+            var prefabRumpun = AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Temen/Paket/Polytope Studio/Lowpoly_Environments/Prefabs/Plants/PT_Grass_02.prefab");
+            if (prefabRumpun != null)
+            {
+                var lod0 = prefabRumpun.transform.Find("PT_Grass_02_LOD0");
+                if (lod0 != null)
+                {
+                    var mf = lod0.GetComponent<MeshFilter>();
+                    var mr = lod0.GetComponent<MeshRenderer>();
+                    if (mf != null) meshRumpun = mf.sharedMesh;
+                    if (mr != null) matRumpun = mr.sharedMaterial;
+                }
+            }
+            if (meshRumpun == null)
+            {
+                Debug.LogError("[Rumput] mesh rumpun (pack / PT_Grass_02_LOD0) tidak ketemu — scatter batal.");
+                Debug.Log(sb.ToString());
+                return;
+            }
+            // anti-magenta: pastikan material URP; fallback versi URP Harry, lalu MatLit polos
+            if (matRumpun == null || matRumpun.shader == null || !matRumpun.shader.name.Contains("Universal"))
+            {
+                var urp = AssetDatabase.LoadAssetAtPath<Material>(
+                    "Assets/Temen/Harry/Materials/Polytope_URP/PT_Grass_Mat_URP.mat");
+                matRumpun = urp != null ? urp : MatLit(new Color(0.35f, 0.5f, 0.3f));
+                sb.AppendLine("  [INFO] material rumpun di-fallback ke URP.");
+            }
         }
-        // anti-magenta: pastikan material URP; fallback versi URP Harry, lalu MatLit polos
-        if (matRumpun == null || matRumpun.shader == null || !matRumpun.shader.name.Contains("Universal"))
-        {
-            var urp = AssetDatabase.LoadAssetAtPath<Material>(
-                "Assets/Temen/Harry/Materials/Polytope_URP/PT_Grass_Mat_URP.mat");
-            matRumpun = urp != null ? urp : MatLit(new Color(0.35f, 0.5f, 0.3f));
-            sb.AppendLine("  [INFO] material rumpun di-fallback ke URP.");
-        }
+        // pivot mesh bisa di tengah (fbx pack) — angkat supaya dasar bounds duduk di tanah
+        float yOffRumpun = meshRumpun.bounds.min.y < -0.01f ? -meshRumpun.bounds.min.y : 0f;
 
         // area terlarang: ruangan S1-S5, semua polyline jalur, bounds Lobby
         var ruangan = WahanaLayout.BuildRuangan();
@@ -4167,10 +4230,10 @@ public static class WahanaRebuilder
 
             var go = new GameObject("Rumpun_" + dibuat);
             go.transform.SetParent(rootRumput.transform, true);
-            go.transform.position = new Vector3(x, WahanaLayout.YGround, z);
+            float sk = skalaNorm * Mathf.Lerp(RumputSkalaMin, RumputSkalaMax, (float)rand.NextDouble());
+            go.transform.position = new Vector3(x, WahanaLayout.YGround + yOffRumpun * sk, z);
             go.transform.rotation = Quaternion.Euler(0f, (float)rand.NextDouble() * 360f, 0f);
-            go.transform.localScale = Vector3.one
-                * Mathf.Lerp(RumputSkalaMin, RumputSkalaMax, (float)rand.NextDouble());
+            go.transform.localScale = Vector3.one * sk;
             go.AddComponent<MeshFilter>().sharedMesh = meshRumpun;
             go.AddComponent<MeshRenderer>().sharedMaterial = matRumpun; // tanpa collider — bisa ditembus jalan
             dibuat++;
