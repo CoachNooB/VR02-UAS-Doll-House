@@ -77,9 +77,14 @@ public static class PortalS5
         soE.ApplyModifiedProperties();
         sb.AppendLine("  UI_PortalOverlay (Canvas overlay sort 50 + EfekPortalS5 + rumble/whoosh 2D).");
 
-        // ---------- (2) zona portal (timing: lihat plan — ramp 0.7s aman di kec. max 3.5) ----------
-        BuatZonaPortal(root.transform, "Z_PortalMasuk_S5", new Vector3(-38f, 1.5f, 10f), new Vector3(6f, 4f, 8f), efek, sb);
-        BuatZonaPortal(root.transform, "Z_PortalKeluar_S5", new Vector3(-28f, 1.5f, 16f), new Vector3(8f, 4f, 5f), efek, sb);
+        // ---------- (2) gerbang portal "garis" (revisi playtest: flash total ±1.3-2 dtk) ----------
+        // Trigger TIPIS ~2u SEBELUM bidang pintu/bukaan; putih dilepas begitu ROOT kereta
+        // melewati gerbang sejauh _jarakLepas (±1u setelah bidang) — tidak menunggu seluruh
+        // badan kereta keluar zona (desain lama = putih 5+ dtk di kecepatan normal).
+        BuatZonaPortal(root.transform, "Z_PortalMasuk_S5", new Vector3(-38f, 1.5f, 8f), new Vector3(6f, 4f, 0.8f),
+            Vector3.forward, 3.0f, efek, kereta, sb);   // pintu z=10 -> lepas di root z=11
+        BuatZonaPortal(root.transform, "Z_PortalKeluar_S5", new Vector3(-29.8f, 1.5f, 16f), new Vector3(0.8f, 4f, 6f),
+            Vector3.right, 2.8f, efek, kereta, sb);     // bukaan x=-28 -> lepas di root x=-27
 
         // ---------- (3) film energi (ScrollUV — TIDAK statis) ----------
         var film = new GameObject("FilmPortal");
@@ -144,7 +149,7 @@ public static class PortalS5
     // ================= helper =================
 
     private static void BuatZonaPortal(Transform parent, string nama, Vector3 pos, Vector3 ukuran,
-        EfekPortalS5 efek, System.Text.StringBuilder sb)
+        Vector3 arah, float jarakLepas, EfekPortalS5 efek, KeretaMover kereta, System.Text.StringBuilder sb)
     {
         var go = new GameObject(nama);
         go.transform.SetParent(parent, true);
@@ -155,8 +160,11 @@ public static class PortalS5
         var zona = go.AddComponent<ZonaPortalS5>();
         var so = new SerializedObject(zona);
         so.FindProperty("_efek").objectReferenceValue = efek;
+        if (kereta != null) so.FindProperty("_kereta").objectReferenceValue = kereta;
+        so.FindProperty("_arah").vector3Value = arah;
+        so.FindProperty("_jarakLepas").floatValue = jarakLepas;
         so.ApplyModifiedProperties();
-        sb.AppendLine("  " + nama + " " + ukuran + " di " + pos + ".");
+        sb.AppendLine("  " + nama + " " + ukuran + " di " + pos + " (arah " + arah + ", lepas " + jarakLepas + "u).");
     }
 
     private static void BuatQuadFilm(Transform parent, string nama, Vector3 pos, Quaternion rot,

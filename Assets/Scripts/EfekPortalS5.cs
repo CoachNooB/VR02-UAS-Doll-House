@@ -24,14 +24,14 @@ public class EfekPortalS5 : MonoBehaviour
     [SerializeField] private AudioSource _rumble;  // loop; volume mengikuti alpha
     [SerializeField] private AudioSource _whoosh;  // oneshot di puncak putih
 
-    [Header("Timing layar putih")]
-    [SerializeField] private float _durasiNaik = 0.7f;
-    [SerializeField] private float _durasiTurun = 2.0f;
+    [Header("Timing layar putih (revisi playtest: total putih ±1.3-2 dtk)")]
+    [SerializeField] private float _durasiNaik = 0.5f;
+    [SerializeField] private float _durasiTurun = 0.8f;
 
     [Header("Guncangan kamera (localPosition, JANGAN rotation)")]
     [SerializeField] private float _amplitudo = 0.06f;
     [SerializeField] private float _frekuensi = 9f;
-    [SerializeField] private float _durasiRedamGuncang = 0.5f;
+    [SerializeField] private float _durasiRedamGuncang = 0.4f;
 
     [Header("Audio")]
     [SerializeField] private float _volRumbleMax = 0.5f;
