@@ -290,7 +290,13 @@ public class KeretaMover : MonoBehaviour
                 {
                     _suaraJalan.Play();
                 }
-                KirimStatus("Kereta jalan lagi!");
+
+                // Kabari hanya kalau berhentinya beneran terasa; durasi ~0 = pesan
+                // cuma noise yang menimpa pengumuman section di panel.
+                if (_durasiBerhenti > 0.5f)
+                {
+                    KirimStatus("Kereta jalan lagi!");
+                }
             }
             return;
         }

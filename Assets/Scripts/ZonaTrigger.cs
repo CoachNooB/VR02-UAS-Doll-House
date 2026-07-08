@@ -152,6 +152,15 @@ public class ZonaTrigger : MonoBehaviour
             if (_wahana == null || _wahana.StatusUI == null) { LogPeringatan("RideStatusUI null"); return; }
             _wahana.StatusUI.TandaiSisi(_sisiKiri);
         }
+
+        // Pengumuman opsional: zona mode APA PUN boleh bawa _statusTeks (dipakai
+        // Z_Lambat_S1..S5 untuk mengumumkan section di panel kereta saat masuk).
+        // Mode 4 sudah mengirimnya di atas — jangan dobel.
+        if (_mode != 4 && !string.IsNullOrEmpty(_statusTeks)
+            && _wahana != null && _wahana.StatusUI != null)
+        {
+            _wahana.StatusUI.SetStatus(_statusTeks);
+        }
     }
 
     /// <summary>
