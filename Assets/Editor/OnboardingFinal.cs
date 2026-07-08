@@ -1620,6 +1620,146 @@ public static class OnboardingFinal
     }
 
     // =====================================================================
+    //  MENU 61 — FIX NOTCH LID KELUAR GUA S4 (koreksi push Harry `086efb0`)
+    //  Harry menambah `LidPit_Selatan (1)` (ground y-0.05, footprint
+    //  X[-57.2,-35.9] Z[-12.9,8.6]) buat menutup parit keluar gua — TAPI rel
+    //  keluar naik dari y-4.8 ke +0.5 MENEMBUS lid itu (WP_578-602, ~25m),
+    //  kereta kelihatan nembus tanah. Fix: belah lid jadi strip per-pita-Z
+    //  yang menyisakan KANAL rel (train muncul dari kanal air PermukaanAirPit
+    //  y-2.15 yang sudah ada) — niat Harry (tutup parit) tetap kehormat.
+    //  Idempotent; Harry's box di-SetActive(false) (revertable).
+    // =====================================================================
+    private const float LidXmin = -57.216f, LidXmax = -35.938f;
+    private const float LidZmin = -12.919f, LidZmax = 8.639f;
+    private const float LidY = -0.05f, LidTebal = 0.2f;
+    private const float KanalZmin = -4f, KanalZmax = 7f; // rentang Z rel menembus lid
+    private const float HalfKanal = 2.4f;                // setengah lebar kanal (train half ~1.0)
+    private const float PitaZ = 1.0f;                    // tinggi pita per strip
+
+    [MenuItem("Tools/Wahana/61 Fix - Notch Lid Keluar Gua (Harry)", false, 125)]
+    public static void FixNotchLidKeluar()
+    {
+        if (GuardPlayMode()) return;
+        var sb = new StringBuilder("=== 61 FIX NOTCH LID KELUAR GUA S4 ===\n");
+
+        HapusParent("GEN_NotchLidKeluar");
+        HapusAssetPrefix("ONB_NotchLid");
+
+        // 1) nonaktifkan lid Harry (revertable — objeknya tetap ada)
+        GameObject lidHarry = WahanaFinalUtil.CariGameObject("LidPit_Selatan (1)");
+        if (lidHarry != null && lidHarry.activeSelf)
+        {
+            lidHarry.SetActive(false);
+            sb.AppendLine("  LidPit_Selatan (1) [Harry] di-nonaktifkan (revertable).");
+        }
+        else sb.AppendLine("  LidPit_Selatan (1) sudah nonaktif / tak ketemu.");
+
+        Material matLid = AssetDatabase.LoadAssetAtPath<Material>("Assets/Generated/S4_LidAir.mat");
+        if (matLid == null)
+        {
+            Debug.LogWarning("[OnboardingFinal] S4_LidAir.mat tak ketemu — menu 61 batal.");
+            return;
+        }
+
+        // 2) sampel jalur rel di area ramp keluar (z[-6,9], x[-52,-38], y<0.6) -> railX(z)
+        var pts = WahanaFinalUtil.AmbilPolylineJalur();
+        var ramp = new System.Collections.Generic.List<Vector3>();
+        foreach (var p in pts)
+            if (p.z > -6f && p.z < 9.5f && p.x < -37f && p.x > -53f && p.y < 0.65f)
+                ramp.Add(p);
+        ramp.Sort((a, b) => a.z.CompareTo(b.z));
+        if (ramp.Count < 4)
+        {
+            Debug.LogWarning("[OnboardingFinal] Titik ramp rel keluar tak cukup — menu 61 batal.");
+            return;
+        }
+
+        Transform grp = new GameObject("GEN_NotchLidKeluar").transform;
+        var boxes = new System.Collections.Generic.List<GameObject>();
+        void Box(float x0, float x1, float z0, float z1)
+        {
+            if (x1 - x0 < 0.3f || z1 - z0 < 0.05f) return;
+            boxes.Add(WahanaRebuilder.BuatBox(grp, "NotchLid",
+                new Vector3((x0 + x1) * 0.5f, LidY, (z0 + z1) * 0.5f),
+                new Vector3(x1 - x0, LidTebal, z1 - z0), matLid));
+        }
+
+        // 3) cap solid selatan (rel masih dalam/tersembunyi) + utara (rel sudah di atas lid)
+        Box(LidXmin, LidXmax, LidZmin, KanalZmin);
+        Box(LidXmin, LidXmax, KanalZmax, LidZmax);
+
+        // 4) pita kanal: tiap band sisakan celah rail X +- HalfKanal
+        int nBand = 0;
+        for (float z = KanalZmin; z < KanalZmax - 0.01f; z += PitaZ)
+        {
+            float z1 = Mathf.Min(z + PitaZ, KanalZmax);
+            float rx = RailXpadaZ(ramp, (z + z1) * 0.5f);
+            Box(LidXmin, rx - HalfKanal, z, z1);        // barat kanal
+            Box(rx + HalfKanal, LidXmax, z, z1);        // timur kanal
+            nBand++;
+        }
+        sb.AppendLine("  Notch: 2 cap + " + nBand + " pita kanal (celah rel +-" + HalfKanal + "u).");
+
+        // 5) gabung jadi 1 mesh + MeshCollider (ground bisa dipijak backstage)
+        GabungKeLokal(grp, "ONB_NotchLid", boxes, matLid);
+        Transform gab = grp.Find("ONB_NotchLid");
+        if (gab != null)
+        {
+            var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(DirOnboarding + "/ONB_NotchLid.asset");
+            var mc = gab.gameObject.AddComponent<MeshCollider>();
+            mc.sharedMesh = mesh;
+        }
+
+        // 6) verifikasi: train swept-volume tak menyentuh lid tersisa
+        int intrusi = VerifikasiKanal(ramp, sb);
+        sb.AppendLine(intrusi == 0
+            ? "  VERIFIKASI: 0 intrusi — kereta lewat kanal bersih."
+            : "  [WARN] " + intrusi + " titik rel masih tertutup lid — perbesar HalfKanal.");
+
+        SimpanScene(sb);
+        Debug.Log(sb.ToString());
+    }
+
+    /// <summary>Interpolasi X rel pada Z (ramp monoton naik di z). Clamp di ujung.</summary>
+    private static float RailXpadaZ(System.Collections.Generic.List<Vector3> ramp, float z)
+    {
+        if (z <= ramp[0].z) return ramp[0].x;
+        if (z >= ramp[ramp.Count - 1].z) return ramp[ramp.Count - 1].x;
+        for (int i = 1; i < ramp.Count; i++)
+        {
+            if (z <= ramp[i].z)
+            {
+                float t = Mathf.InverseLerp(ramp[i - 1].z, ramp[i].z, z);
+                return Mathf.Lerp(ramp[i - 1].x, ramp[i].x, t);
+            }
+        }
+        return ramp[ramp.Count - 1].x;
+    }
+
+    /// <summary>
+    /// Cek swept-volume kereta (XZ half 1.0, y rail-0.22..rail+2.2) tak overlap
+    /// lid tersisa (y -0.15..0.05). Return jumlah titik rel yang masih tertembus.
+    /// </summary>
+    private static int VerifikasiKanal(System.Collections.Generic.List<Vector3> ramp, StringBuilder sb)
+    {
+        int intrusi = 0;
+        float worst = 99f;
+        foreach (var r in ramp)
+        {
+            if (r.z < KanalZmin - 0.5f || r.z > KanalZmax + 0.5f) continue;
+            bool trainKenaBidangY = (r.y - 0.22f) < 0.05f && (r.y + 2.2f) > -0.15f;
+            if (!trainKenaBidangY) continue;
+            float rx = RailXpadaZ(ramp, r.z);
+            // jarak train (railX +-1.0) ke tepi kanal
+            float clearance = HalfKanal - 1.0f - Mathf.Abs(r.x - rx);
+            worst = Mathf.Min(worst, clearance);
+            if (clearance < 0f) intrusi++;
+        }
+        sb.AppendLine("  Clearance kanal terkecil: " + worst.ToString("0.00") + "u.");
+        return intrusi;
+    }
+
+    // =====================================================================
     //  HELPER BERSAMA (pola SihirMalam)
     // =====================================================================
     private static Transform CariDescendant(Transform akar, string nama)
