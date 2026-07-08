@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: "Source Sans 3", system-ui, sans-serif; color: #23203A; font-size: 10.8pt; line-height: 1.55; }
+  h1, h2, h3, h4 { font-family: "Playfair Display", Georgia, serif; color: #232946; line-height: 1.2; }
+  p { margin: 0 0 9px; }
+  strong { color: #1B1F3B; }
+  em { color: #6B6880; }
+  .accent { color: #B8862B; }
+  .muted { color: #6B6880; }
+
+  /* ===== COVER ===== */
+  .cover { min-height: 262mm; background: #1B1F3B; color: #F5EFDD; padding: 34mm 22mm; page-break-after: always; position: relative; }
+  .cover .kicker { font-size: 12pt; letter-spacing: 3px; text-transform: uppercase; color: #E0B84C; font-weight: 600; }
+  .cover h1 { color: #F5EFDD; font-size: 38pt; margin: 14px 0 6px; line-height: 1.08; }
+  .cover .sub { font-size: 15pt; color: #CFC7E2; margin-bottom: 40px; }
+  .cover .swatchrow { display: flex; gap: 10px; margin: 26px 0 34px; }
+  .cover .sw { width: 54px; height: 54px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25); }
+  .cover .meta { position: absolute; bottom: 28mm; left: 22mm; right: 22mm; font-size: 11pt; color: #CFC7E2; border-top: 1px solid rgba(255,255,255,.25); padding-top: 14px; }
+  .cover .meta b { color: #fff; }
+
+  /* ===== CHAPTER ===== */
+  .chapter { page-break-before: always; }
+  .chapno { font-size: 11pt; letter-spacing: 2px; text-transform: uppercase; color: #B8862B; font-weight: 700; }
+  h1.title { font-size: 26pt; margin: 2px 0 14px; border-bottom: 3px solid #B8862B; padding-bottom: 10px; }
+  h2.sec { font-size: 15pt; margin: 22px 0 8px; }
+  h3.sub { font-size: 12.5pt; margin: 16px 0 6px; color: #1B1F3B; }
+
+  /* ===== TOC ===== */
+  .toc li { margin: 7px 0; font-size: 12pt; list-style: none; }
+  .toc .n { display: inline-block; width: 30px; color: #B8862B; font-weight: 700; font-family: "Playfair Display", serif; }
+  ul.toc { padding-left: 0; }
+
+  /* ===== CODE ===== */
+  .codewrap { margin: 10px 0 6px; border-radius: 8px; overflow: hidden; border: 1px solid #1B1F3B; }
+  .filelabel { background: #B8862B; color: #fff; font-family: "JetBrains Mono", monospace; font-size: 8.6pt; padding: 5px 12px; font-weight: 600; }
+  pre { background: #1E1E2E; color: #E6E1D8; margin: 0; padding: 12px 14px; font-family: "JetBrains Mono", monospace; font-size: 8.7pt; line-height: 1.5; white-space: pre-wrap; word-break: break-word; font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  .cm { color: #8A9A7B; }   /* komentar */
+  .kw { color: #D0A05C; }   /* keyword */
+  .st { color: #9DBE8A; }   /* string */
+  code.inline { background: #EFE9DA; color: #232946; font-family: "JetBrains Mono", monospace; font-size: 9pt; padding: 1px 5px; border-radius: 4px; font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+
+  /* ===== BOXES ===== */
+  .qa { background: #F4EEDF; border-left: 4px solid #B8862B; border-radius: 4px; padding: 10px 14px; margin: 10px 0; page-break-inside: avoid; }
+  .qa .q { font-weight: 700; color: #232946; margin: 0 0 4px; }
+  .qa .a { margin: 0; }
+  .pj { display: inline-block; background: #232946; color: #fff; border-radius: 20px; padding: 2px 12px; font-size: 8.8pt; font-weight: 600; margin-top: 4px; }
+  .concept { page-break-inside: avoid; margin-bottom: 20px; }
+  .note { background: #F0ECE0; border: 1px solid #E4DFD2; border-radius: 6px; padding: 8px 12px; font-size: 9.6pt; }
+
+  /* ===== ROLE CARDS ===== */
+  .role { border: 1px solid #E4DFD2; border-left: 5px solid #B8862B; border-radius: 6px; padding: 12px 16px; margin: 12px 0; background: #FCFAF4; page-break-inside: avoid; }
+  .role h3 { margin: 0 0 2px; font-size: 13pt; color: #232946; }
+  .role .peran { color: #B8862B; font-weight: 700; font-size: 10pt; text-transform: uppercase; letter-spacing: .5px; }
+  .role ul { margin: 6px 0 0; padding-left: 18px; }
+  .role li { margin: 3px 0; }
+
+  /* ===== TABLE ===== */
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 9.8pt; page-break-inside: avoid; }
+  th { background: #232946; color: #fff; text-align: left; }
+  th, td { border: 1px solid #E4DFD2; padding: 6px 9px; vertical-align: top; }
+  tr:nth-child(even) td { background: #FAF7F0; }
+  .tree { font-family: "JetBrains Mono", monospace; font-size: 9.2pt; background: #FCFAF4; border: 1px solid #E4DFD2; border-radius: 6px; padding: 12px 14px; white-space: pre; line-height: 1.5; color: #1B1F3B; }
+
+  /* ===== STEPS ===== */
+  .step { display: flex; gap: 12px; margin: 10px 0; page-break-inside: avoid; }
+  .step .num { flex: 0 0 34px; height: 34px; background: #B8862B; color: #fff; border-radius: 50%; font-family: "Playfair Display", serif; font-weight: 700; font-size: 15pt; display: flex; align-items: center; justify-content: center; }
+  .step .body { flex: 1; }
+  .step .body b { color: #232946; }
+
+  /* ===== CHECKLIST ===== */
+  .chk { display: inline-block; width: 12px; height: 12px; border: 1.5px solid #B8862B; border-radius: 3px; margin-right: 8px; vertical-align: middle; }
+  .checkgroup { page-break-inside: avoid; margin: 10px 0; }
+  .checkgroup li { list-style: none; margin: 5px 0; }
+  .checkgroup ul { padding-left: 0; }
+  .who { font-weight: 700; color: #B8862B; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<section class="cover">
+  <div class="kicker">Panduan Bedah Kode</div>
+  <h1>Wahana Rumah Boneka</h1>
+  <div class="sub">Buku pegangan tim Kelompok 1 — dari konsep wahana sampai baris kode</div>
+  <div class="swatchrow">
+    <div class="sw" style="background:#1B1F3B; border-color:#E0B84C"></div>
+    <div class="sw" style="background:#E0B84C"></div>
+    <div class="sw" style="background:#F5EFDD"></div>
+  </div>
+  <p style="max-width:120mm; color:#CFC7E2; font-size:11.5pt;">Buku ini memetakan setiap hal yang tampil di presentasi (kereta, rel, interaksi, trigger, UI World Space, show tiap section, optimasi WebGL) ke lokasi aslinya di dalam project Unity: file mana, baris berapa, dan cara menjelaskannya dengan tenang saat sesi tanya jawab.</p>
+  <div class="meta">
+    Mata kuliah <b>Virtual Reality</b> · Dosen <b>Calvin Mona Sandehang, M.Sc.</b> · UAS 2026<br>
+    <b>Kelompok 1:</b> Antonius Harry (Ketua) · Dimas Kurniawan · Deva Agriani · Dharma Satriadi · Izhar Rahman Dwiputra · Halimah Sukmawati
+  </div>
+</section>
+
+<!-- ============ DAFTAR ISI ============ -->
+<section>
+  <div class="chapno">Daftar Isi</div>
+  <h1 class="title">Isi Buku</h1>
+  <ul class="toc">
+    <li><span class="n">1</span> Cara Pakai Buku Ini dan Istilah Dasar</li>
+    <li><span class="n">2</span> Peran dan Tanggung Jawab Tim</li>
+    <li><span class="n">3</span> Peta Proyek</li>
+    <li><span class="n">4</span> Urutan Belajar yang Disarankan</li>
+    <li><span class="n">5</span> Konsep dan Letaknya di Kode</li>
+    <li><span class="n">6</span> Peta Slide ke Kode</li>
+    <li><span class="n">7</span> Antisipasi Pertanyaan Dosen</li>
+    <li><span class="n">8</span> Checklist Kesiapan per Anggota</li>
+  </ul>
+  <p class="note" style="margin-top:16px">Semua nomor baris pada buku ini merujuk kondisi repo per 8 Juli 2026. Kalau kode berubah setelah tanggal itu, cari nama method-nya — strukturnya tetap sama.</p>
+</section>
+
+<!-- ============ BAB 1 ============ -->
+<section class="chapter">
+  <div class="chapno">Bab 1</div>
+  <h1 class="title">Cara Pakai Buku Ini dan Istilah Dasar</h1>
+
+  <h2 class="sec">Cara membaca</h2>
+  <div class="step"><div class="num">1</div><div class="body"><b>Baca Bab 2</b> dan temukan kartu perananmu — di situ tertulis bagian presentasi dan area kode yang kamu pegang.</div></div>
+  <div class="step"><div class="num">2</div><div class="body"><b>Pelajari Bab 5</b> khusus konsep yang ada badge namamu. Buka filenya di Unity/editor teks, cocokkan dengan cuplikan di buku, dan pahami "kenapa"-nya, bukan menghafal.</div></div>
+  <div class="step"><div class="num">3</div><div class="body"><b>Latihan dengan Bab 7 dan Bab 8:</b> minta teman membacakan pertanyaan dosen, jawab dengan kata sendiri sambil menunjuk file dan baris.</div></div>
+
+  <h2 class="sec">Ringkasan proyek dalam satu paragraf</h2>
+  <p>"Wahana Rumah Boneka" adalah experience first-person di browser (WebGL): pemain datang ke taman hiburan malam, masuk lobby "Grand Teater Boneka", mengambil tiket, menaiki kereta kencana, lalu kereta berjalan mengikuti rel tertutup melewati lima section boneka bertema (hutan sihir, kotak musik, kamar anak terbengkalai, akuarium raksasa, langit kamar). Benang merahnya: pelan-pelan pemain sadar bahwa dirinya mainan kecil di dunia mainan seorang anak — dan di akhir ride, sang anak tertidur. Semua dibangun dalam SATU scene Unity: <code class="inline">Assets/Scenes/UAS_Main.unity</code>.</p>
+
+  <table>
+    <tr><th>Fakta kunci</th><th>Nilai</th></tr>
+    <tr><td>Unity dan target</td><td>Unity 6000.4.6f1, URP, build WebGL ke itch.io (kompresi Brotli)</td></tr>
+    <tr><td>Waypoint rel utama</td><td>755 titik (WP_0..WP_754), dibangkitkan dari 80 titik desain rute utama, jarak antar titik 0,5 unit</td></tr>
+    <tr><td>Cabang rel</td><td>Jalur Beruang di S1: 6 titik desain menjadi 42 waypoint; kereta berhenti di WP 73 menunggu pilihan (cabang fisik di WP 77), bergabung lagi di WP 135</td></tr>
+    <tr><td>Kecepatan kereta</td><td>normal 2.0 · zona lambat 1.1 · maksimum (tahan W) 3.5</td></tr>
+    <tr><td>Interaksi dan trigger</td><td>ObjekInteraksi 11 mode (0-10) · ZonaTrigger 6 mode (0-5)</td></tr>
+    <tr><td>Stempel</td><td>6 slot: 5 section + 1 bintang emas (dua rute S1 sudah pernah dilalui)</td></tr>
+    <tr><td>Skala dunia</td><td>area track sekitar 124 x 106 unit (syarat minimal 40 x 10)</td></tr>
+    <tr><td>Jumlah kode</td><td>52 script runtime + 7 script pola dosen + 66 menu generator editor (Tools/Wahana)</td></tr>
+  </table>
+
+  <h2 class="sec">Istilah dasar Unity (glossary)</h2>
+  <table>
+    <tr><th>Istilah</th><th>Arti sederhana</th></tr>
+    <tr><td>GameObject</td><td>Benda apa pun di scene (kereta, lampu, zona kosong). Wadah untuk komponen.</td></tr>
+    <tr><td>Component</td><td>Kemampuan yang ditempel ke GameObject: Renderer (tampil), Collider (bisa ditabrak), script kita sendiri.</td></tr>
+    <tr><td>Transform</td><td>Posisi, rotasi, dan skala sebuah GameObject. <code class="inline">transform.position</code> = tempatnya di dunia.</td></tr>
+    <tr><td>Prefab</td><td>Cetakan GameObject yang bisa dipakai berulang (contoh: boneka, pohon, lampu taman).</td></tr>
+    <tr><td>MonoBehaviour</td><td>Kelas dasar semua script kita. Punya method siklus hidup: <code class="inline">Awake</code> (bangun), <code class="inline">Start</code>, <code class="inline">Update</code> (tiap frame).</td></tr>
+    <tr><td>[SerializeField]</td><td>Membuat field private tetap terlihat di Inspector supaya bisa diatur tanpa mengubah kode.</td></tr>
+    <tr><td>Collider dan isTrigger</td><td>Bentuk tabrakan. Kalau isTrigger dicentang, benda bisa menembus tapi Unity memberi tahu lewat <code class="inline">OnTriggerEnter/Exit</code>.</td></tr>
+    <tr><td>Rigidbody (kinematik)</td><td>Penanda benda "fisik". Kinematik = digerakkan script, bukan gravitasi. Trigger hanya terbaca kalau salah satu pihak punya Rigidbody.</td></tr>
+    <tr><td>Raycast</td><td>Sinar tak terlihat dari kamera ke depan; dipakai mendeteksi "objek apa yang sedang ditatap pemain".</td></tr>
+    <tr><td>CharacterController</td><td>Komponen bawaan Unity untuk gerak jalan first-person yang tidak menembus dinding.</td></tr>
+    <tr><td>Coroutine</td><td>Fungsi yang bisa "menunggu" (<code class="inline">yield return new WaitForSeconds(2)</code>) tanpa membekukan game — dipakai untuk urutan show.</td></tr>
+    <tr><td>Animator vs animasi script</td><td>Animator = memutar clip animasi (boneka, pintu). Animasi script = menggerakkan Transform langsung tiap frame (goyangan, orbit, kelip).</td></tr>
+    <tr><td>Canvas World Space</td><td>UI yang hidup DI DALAM dunia 3D (papan status di kereta). Lawannya Screen Space Overlay: menempel di layar (dipakai hanya untuk fade/efek).</td></tr>
+    <tr><td>Material, Emission, URP</td><td>Material = kulit benda. Emission = bagian yang memancarkan cahaya sendiri (glow). URP = pipeline render Unity yang kami pakai.</td></tr>
+    <tr><td>Skybox</td><td>Gambar langit yang membungkus seluruh scene; punya kami dibuat prosedural (3.200 bintang).</td></tr>
+    <tr><td>Waypoint</td><td>Titik-titik jalan. Kereta bergerak dari titik ke titik memakai <code class="inline">Vector3.MoveTowards</code>.</td></tr>
+    <tr><td>Prosedural</td><td>Dibuat otomatis oleh rumus/kode, bukan digambar atau ditaruh satu per satu (contoh: langit bintang kami).</td></tr>
+    <tr><td>Meta UI</td><td>Efek layar sesaat: fade hitam, kilat putih, titik bidik. Bukan panel informasi — dan satu-satunya yang boleh Screen Space Overlay menurut aturan soal.</td></tr>
+    <tr><td>State (kondisi permainan)</td><td>Semua yang berubah selama bermain: posisi kereta, stempel, pintu, show. Reset = mengembalikan semua state ke awal.</td></tr>
+    <tr><td>MenuItem / script editor</td><td>Script yang menambah menu di Unity Editor untuk MEMBANGUN scene (generator). Tidak ikut ke build game.</td></tr>
+    <tr><td>WebGL dan Brotli</td><td>WebGL = build yang jalan di browser. Brotli = kompresi supaya unduhan kecil dan cepat.</td></tr>
+    <tr><td>MCP Unity</td><td>Alat produksi yang kami pakai: AI mengendalikan Unity Editor (membuat objek, mengatur komponen) lewat protokol MCP. Alat, bukan pengganti pemahaman.</td></tr>
+  </table>
+</section>
+
+<!-- ============ BAB 2 ============ -->
+<section class="chapter">
+  <div class="chapno">Bab 2</div>
+  <h1 class="title">Peran dan Tanggung Jawab Tim</h1>
+  <p>Setiap bagian punya penanggung jawab utama, tetapi semuanya dikerjakan sebagai tim: keputusan konsep diambil bersama, dan setiap orang wajib bisa menjelaskan bagiannya sendiri di depan dosen.</p>
+
+  <div class="role">
+    <h3>Antonius Harry — 25120300031</h3>
+    <div class="peran">Ketua dan Sistem Rel</div>
+    <ul>
+      <li><b>Arti peran:</b> memimpin arah proyek, membuka dan menutup presentasi, memegang sistem paling struktural: jalur rel.</li>
+      <li><b>Di proyek ini:</b> Section 1 Hutan Sihir (piknik teddy, api unggun, kunang-kunang, percabangan Jalur Beruang), desain rute rel 80 titik yang di-bake jadi 755 waypoint, lorong bawah tanah (portal gua S4, lorong air, portal putih S5), serta narasi optimasi WebGL.</li>
+      <li><b>Area kode:</b> <code class="inline">Assets/Editor/WahanaLayout.cs</code>, <code class="inline">Assets/Scripts/PusatWahana.cs</code>, script show S1, <code class="inline">Assets/Editor/ItchWebGLBuildUtility.cs</code>.</li>
+      <li><b>Bagian presentasi:</b> slide 1-3 (buka), 7-8, 13-16 (tutup); pandu QnA.</li>
+    </ul>
+  </div>
+
+  <div class="role">
+    <h3>Izhar Rahman Dwiputra — 25120300032</h3>
+    <div class="peran">Dunia, Onboarding, Kereta, dan UI</div>
+    <ul>
+      <li><b>Arti peran:</b> integrator — merakit dunia tempat semua section hidup dan sistem yang mengantar pemain: kereta dan UI.</li>
+      <li><b>Di proyek ini:</b> dunia malam (langit prosedural, bianglala, lampu taman, jangkrik), lobby dan mekanik tiket, Mode Jalan Kaki, kereta kencana beserta pacing-nya, seluruh UI World Space, dan alur build lewat MCP Unity.</li>
+      <li><b>Area kode:</b> <code class="inline">KeretaMover.cs</code>, <code class="inline">InteraksiRaycast.cs</code>, <code class="inline">ObjekInteraksi.cs</code>, <code class="inline">ZonaTrigger.cs</code>, <code class="inline">RideStatusUI.cs</code>, <code class="inline">Billboard.cs</code>, <code class="inline">ModeJalanKaki.cs</code>, generator <code class="inline">SihirMalam.cs</code>, <code class="inline">OnboardingFinal.cs</code>.</li>
+      <li><b>Bagian presentasi:</b> slide 4-6; pegang keyboard saat demo.</li>
+    </ul>
+  </div>
+
+  <div class="role">
+    <h3>Deva Agriani — 25120300026</h3>
+    <div class="peran">Section 2: Dalam Kotak Musik</div>
+    <ul>
+      <li><b>Arti peran:</b> pemilik satu dunia tematik — bertanggung jawab konsep visual, isi, dan interaksinya.</li>
+      <li><b>Di proyek ini:</b> kotak musik raksasa: gigi emas berputar, penari di piringan, band monster, penonton manusia salju, salju turun, interaksi wind-up.</li>
+      <li><b>Area kode:</b> <code class="inline">Assets/Editor/SihirS2.cs</code> (generator), <code class="inline">PutarPelan.cs</code>, <code class="inline">GoyangRitmis.cs</code>, <code class="inline">SaljuJatuh.cs</code>, <code class="inline">AksiWindUpS2.cs</code>.</li>
+      <li><b>Bagian presentasi:</b> slide 9; narasi S2 saat demo.</li>
+    </ul>
+  </div>
+
+  <div class="role">
+    <h3>Halimah Sukmawati — 25120300037</h3>
+    <div class="peran">Section 3: Kamar Anak Terbengkalai</div>
+    <ul>
+      <li><b>Arti peran:</b> pemilik section horor — mengatur ketegangan lewat cahaya, gerakan halus, dan waktu.</li>
+      <li><b>Di proyek ini:</b> kamar skala raksasa (boneka porselen retak, balok ABC, kursi goyang), mata di kegelapan, kepala menoleh, sekuens seram empat tahap, siluet hantu, kotak musik rusak.</li>
+      <li><b>Area kode:</b> <code class="inline">Assets/Editor/SihirS3.cs</code>, <code class="inline">SekuensKamarS3.cs</code>, <code class="inline">KepalaMenatap.cs</code>, <code class="inline">MataKegelapan.cs</code>, <code class="inline">SiluetLewatS3.cs</code>, <code class="inline">AksiKotakMusikS3.cs</code>.</li>
+      <li><b>Bagian presentasi:</b> slide 10; narasi S3 saat demo.</li>
+    </ul>
+  </div>
+
+  <div class="role">
+    <h3>Dharma Satriadi — 25120300030</h3>
+    <div class="peran">Section 4: Akuarium Mainan Raksasa</div>
+    <ul>
+      <li><b>Arti peran:</b> pemilik section bawah laut — satu-satunya section di bawah tanah, sekaligus penjaga tema audio.</li>
+      <li><b>Di proyek ini:</b> gua akuarium (kawanan ikan, ubur-ubur, gelembung, kapal karam, kastil), siluet anak di balik kaca, interaksi ketuk kaca, dan pemetaan musik per section beserta lisensinya.</li>
+      <li><b>Area kode:</b> <code class="inline">Assets/Editor/SihirS4.cs</code>, <code class="inline">IkanKawanan.cs</code>, <code class="inline">GelembungNaik.cs</code>, <code class="inline">ScrollUV.cs</code>, <code class="inline">AksiKetukKaca.cs</code>, <code class="inline">SuasanaZona.cs</code>, <code class="inline">Assets/Audio/Musik/SUMBER_MUSIK.md</code>.</li>
+      <li><b>Bagian presentasi:</b> slide 11; narasi S4 saat demo.</li>
+    </ul>
+  </div>
+
+  <div class="role">
+    <h3>Dimas Kurniawan — 25120300016</h3>
+    <div class="peran">Section 5: Langit Kamar dan Ending</div>
+    <ul>
+      <li><b>Arti peran:</b> pemilik finale — section terakhir plus penutup cerita.</li>
+      <li><b>Di proyek ini:</b> langit kamar (mobile planet, stiker bintang glow, roket orbit, band alien), interaksi Encore, efek portal putih, dan ending "anak tertidur" yang menutup benang merah.</li>
+      <li><b>Area kode:</b> <code class="inline">Assets/Editor/SihirS5.cs</code>, <code class="inline">Assets/Editor/PortalS5.cs</code>, <code class="inline">RoketOrbit.cs</code>, <code class="inline">TwinkleS5.cs</code>, <code class="inline">AksiEncoreS5.cs</code>, <code class="inline">EfekPortalS5.cs</code>, <code class="inline">EndingKamarS5.cs</code>.</li>
+      <li><b>Bagian presentasi:</b> slide 12; narasi S5 dan ending saat demo.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ BAB 3 ============ -->
+<section class="chapter">
+  <div class="chapno">Bab 3</div>
+  <h1 class="title">Peta Proyek</h1>
+  <p>Semua yang penting ada di folder <code class="inline">Assets/</code>. Scene gameplay hanya SATU.</p>
+
+<div class="tree">Assets/
+├── Scenes/
+│   └── UAS_Main.unity          satu-satunya scene ride (aturan brief: 1 scene)
+├── Scripts/                    52 script runtime — logika wahana
+│   ├── KeretaMover.cs          jantung wahana: kereta ikut waypoint
+│   ├── PusatWahana.cs          hub pusat + reset ride
+│   ├── InteraksiRaycast.cs     mata dan tangan pemain (raycast + E)
+│   ├── ObjekInteraksi.cs       benda yang bisa di-interaksi (11 mode)
+│   ├── ZonaTrigger.cs          zona reaksi (6 mode)
+│   ├── RideStatusUI.cs         panel status + stempel di kereta
+│   ├── SekuensKamarS3.cs       show horor 4 tahap (coroutine)
+│   ├── EfekPortalS5.cs         kilat putih portal (meta-UI)
+│   ├── EndingKamarS5.cs        ending "anak tertidur"
+│   ├── ... (animasi: GoyangRitmis, PutarPelan, IkanKawanan,
+│   │        RoketOrbit, TwinkleS5, KunangDomino, SaljuJatuh, dst.)
+│   └── Dosen/                  7 script pola dari recap dosen
+│       └── SimpleCharacterController.cs   first-person controller
+├── Editor/                     generator scene — 66 menu Tools/Wahana
+│   ├── WahanaLayout.cs         tabel 80 titik rute utama + resampler waypoint
+│   ├── WahanaRebuilder.cs      struktur dunia (ground, shell, rel)
+│   ├── SihirS2..S5.cs, SihirMalam.cs, OnboardingFinal.cs, PortalS5.cs
+│   ├── TemenDresser.cs         penempatan boneka per anggota
+│   └── ItchWebGLBuildUtility.cs  pengaturan + build WebGL itch.io
+├── Audio/
+│   ├── Musik/  + SUMBER_MUSIK.md   BGM per section + lisensi (WAJIB baca)
+│   └── SFX/    + T7_SFX_SOURCES.md
+├── Prefabs/  Models/  Temen/   aset visual dan boneka tiap anggota
+└── Generated/                  mesh hasil generator (jangan diedit manual)</div>
+
+  <table>
+    <tr><th>File penting</th><th>Kenapa penting</th></tr>
+    <tr><td><code class="inline">Assets/Scenes/UAS_Main.unity</code></td><td>Scene ride yang di-build. Scene lain di folder Models hanya demo aset.</td></tr>
+    <tr><td><code class="inline">Assets/Audio/Musik/SUMBER_MUSIK.md</code></td><td>Daftar musik + blok kredit CC-BY yang WAJIB tampil di itch.io dan slide 16.</td></tr>
+    <tr><td><code class="inline">docs/RULES-UAS.md</code></td><td>Rangkuman aturan soal, rubrik, bonus, dan penalti.</td></tr>
+    <tr><td><code class="inline">dokumentasi/</code></td><td>Deck, skrip presentasi, shot list, dan buku ini.</td></tr>
+    <tr><td><code class="inline">Packages/manifest.json</code></td><td>JANGAN diubah/di-commit — berisi path package lokal alat MCP di laptop Izhar.</td></tr>
+  </table>
+</section>
+
+<!-- ============ BAB 4 ============ -->
+<section class="chapter">
+  <div class="chapno">Bab 4</div>
+  <h1 class="title">Urutan Belajar yang Disarankan</h1>
+  <p>Ikuti urutan ini kalau mulai dari nol — tiap langkah memakai pengetahuan langkah sebelumnya.</p>
+
+  <div class="step"><div class="num">1</div><div class="body"><b>SimpleCharacterController.cs</b> (folder Dosen) — <em>kenapa dulu:</em> semua berawal dari pemain yang bisa berjalan dan menoleh. Gerak WASD + kamera mouse + lompat.</div></div>
+  <div class="step"><div class="num">2</div><div class="body"><b>InteraksiRaycast.cs lalu ObjekInteraksi.cs</b> — <em>kenapa:</em> ini "mata dan tangan" pemain: sinar dari tengah layar mendeteksi objek, E menjalankan aksinya, objek menyala saat ditatap.</div></div>
+  <div class="step"><div class="num">3</div><div class="body"><b>ZonaTrigger.cs</b> — <em>kenapa:</em> kebalikan dari raycast: dunia yang bereaksi saat pemain/kereta masuk area (stempel, pintu, pelan, show).</div></div>
+  <div class="step"><div class="num">4</div><div class="body"><b>KeretaMover.cs</b> — <em>kenapa:</em> jantung wahana. Baca bagian <code class="inline">Update()</code>: MoveTowards ke waypoint, batas kecepatan, kontrol W/S, berhenti di percabangan.</div></div>
+  <div class="step"><div class="num">5</div><div class="body"><b>PusatWahana.cs</b> — <em>kenapa:</em> hub yang menghubungkan semuanya + <code class="inline">ResetSemua()</code> untuk replay tanpa load scene.</div></div>
+  <div class="step"><div class="num">6</div><div class="body"><b>RideStatusUI.cs + Billboard.cs</b> — <em>kenapa:</em> UI World Space adalah aturan wajib soal; pahami stempel, progress, dan cara papan menghadap pemain.</div></div>
+  <div class="step"><div class="num">7</div><div class="body"><b>Script section milikmu</b> (S1-S5: show, animasi, portal, ending) — <em>kenapa:</em> inilah bagian yang kamu ceritakan di slide dan demo.</div></div>
+  <div class="step"><div class="num">8</div><div class="body"><b>Generator editor + build</b> (WahanaLayout, WahanaRebuilder, ItchWebGLBuildUtility) — <em>kenapa terakhir:</em> cara dunia dirakit dan dikirim; penting untuk pertanyaan "bagaimana kalian membangun ini".</div></div>
+</section>
+
+<!-- ============ BAB 5 ============ -->
+<section class="chapter">
+  <div class="chapno">Bab 5</div>
+  <h1 class="title">Konsep dan Letaknya di Kode</h1>
+  <p>Pola tiap bagian: <b>apa dan kenapa</b>, <b>di mana</b> (file:baris), <b>kode asli</b>, <b>penjelasan</b>, kotak <b>"Kalau ditanya"</b>, dan <b>penanggung jawab</b> yang wajib bisa menjelaskannya.</p>
+
+  <!-- 5.1 -->
+  <div class="concept">
+  <h2 class="sec">5.1 First-Person Controller dan Mode Jalan Kaki</h2>
+  <p><b>Apa dan kenapa:</b> pemain bergerak WASD + kamera mouse memakai CharacterController — syarat first-person soal. Mode Jalan Kaki (tuas staf di lobby) membuka semua pintu section untuk ditelusuri tanpa kereta.</p>
+  <div class="codewrap"><div class="filelabel">Assets/Scripts/Dosen/SimpleCharacterController.cs : 63-74</div>
+<pre>private void HandleMovement()
+{
+    float horizontalInput = Input.GetAxisRaw("Horizontal");
+    float verticalInput = Input.GetAxisRaw("Vertical");
+
+    Vector3 inputDirection = new Vector3(horizontalInput, 0f, verticalInput);
+    inputDirection = Vector3.ClampMagnitude(inputDirection, 1f);
+
+    Vector3 moveDirection = transform.right * inputDirection.x + transform.forward * inputDirection.z;
+    float currentSpeed = Input.GetKey(KeyCode.LeftShift) ? _moveSpeed * _sprintMultiplier : _moveSpeed;
+
+    characterController.Move(moveDirection * currentSpeed * Time.deltaTime);</pre></div>
+  <p><b>Penjelasan:</b> input dibaca sebagai angka -1..1, diubah jadi arah relatif badan pemain (<code class="inline">transform.right/forward</code>), lalu <code class="inline">characterController.Move</code> menggerakkan sambil menabrak dinding dengan benar. <code class="inline">ClampMagnitude</code> mencegah gerak diagonal jadi lebih cepat. Mode Jalan Kaki ada di <code class="inline">ModeJalanKaki.cs:23</code> — satu properti statis <code class="inline">Aktif</code> yang dibaca ZonaTrigger dan gerbang tiket.</p>
+  <div class="qa"><p class="q">Kalau ditanya: "Kenapa pakai CharacterController, bukan Rigidbody?"</p><p class="a">CharacterController dirancang untuk gerak karakter: menempel lantai, tidak terpental fisika, dan tidak menembus dinding — pas untuk first-person. Rigidbody kami pakai justru di kereta (kinematik) untuk kebutuhan trigger.</p></div>
+  <span class="pj">Penanggung jawab: Izhar</span>
+  </div>
+
+  <!-- 5.2 -->
+  <div class="concept">
+  <h2 class="sec">5.2 Kereta Mengikuti Rel: Waypoint + MoveTowards</h2>
+  <p><b>Apa dan kenapa:</b> kereta berjalan dari waypoint ke waypoint (755 titik) memakai <code class="inline">Vector3.MoveTowards</code> — sederhana, pasti tidak keluar jalur, dan murah untuk WebGL. Badan kereta menoleh halus memakai Slerp eksponensial.</p>
+  <div class="codewrap"><div class="filelabel">Assets/Scripts/KeretaMover.cs : 377-399 (dipadatkan)</div>
+<pre><span class="cm">// Gerak lurus mendekati waypoint tujuan (pola dosen MoveTowards).</span>
+transform.position = Vector3.MoveTowards(
+    transform.position,
+    tujuan.position,
+    kecepatan * Time.deltaTime);
+
+Vector3 arah = (tujuan.position - transform.position).normalized;
+if (arah != Vector3.zero)
+{
+    <span class="cm">// Slerp eksponensial: arah hadap mengejar arah tujuan secara halus,</span>
+    <span class="cm">// frame-rate independent — belokan mulus, kereta ikut menunduk di gua.</span>
+    float bobotBelok = 1f - Mathf.Exp(-_kecepatanBelok * Time.deltaTime);
+    arahHadap = Vector3.Slerp(arahHadap, arah, bobotBelok);
+    transform.rotation = Quaternion.LookRotation(arahHadap);
+}</pre></div>
+  <p><b>Penjelasan:</b> tiap frame kereta bergeser sejauh <code class="inline">kecepatan x deltaTime</code> ke titik tujuan; begitu posisinya PERSIS sama (jaminan MoveTowards), <code class="inline">SampaiWaypoint()</code> (baris 415) memilih titik berikutnya. Batas kecepatan bertingkat (baris 344-357): cabang lalu zona lambat lalu maksimum koridor; W/S menambah/mengurangi dengan akselerasi (baris 362-374). Di depan percabangan S1 kereta berhenti MENUNGGU INPUT, bukan timer (baris 420-439).</p>
+  <div class="note"><b>Penting untuk QnA — nilai scene vs default script:</b> angka di slide (normal 2.0, lambat 1.1) adalah nilai LIVE di Inspector scene, di-set otomatis generator (<code class="inline">WahanaRebuilder.cs:30</code>). Default di file script berbeda (2.5/1.2 di baris 32-33) — nilai Inspector selalu meng-override default script; itu memang cara kerja <code class="inline">[SerializeField]</code>. Komentar ringkasan di atas <code class="inline">KeretaMover.cs</code> (baris 3-8) juga masih menceritakan prototipe awal (78 waypoint, cabang S2, stop S3). Kalau dosen membukanya, jawab tenang: "itu komentar desain awal; desain final terbaca di nilai scene — 755 waypoint, cabang di S1, dan stop bertimer S3 kami nonaktifkan saat tuning pacing."</div>
+  <div class="qa"><p class="q">Kalau ditanya: "Kenapa tidak pakai physics atau spline runtime?"</p><p class="a">Ride kereta harus deterministik: penumpang tidak boleh keluar rel gara-gara tabrakan fisika. MoveTowards menjamin posisi selalu di garis antar waypoint. Kehalusan tikungan kami selesaikan di tahap desain rel (80 titik jadi 755 waypoint rapat), bukan di runtime — jadi hasilnya halus TANPA biaya komputasi spline di browser.</p></div>
+  <span class="pj">Penanggung jawab: Izhar (gerak) dan Harry (rute)</span>
+  </div>
+
+  <!-- 5.3 -->
+  <div class="concept">
+  <h2 class="sec">5.3 Interaksi Raycast: 11 Mode + Highlight Glow</h2>
+  <p><b>Apa dan kenapa:</b> <code class="inline">InteraksiRaycast.cs</code> menembakkan sinar dari tengah layar (baris 212: <code class="inline">Physics.Raycast</code>). Kalau kena <code class="inline">ObjekInteraksi</code>, objek diberi highlight; tekan E menjalankan aksinya sesuai mode 0-10 (naik kereta, mulai, tuas cabang, tiket, pintu, sampai aksi kustom section lewat kontrak <code class="inline">IAksiInteraksi</code>).</p>
+  <div class="codewrap"><div class="filelabel">Assets/Scripts/ObjekInteraksi.cs : 100-115 (highlight saat ditatap)</div>
+<pre>if (_rendererObjek != null)
+{
+    Material material = _rendererObjek.material;
+    if (dilihat)
+    {
+        material.EnableKeyword("_EMISSION"); <span class="cm">// nyalakan emission</span>
+        material.SetColor("_EmissionColor", _warnaAsli * _intensitasGlow);
+    }
+    else
+    {
+        material.SetColor("_EmissionColor", Color.black); <span class="cm">// matikan glow</span>
+    }
+}
+
+<span class="cm">// Efek "pop": sedikit membesar saat dilihat</span>
+transform.localScale = dilihat ? _skalaAsli * _faktorMembesar : _skalaAsli;</pre></div>
+  <p><b>Penjelasan:</b> glow memakai warna asli objek dikali intensitas 0.3 (baris 37) supaya halus, bukan putih menyilaukan; skala 1.05 memberi kesan "hidup". Mode aksi didefinisikan di komentar kelas (baris 6-14) dan dieksekusi <code class="inline">Interact()</code> (baris 122): mode ringan ditangani lokal, mode wahana memanggil hub <code class="inline">PusatWahana</code>, mode 10 memanggil <code class="inline">IAksiInteraksi</code> di objek yang sama — cara tiap section menambah aksi unik (wind-up, ketuk kaca, encore) tanpa mengubah sistem pusat.</p>
+  <div class="qa"><p class="q">Kalau ditanya: "Kenapa satu script untuk semua interaksi, bukan script per objek?"</p><p class="a">Supaya konsisten dan mudah dirawat: highlight, suara, dan prompt E seragam di semua objek. Yang berbeda cukup angka mode di Inspector, dan untuk aksi yang benar-benar unik ada mode 10 yang memanggil script kecil khusus section (pola interface).</p></div>
+  <span class="pj">Penanggung jawab: Izhar (sistem); aksi mode 10 masing-masing pemilik section</span>
+  </div>
+
+  <!-- 5.4 -->
+  <div class="concept">
+  <h2 class="sec">5.4 ZonaTrigger: 6 Mode Reaksi Dunia</h2>
+  <p><b>Apa dan kenapa:</b> kotak-kotak tak terlihat ber-Collider isTrigger. Saat pemain atau kereta masuk, dunia bereaksi: stempel (0), pintu buka-tutup (1), kereta pelan (2), mulai show (3), ubah teks status (4), tandai sisi rute (5).</p>
+  <div class="codewrap"><div class="filelabel">Assets/Scripts/ZonaTrigger.cs : 81-92</div>
+<pre>private bool CocokTag(Collider other)
+{
+    if (other.CompareTag(_tagPemicu)) return true;
+    Rigidbody rb = other.attachedRigidbody;
+    if (rb != null &amp;&amp; rb.CompareTag(_tagPemicu)) return true;
+
+    <span class="cm">// Mode Jalan Kaki (backstage tour): semua zona pintu (mode 1) ikut merespons</span>
+    <span class="cm">// Player yang jalan kaki, supaya pintu section bisa dilewati tanpa kereta.</span>
+    if (_mode == 1 &amp;&amp; ModeJalanKaki.Aktif &amp;&amp; other.CompareTag("Player")) return true;
+
+    return false;
+}</pre></div>
+  <p><b>Penjelasan:</b> trik pentingnya di <code class="inline">attachedRigidbody</code>: collider kereta ada di lima anak (Bak depan/belakang/kiri/kanan/lantai) yang tidak ber-tag, sedangkan tag "Kereta" + Rigidbody kinematik ada di ROOT — jadi pengecekan naik ke Rigidbody induknya. Pintu memakai counter <code class="inline">_dalamZona</code> (baris 45): baru menutup saat SEMUA collider kereta keluar plus jeda, supaya tidak berkedip saat kereta panjang melintas. Zona lambat berpasangan: masuk = pelan, keluar = normal (baris 188-205).</p>
+  <div class="qa"><p class="q">Kalau ditanya: "Kenapa kereta perlu Rigidbody padahal tidak pakai fisika?"</p><p class="a">Aturan Unity: event trigger hanya terkirim kalau minimal salah satu pihak punya Rigidbody. Kereta kami beri Rigidbody kinematik — dianggap "ada" oleh sistem fisika tapi posisinya tetap 100 persen dikontrol script.</p></div>
+  <span class="pj">Penanggung jawab: Izhar (sistem); contoh stempel dan sisi rute: Deva</span>
+  </div>
+
+  <!-- 5.5 -->
+  <div class="concept">
+  <h2 class="sec">5.5 UI World Space: Panel Kereta, Stempel, Billboard</h2>
+  <p><b>Apa dan kenapa:</b> aturan soal mewajibkan UI utama World Space. Panel di kereta (<code class="inline">RideStatusUI</code>) menampilkan status, 6 stempel, dan progress bar; papan ringkasan muncul di akhir; label section memakai <code class="inline">Billboard</code> agar selalu menghadap pemain.</p>
+  <div class="codewrap"><div class="filelabel">Assets/Scripts/RideStatusUI.cs : 153-180 (dipadatkan)</div>
+<pre>public void TandaiStempel(int index)
+{
+    if (index &lt; 0 || index &gt;= stempelKena.Length) { ... return; }
+    if (stempelKena[index]) return; <span class="cm">// sudah kena: jangan dobel warna/sfx</span>
+
+    stempelKena[index] = true;
+
+    <span class="cm">// Nyalakan warna emas pada icon stempel.</span>
+    if (_stempel[index] != null)
+        _stempel[index].color = _warnaStempelAktif;
+
+    if (_sfxStempel != null)
+        _sfxStempel.Play(); <span class="cm">// feedback audio saat stempel kena</span>
+}</pre></div>
+  <p><b>Penjelasan:</b> stempel index 0-4 = section S1-S5 (dipicu ZonaTrigger mode 0), index 5 = bintang emas yang menyala lewat <code class="inline">TandaiSisi</code> (baris 202-220) bila kedua rute S1 sudah pernah dilalui — progresnya sengaja bertahan antar-ride, jadi normalnya butuh DUA ride (satu lewat tiap rute). Progress bar memakai <code class="inline">Image.fillAmount</code> (baris 195). <code class="inline">Billboard.cs:39</code> menyamakan rotasi label dengan rotasi kamera. Screen Space Overlay hanya untuk meta-UI yang memang diizinkan: fade layar, kilat portal, crosshair.</p>
+  <div class="note"><b>Awas komentar lama:</b> komentar di <code class="inline">RideStatusUI.cs:9-11</code> dan label mode 5 di <code class="inline">ZonaTrigger.cs:11</code> masih menulis "dua sisi panggung S2" — nama fitur versi awal. Posisi zona nyatanya (<code class="inline">Z_SisiKiri</code>/<code class="inline">Z_SisiKanan</code>) ada di Section 1: satu di rute utama, satu di jalur beruang. Kalau dosen menunjuk komentar itu, jelaskan riwayatnya dengan tenang.</div>
+  <div class="qa"><p class="q">Kalau ditanya: "Tunjukkan mana UI utama dan mana meta-UI."</p><p class="a">UI utama (World Space): panel status + stempel + progress di kereta, papan ringkasan akhir, papan info, label section. Meta-UI (Overlay, diizinkan aturan): fade hitam saat transisi, kilat putih portal S5, crosshair. Objective dan status TIDAK pernah di Overlay.</p></div>
+  <span class="pj">Penanggung jawab: Izhar</span>
+  </div>
+
+  <!-- 5.6 -->
+  <div class="concept">
+  <h2 class="sec">5.6 PusatWahana: Hub dan Replay Tanpa Load Scene</h2>
+  <p><b>Apa dan kenapa:</b> satu "resepsionis" di root Wahana: script lain cukup menemukan hub ini untuk mencapai kereta, UI, show, papan — tidak perlu saling drag reference. Juga pusat reset ride.</p>
+  <div class="codewrap"><div class="filelabel">Assets/Scripts/PusatWahana.cs : 102-126 (dipadatkan)</div>
+<pre>public void ResetSemua()
+{
+    <span class="cm">// Guard null satu-satu supaya reset tetap jalan walau ada sistem hilang</span>
+    if (_kereta != null) _kereta.ResetKeAwal();
+    if (_statusUI != null) _statusUI.ResetStempel();
+    if (_sequence != null) _sequence.ResetSequence();
+    if (_ringkasan != null) _ringkasan.ResetRingkasan();
+
+    for (int i = 0; i &lt; _semuaPintu.Length; i++)
+        if (_semuaPintu[i] != null) _semuaPintu[i].ResetPintu();
+
+    <span class="cm">// Zona "hanya sekali" dibuka lagi supaya ride kedua tetap berfungsi</span>
+    for (int i = 0; i &lt; _semuaZona.Length; i++)
+        if (_semuaZona[i] != null) _semuaZona[i].ResetZona();
+}</pre></div>
+  <p><b>Penjelasan:</b> brief menuntut SATU scene, jadi replay tidak boleh <code class="inline">LoadScene</code>. Solusinya: setiap sistem punya method reset sendiri, dan hub memanggil semuanya — kereta pulang ke boarding, stempel kosong, pintu tertutup, zona siap dipicu lagi. Tiket sengaja TIDAK di-reset di sini: tiket hangus saat kereta berangkat (<code class="inline">PakaiTiket</code>, baris 91), jadi tiket yang belum terpakai tetap berlaku. Fallback auto-find di Awake (baris 45-64) adalah pola seluruh project karena alat MCP tidak bisa mengisi reference Inspector.</p>
+  <div class="qa"><p class="q">Kalau ditanya: "Bagaimana kalian memastikan ride kedua tidak rusak?"</p><p class="a">Semua state yang berubah selama ride punya jalur pulang: <code class="inline">ResetSemua</code> mengembalikan kereta, stempel, show, papan, pintu, dan zona sekali-pakai. Kami mengetesnya dengan menjalankan ride dua kali berturut-turut tanpa keluar Play mode.</p></div>
+  <span class="pj">Penanggung jawab: Harry</span>
+  </div>
+
+  <!-- 5.7 -->
+  <div class="concept">
+  <h2 class="sec">5.7 Desain Rel: 80 Titik Menjadi 755 Waypoint</h2>
+  <p><b>Apa dan kenapa:</b> rel dirancang sebagai tabel 80 titik bernama (boarding, pintu section, portal gua) untuk rute utama — plus 6 titik untuk cabang beruang — di script editor, lalu di-"bake" menjadi 755 waypoint rapat berjarak 0,5 unit dengan tikungan busur halus. Sekali jalan, hasilnya selalu sama.</p>
+  <div class="codewrap"><div class="filelabel">Assets/Editor/WahanaLayout.cs : 460-467</div>
+<pre><span class="cm">/// Resample node -&gt; List titik world dengan busur fillet di tiap belokan.</span>
+<span class="cm">/// closed = true: loop tertutup (elemen terakhir menyambung node terakhir -&gt; pertama).</span>
+<span class="cm">/// closed = false: polyline terbuka (cabang WK).</span>
+<span class="cm">/// Titik PERTAMA selalu eksak = node[0].pos (WP_0). Spacing dinormalisasi</span>
+<span class="cm">/// total/round(total/SpacingTarget). Y node yProfil di-override profil ketinggian.</span>
+public static List&lt;Vector3&gt; Resample(Node[] nodes, bool closed)</pre></div>
+  <p><b>Penjelasan:</b> tiap belokan dipotong busur berjari-jari (fillet — istilah tekniknya; cukup sebut "busur halus") supaya kereta tidak menikung patah; profil ketinggian menurunkan rel mulus ke gua S4 (kedalaman -6) lalu menaikkannya lagi. Hasil bake berupa GameObject <code class="inline">WP_0..WP_754</code> di bawah <code class="inline">JalurUtama</code>, plus 42 titik cabang Jalur Beruang. Jarak 0,5 unit antar titik dipilih supaya rotasi kereta selalu punya target dekat — belokan terasa seperti rel sungguhan. <code class="inline">SpacingTarget</code> ada di baris 23. Di file juga masih ada tabel 5 titik cabang S2 versi awal (<code class="inline">BuildNodeKiri</code>, baris 212) yang kami nonaktifkan saat rebalancing rute — cabang final di S1.</p>
+  <div class="qa"><p class="q">Kalau ditanya: "Dari mana angka 755? Kalian menaruh 755 titik manual?"</p><p class="a">Tidak — kami hanya mendesain 80 titik penting untuk rute utama (belokan, pintu, portal; cabang beruang cuma 6 titik lagi). Program editor menghitung panjang total lintasan, membaginya per 0,5 unit, dan menempatkan 755 waypoint otomatis, termasuk busur halus di tiap tikungan. Kalau layout berubah, tinggal jalankan ulang menunya.</p></div>
+  <span class="pj">Penanggung jawab: Harry</span>
+  </div>
+
+  <!-- 5.8 -->
+  <div class="concept">
+  <h2 class="sec">5.8 Show Sequence dengan Coroutine (S3, Empat Tahap)</h2>
+  <p><b>Apa dan kenapa:</b> show yang berjalan bertahap dalam waktu (redup, blackout, kejut, pulih) tidak bisa ditulis di Update biasa tanpa jadi ruwet. Coroutine membuat urutannya terbaca seperti naskah.</p>
+  <div class="codewrap"><div class="filelabel">Assets/Scripts/SekuensKamarS3.cs : 98-130 (dipadatkan)</div>
+<pre><span class="cm">// --- Tahap 1: meredup ~2 dtk ---</span>
+yield return LerpIntensitas(lampu, intensitasAsal, _faktorRedup, _durasiRedup);
+
+<span class="cm">// --- Tahap 2: BLACKOUT 1.5 dtk ---</span>
+for (int i = 0; i &lt; lampu.Count; i++)
+    if (lampu[i] != null) lampu[i].enabled = false;
+yield return new WaitForSeconds(_durasiBlackout);
+
+<span class="cm">// --- Tahap 3: nyala remang + SWAP boneka + kejut hero + audio ---</span>
+if (_bonekaSetA != null) _bonekaSetA.SetActive(false);
+if (_bonekaSetB != null) _bonekaSetB.SetActive(true);  <span class="cm">// lebih dekat rel!</span>
+if (_heroKepala != null) _heroKepala.PaksaMenatap(true);
+if (_bisikan != null) _bisikan.Play();
+if (_musikHoror != null) _musikHoror.Play();</pre></div>
+  <p><b>Penjelasan:</b> <code class="inline">yield return</code> menjeda fungsi tanpa membekukan game. Tahap 4 (baris 137-142) mengembalikan intensitas lampu ke nilai asal yang di-snapshot saat trigger. Trik horornya klasik dark ride: saat gelap total, set boneka A diganti set B yang posisinya lebih dekat rel — penumpang merasa bonekanya "berpindah". Show dipicu <code class="inline">PemicuKereta</code> (zona khusus kereta) lewat kontrak <code class="inline">IAksiInteraksi.Jalankan()</code> (baris 81), dengan guard <code class="inline">_sedangJalan</code> supaya tidak dobel.</p>
+  <div class="note"><b>Detail yang sering ditanya:</b> sekuens hanya terpicu KERETA — <code class="inline">PemicuKereta</code> menyaring tag "Kereta", jadi saat Mode Jalan Kaki show S3 TIDAK menyala (sengaja: mode itu untuk inspeksi). Pencarian mata kegelapan dengan <code class="inline">FindObjectsByType</code> (baris 107) berjalan sekali per pemicu di dalam coroutine, bukan tiap frame — aman untuk WebGL.</div>
+  <div class="qa"><p class="q">Kalau ditanya: "Apa bedanya coroutine dengan Update? Kenapa tidak pakai animasi biasa?"</p><p class="a">Update dipanggil tiap frame dan cocok untuk gerak kontinu; coroutine bisa "menunggu 1,5 detik lalu lanjut" — pas untuk naskah bertahap. Animasi clip hanya menggerakkan satu objek; sekuens ini mengatur BANYAK hal sekaligus (semua lampu S3, dua set boneka, kepala hero, dua audio) dalam satu urutan waktu.</p></div>
+  <span class="pj">Penanggung jawab: Halimah (S3); pola serupa dipakai show S1 (Harry)</span>
+  </div>
+
+  <!-- 5.9 -->
+  <div class="concept">
+  <h2 class="sec">5.9 Variasi Animasi: Animator vs Animasi Script</h2>
+  <p><b>Apa dan kenapa:</b> syarat soal: minimal 3 animasi boneka yang berbeda. Kami memakai dua keluarga: Animator (clip: boneka menari, pintu) dan animasi script yang menggerakkan Transform langsung — lebih dari sepuluh macam gerak berbeda di lima section.</p>
+  <div class="codewrap"><div class="filelabel">Assets/Scripts/GoyangRitmis.cs : 28-32</div>
+<pre>private void Update()
+{
+    float sudut = Mathf.Sin(Time.time * _tempo * Multiplier + _fase) * _amplitudo;
+    transform.localRotation = _rotasiAwal * Quaternion.AngleAxis(sudut, _sumbu);
+}</pre></div>
+  <p><b>Penjelasan:</b> satu baris sinus = goyangan ritmis manusia salju S2 dan band alien S5; <code class="inline">_fase</code> diambil dari posisi dunia (baris 25) supaya tiap boneka berayun beda tanpa Random. Keluarga lainnya: <code class="inline">PutarPelan</code> (gigi dan mobile berputar), <code class="inline">KepalaMenatap.cs:73</code> (<code class="inline">Quaternion.RotateTowards</code> 20 derajat/detik — kepala menoleh pelan), <code class="inline">IkanKawanan</code> (orbit elips), <code class="inline">RoketOrbit</code>, <code class="inline">TwinkleS5</code> (kelip), <code class="inline">KunangDomino</code> (menyala berurutan), <code class="inline">SaljuJatuh</code>, <code class="inline">GelembungNaik</code>. Boneka ber-rig memakai <code class="inline">BonekaAnimator</code>/<code class="inline">UAS_TeddyAnimator</code> dengan Animator Controller.</p>
+  <div class="qa"><p class="q">Kalau ditanya: "Kapan kalian memilih Animator, kapan script?"</p><p class="a">Animator untuk gerakan karakter yang punya clip (menari, jalan) — bisa diatur transisinya. Script untuk gerak berulang yang dihasilkan rumus (putar, goyang, orbit, kelip): lebih ringan, tidak butuh clip, dan mudah diberi variasi fase per objek. Keduanya tampil di gameplay, jadi syarat "3 animasi berbeda" terlampaui jauh.</p></div>
+  <div class="note"><b>Dua kejujuran kecil (khusus Deva):</b> (1) S2 sepenuhnya animasi script — Animator ada di boneka teddy S1 (<code class="inline">BonekaAnimator</code>/<code class="inline">UAS_TeddyAnimator</code>) dan pintu; kalau ditanya "mana Animator di section-mu", arahkan ke sana dengan jujur. (2) Goyangan manusia salju itu ritmis bertempo tetap — TIDAK menganalisis beat musik; kalau ditanya "sinkron ke musik?", jawab: temponya dipilih supaya terasa senada dengan waltz-nya, bukan sinkronisasi beat.</div>
+  <span class="pj">Penanggung jawab: Deva (utama); contoh per section: Halimah, Dharma, Dimas, Harry</span>
+  </div>
+
+  <!-- 5.10 -->
+  <div class="concept">
+  <h2 class="sec">5.10 Audio per Section dan Lisensi Musik</h2>
+  <p><b>Apa dan kenapa:</b> tiap section punya BGM dan ambience sendiri (hutan, waltz kotak musik, drone horor, bawah laut, angkasa) plus SFX interaksi — feedback audio adalah syarat soal. Semua musik legal: CC0, kecuali satu track CC-BY yang wajib kredit.</p>
+  <div class="codewrap"><div class="filelabel">Assets/Scripts/SuasanaZona.cs : 20-32 (field profil suasana)</div>
+<pre>[Header("Mode (0 = set profil target, 1 = restore default)")]
+[SerializeField, Range(0, 1)] private int _mode = 0;
+
+[Header("Deteksi (WAJIB \"Kereta\" untuk on-ride)")]
+[SerializeField] private string _tagPemicu = "Kereta";
+
+[Header("Durasi transisi (detik)")]
+[SerializeField] private float _durasi = 2f;
+
+[Header("Profil target — Fog (dipakai saat mode 0)")]
+[SerializeField] private Color _fogColor = new Color(0.01f, 0.02f, 0.05f, 1f);</pre></div>
+  <p><b>Penjelasan:</b> <code class="inline">SuasanaZona</code> melengkapi audio: saat kereta masuk zona, fog + warna ambient + volume ambience di-lerp halus ke profil section (masuk gua jadi biru gelap, keluar kembali malam normal). BGM per section berupa AudioSource loop yang ditata generator. Lisensi terdokumentasi di <code class="inline">Assets/Audio/Musik/SUMBER_MUSIK.md</code>.</p>
+  <div class="note"><b>Kredit wajib (CC-BY 4.0) — harus tampil di halaman itch.io dan slide 16:</b><br>
+  "Fireflies and Stardust" Kevin MacLeod (incompetech.com)<br>
+  Licensed under Creative Commons: By Attribution 4.0 License<br>
+  http://creativecommons.org/licenses/by/4.0/</div>
+  <div class="note"><b>Peta track (hafalan Dharma):</b> track CC-BY di atas adalah BGM <b>Section 1 Hutan</b> — bukan S4. Lobby: "Barroom Ballet" · S2: "A Waltz For Naseem" · S3: "The Abyss" · S4: "Underwater Theme II" (CC0, Cleyton Kauffman) · S5: "Space Ambience" — selain yang CC-BY, semuanya CC0 (FreePD/OpenGameArt). Catatan SuasanaZona: hanya bereaksi ke kereta (tag "Kereta"), jadi saat Mode Jalan Kaki fog/suasana tidak berubah — disengaja untuk mode inspeksi.</div>
+  <div class="qa"><p class="q">Kalau ditanya: "Kenapa musik yang satu ini wajib kredit, yang lain tidak?"</p><p class="a">Lisensi berbeda: track lain CC0 (public domain, bebas tanpa atribusi), sedangkan "Fireflies and Stardust" berlisensi Creative Commons By-Attribution — boleh dipakai gratis ASAL mencantumkan pencipta. Kami cantumkan persis format resminya.</p></div>
+  <span class="pj">Penanggung jawab: Dharma</span>
+  </div>
+
+  <!-- 5.11 -->
+  <div class="concept">
+  <h2 class="sec">5.11 Generator Editor dan Kejujuran Soal AI</h2>
+  <p><b>Apa dan kenapa:</b> dunia tidak dirakit tangan satu-satu: 66 menu <code class="inline">Tools/Wahana</code> membangunnya dari kode editor — deterministik (seed tetap) dan idempoten (jalankan ulang = hasil identik). Ini juga jawaban jujur untuk pertanyaan "pakai AI?".</p>
+  <div class="codewrap"><div class="filelabel">Assets/Editor/WahanaRebuilder.cs : 8-20 (aturan generator)</div>
+<pre><span class="cm">/// GENERATOR STRUKTURAL WAHANA (Stage 1-4) — 6 MenuItem di Tools/Wahana.</span>
+<span class="cm">/// Semua struktural (jalur, ground, shell, tunnel, rel, dressing) dibangun</span>
+<span class="cm">/// deterministik dari WahanaLayout. Idempotent: tiap menu hapus output miliknya</span>
+<span class="cm">/// dulu (parent GEN_*), lalu bangun ulang dari koordinat ABSOLUT tabel.</span>
+<span class="cm">///  - Material baru: shader "Universal Render Pipeline/Lit" (BUKAN Standard = magenta URP).</span>
+<span class="cm">///  - Seeded System.Random(42).</span></pre></div>
+  <p><b>Penjelasan:</b> tiap menu menghapus grup <code class="inline">GEN_*</code> miliknya lalu membangun ulang dari tabel koordinat — revisi aman, tidak ada "sisa sampah". Penempatan acak (rumput, bintang) memakai <code class="inline">System.Random(42)</code>: acak tapi hasilnya selalu sama. Boneka tiap anggota ditempatkan <code class="inline">TemenDresser.cs</code> sesuai pembagian tim.</p>
+  <div class="qa"><p class="q">Kalau ditanya: "Ini dibuat pakai AI, kan? Apa yang kalian kerjakan sendiri?"</p><p class="a">Ya — AI kami pakai sebagai alat produksi lewat MCP yang mengendalikan Unity Editor; dosen membebaskan metode, dan yang dinilai kreativitas experience. Yang lahir dari tim: konsep "kita = mainan", desain kelima section dan rutenya, pemilihan aset dan musik, playtest berulang beserta keputusan revisinya (pacing kereta, durasi portal, penempatan boneka). Tiap anggota memahami sistem bagiannya — kalau Bapak ingin menguji, kami siap menjelaskan bagian mana pun.</p></div>
+  <span class="pj">Penanggung jawab: Harry (ketua) — SEMUA anggota hafal framing ini</span>
+  </div>
+
+  <!-- 5.12 -->
+  <div class="concept">
+  <h2 class="sec">5.12 Optimasi WebGL</h2>
+  <p><b>Apa dan kenapa:</b> WebGL lag kena penalti sampai -15. Kami menjaga performa dari empat sisi: anggaran renderer, penggabungan mesh, pemangkasan aset, dan kompresi build.</p>
+  <div class="codewrap"><div class="filelabel">Assets/Editor/ItchWebGLBuildUtility.cs : 139-148</div>
+<pre>private static void ApplyWebGLPlayerSettings()
+{
+    PlayerSettings.runInBackground = true;
+
+    Type webGLSettingsType = typeof(PlayerSettings).GetNestedType("WebGL",
+        BindingFlags.Public | BindingFlags.Static);
+    SetStaticEnumProperty(webGLSettingsType, "compressionFormat", "Brotli", fallbackValue: 2);
+    SetStaticProperty(webGLSettingsType, "decompressionFallback", true);
+    SetStaticProperty(webGLSettingsType, "threadsSupport", false);
+    SetStaticProperty(webGLSettingsType, "dataCaching", false);
+}</pre></div>
+  <p><b>Penjelasan:</b> (1) Anggaran 450 MeshRenderer aktif (<code class="inline">WahanaRebuilder.cs:26</code>) dipantau menu audit; (2) mesh statis digabung per material lewat menu bake supaya draw call turun; (3) aset dipangkas — paket rumput TriForge dari 643 MB tinggal 4,6 MB (hanya 4 file terpakai), musik dipotong/re-encode ke sekitar 1-3 MB per track; (4) build Brotli = unduhan kecil, dengan decompression fallback supaya tetap jalan di server itch.io. Efek mahal dihindari: kunang dan bintang adalah titik emissive tanpa komponen Light.</p>
+  <div class="qa"><p class="q">Kalau ditanya: "Bagaimana kalian tahu build-nya tidak berat?"</p><p class="a">Kami punya menu audit yang menghitung MeshRenderer aktif terhadap anggaran 450, menguji Play mode dengan Stats, dan mengetes build WebGL langsung di browser. Kalau ada section melewati anggaran, kami gabungkan mesh atau kurangi dekornya sebelum lanjut.</p></div>
+  <span class="pj">Penanggung jawab: Harry (narasi) dan Izhar (eksekusi build)</span>
+  </div>
+
+  <!-- 5.13 -->
+  <div class="concept">
+  <h2 class="sec">5.13 Portal Putih dan Ending "Anak Tertidur"</h2>
+  <p><b>Apa dan kenapa:</b> dua momen sinematik S5. Portal: layar memutih + kamera bergetar saat kereta "menembus dinding" ke angkasa — transisi antar dunia tanpa ganti scene. Ending: seluruh section melambat dan meredup saat sang anak tertidur — penutup benang merah.</p>
+  <div class="codewrap"><div class="filelabel">Assets/Scripts/EfekPortalS5.cs : 67-77</div>
+<pre><span class="cm">/// Dipanggil ZonaPortalS5 saat satu collider kereta masuk zona portal.</span>
+public void LaporMasuk()
+{
+    _dalamZona++;
+    if (_fase == Fase.Idle || _fase == Fase.Turun)
+    {
+        <span class="cm">// alpha LANJUT dari nilai berjalan (bukan reset) — robust kalau kereta</span>
+        <span class="cm">// masuk zona berikutnya saat fade-out belum selesai.</span>
+        _fase = Fase.Naik;
+    }
+}</pre></div>
+  <p><b>Penjelasan:</b> portal memakai state kecil (Idle, Naik, Tahan, Turun) + counter collider kereta; guncangan kamera memakai Perlin noise dan HANYA menyentuh localPosition supaya tidak bentrok dengan script kamera. Overlay putihnya termasuk meta-UI yang diizinkan rubrik (kategori "flash"). Ending (<code class="inline">EndingKamarS5.cs</code>) dipicu beberapa waypoint sebelum keluar S5: siluet kepala anak fade-in lalu "menguap", semua lampu S5 turun ke 35 persen, mobile melambat ke 30 persen, musik ke 40 persen — nilai asal di-snapshot di Awake supaya restore selalu benar, dan sebelum mulai, ending menghentikan dan memulihkan encore dulu (<code class="inline">AksiEncoreS5.HentikanDanPulihkan</code>) supaya lampu tidak "keracunan" nilai strobo.</p>
+  <div class="note"><b>Edge case yang disengaja (bekal QnA Dimas):</b> kalau kereta ditahan (S) tepat di dalam zona portal, layar tetap putih sampai kereta jalan lagi — by design, dan ada failsafe: saat ride selesai atau di-reset, efek dipaksa memudar. Satu lagi: kilat putih memang menutup pandangan SESAAT, tapi itu berbeda dengan "menaruh UI utama di Overlay" — panel status tetap objek World Space di kereta sepanjang waktu.</div>
+  <div class="qa"><p class="q">Kalau ditanya: "Layar putih itu Screen Space Overlay — bukannya dilarang?"</p><p class="a">Yang dilarang adalah UI UTAMA di Overlay. Rubrik eksplisit mengizinkan meta-UI Overlay untuk efek layar seperti fade, flash, dan vignette. Kilat portal masuk kategori itu; semua informasi (status, stempel, objective) tetap di World Space.</p></div>
+  <span class="pj">Penanggung jawab: Dimas</span>
+  </div>
+</section>
+
+<!-- ============ BAB 6 ============ -->
+<section class="chapter">
+  <div class="chapno">Bab 6</div>
+  <h1 class="title">Peta Slide ke Kode</h1>
+  <p>Jembatan antara deck dan buku ini: dari slide mana pun, tahu konsep dan file yang membuktikannya.</p>
+  <table>
+    <tr><th>Slide</th><th>Judul</th><th>Konsep (Bab 5)</th><th>File bukti utama</th><th>Pemateri</th></tr>
+    <tr><td>1</td><td>Judul dan tim</td><td>—</td><td>README.md (roster)</td><td>Harry</td></tr>
+    <tr><td>2</td><td>Tema dan tujuan</td><td>—</td><td>docs/RULES-UAS.md (Soal 2)</td><td>Harry</td></tr>
+    <tr><td>3</td><td>Alur dan objective</td><td>5.5, 5.6</td><td>RideStatusUI.cs, PusatWahana.cs</td><td>Harry</td></tr>
+    <tr><td>4</td><td>Dunia malam dan onboarding</td><td>5.1</td><td>SihirMalam.cs, OnboardingFinal.cs, ModeJalanKaki.cs</td><td>Izhar</td></tr>
+    <tr><td>5</td><td>Kereta dan UI World Space</td><td>5.2, 5.5</td><td>KeretaMover.cs, RideStatusUI.cs</td><td>Izhar</td></tr>
+    <tr><td>6</td><td>Interaksi, trigger, collider</td><td>5.3, 5.4</td><td>InteraksiRaycast.cs, ObjekInteraksi.cs, ZonaTrigger.cs</td><td>Izhar</td></tr>
+    <tr><td>7</td><td>Sistem rel dan lorong</td><td>5.7</td><td>WahanaLayout.cs</td><td>Harry</td></tr>
+    <tr><td>8</td><td>S1 Hutan Sihir</td><td>5.8, 5.9</td><td>KunangDomino.cs, LampuFlicker.cs, KeretaMover.cs (cabang)</td><td>Harry</td></tr>
+    <tr><td>9</td><td>S2 Kotak Musik</td><td>5.9</td><td>SihirS2.cs, GoyangRitmis.cs, AksiWindUpS2.cs</td><td>Deva</td></tr>
+    <tr><td>10</td><td>S3 Kamar Anak</td><td>5.8</td><td>SekuensKamarS3.cs, KepalaMenatap.cs</td><td>Halimah</td></tr>
+    <tr><td>11</td><td>S4 Akuarium</td><td>5.9, 5.10</td><td>IkanKawanan.cs, SuasanaZona.cs, AksiKetukKaca.cs</td><td>Dharma</td></tr>
+    <tr><td>12</td><td>S5 dan ending</td><td>5.13</td><td>EfekPortalS5.cs, EndingKamarS5.cs, AksiEncoreS5.cs</td><td>Dimas</td></tr>
+    <tr><td>13</td><td>Reusable dan optimasi</td><td>5.11, 5.12</td><td>WahanaRebuilder.cs, TemenDresser.cs</td><td>Harry</td></tr>
+    <tr><td>14</td><td>Kendala dan solusi</td><td>5.6, 5.12</td><td>PusatWahana.cs, ItchWebGLBuildUtility.cs</td><td>Harry</td></tr>
+    <tr><td>15</td><td>Pembagian tugas</td><td>Bab 2</td><td>TemenDresser.cs (pembagian di kode)</td><td>Harry</td></tr>
+    <tr><td>16</td><td>Link dan kredit</td><td>5.10</td><td>SUMBER_MUSIK.md</td><td>Harry</td></tr>
+  </table>
+</section>
+
+<!-- ============ BAB 7 ============ -->
+<section class="chapter">
+  <div class="chapno">Bab 7</div>
+  <h1 class="title">Antisipasi Pertanyaan Dosen</h1>
+  <p>Dua belas pertanyaan yang paling mungkin, dengan jawaban yang bisa dipertahankan. Jawab dengan kata sendiri; angka dan lokasi file boleh dibaca dari buku.</p>
+
+  <div class="qa"><p class="q">1. "Kenapa cuma satu scene? Bagaimana kalau mau main lagi?"</p>
+  <p class="a">Brief menuntut satu scene, jadi replay tidak memakai LoadScene. Tuas reset memanggil <code class="inline">PusatWahana.ResetSemua()</code> (PusatWahana.cs:102) yang memulangkan kereta, mengosongkan stempel, menghentikan show, menutup pintu, dan mempersenjatai ulang semua zona.</p></div>
+
+  <div class="qa"><p class="q">2. "Kenapa kereta pakai MoveTowards, bukan physics atau spline?"</p>
+  <p class="a">Hasilnya selalu pasti (deterministik) dan murah: posisi selalu di garis waypoint, tidak mungkin terlempar fisika, dan tanpa perhitungan kurva di runtime. Kehalusannya dari desain data — 755 waypoint rapat berjarak 0,5 unit dengan tikungan busur (WahanaLayout.cs:467).</p></div>
+
+  <div class="qa"><p class="q">3. "Tunjukkan UI utama kalian World Space. Yang Overlay apa saja?"</p>
+  <p class="a">UI utama menempel di dunia: panel status + 6 stempel + progress di kereta (RideStatusUI), papan ringkasan akhir, papan info, label section. Overlay hanya meta-UI yang diizinkan: fade hitam, kilat putih portal S5, crosshair.</p></div>
+
+  <div class="qa"><p class="q">4. "Bagaimana kereta tahu harus melambat di depan display?"</p>
+  <p class="a">Zona lambat (ZonaTrigger mode 2): masuk zona memanggil <code class="inline">SetKecepatanLambat()</code>, keluar memanggil <code class="inline">SetKecepatanNormal()</code> (ZonaTrigger.cs:134-138, 201-204). Kecepatan turun halus dari 2.0 ke 1.1 karena ada ramp akselerasi, bukan langsung patah.</p></div>
+
+  <div class="qa"><p class="q">5. "Dari mana angka 755 waypoint? Kalian menaruhnya satu-satu?"</p>
+  <p class="a">Tidak. Kami mendesain 80 titik penting untuk rute utama (plus 6 titik cabang beruang); program editor membagi ulang jalur per 0,5 unit menjadi 755 waypoint plus busur halus di tiap belokan. Ubah desain, jalankan ulang menu, waypoint dibangun ulang identik.</p></div>
+
+  <div class="qa"><p class="q">6. "Bagaimana percabangan bekerja? Kalau pemain tidak memilih?"</p>
+  <p class="a">Kereta berhenti penuh beberapa waypoint sebelum titik cabang fisik (berhenti di WP 73, cabang di WP 77; KeretaMover.cs:420-439) dan menunggu input: E pada tuas memilih Jalur Beruang, W berangkat lurus. Tidak ada timer paksa — pemain pegang kendali. Kedua rute bergabung lagi di WP 135. Melewati dua-duanya (boleh beda ride) menyalakan bintang emas (RideStatusUI.TandaiSisi, baris 202).</p></div>
+
+  <div class="qa"><p class="q">7. "WebGL kalian berat tidak? Apa buktinya?"</p>
+  <p class="a">Kami menjaga anggaran 450 MeshRenderer (ada menu audit), menggabung mesh statis per material, memangkas paket aset 643 MB jadi 4,6 MB, memotong audio, dan build Brotli. Kunang dan bintang hanya titik emissive tanpa Light. Diuji langsung di browser sebelum dikumpulkan.</p></div>
+
+  <div class="qa"><p class="q">8. "Ini dikerjakan pakai AI?"</p>
+  <p class="a">Ya — sebagai alat produksi: AI mengendalikan Unity Editor lewat MCP, dan dosen membebaskan metode karena yang dinilai kreativitas experience. Konsep cerita, desain section, kurasi aset dan musik, playtest, dan keputusan revisi datang dari tim, dan tiap anggota bisa menjelaskan sistem bagiannya. Kalau Bapak ingin menguji, kami siap menjelaskan bagian mana pun.</p></div>
+
+  <div class="qa"><p class="q">9. "Musiknya dari mana? Legal?"</p>
+  <p class="a">Semua berlisensi bebas: mayoritas CC0 dari FreePD dan OpenGameArt, satu track CC-BY 4.0 ("Fireflies and Stardust", Kevin MacLeod) yang kreditnya kami cantumkan di slide penutup dan halaman itch.io — formatnya persis di SUMBER_MUSIK.md.</p></div>
+
+  <div class="qa"><p class="q">10. "Kalau pemain turun di tengah ride atau tidak menarik tuas, rusak tidak?"</p>
+  <p class="a">Tidak. Sebelum berangkat, Q untuk turun dan kereta menunggu; S menahan kecepatan sampai nol dan W melanjutkan; ride selesai otomatis saat kembali ke WP_0, lalu pemain diturunkan di titik turun. Semua kondisi ada jalur pulangnya.</p></div>
+
+  <div class="qa"><p class="q">11. "Kenapa kereta punya Rigidbody padahal geraknya dari script?"</p>
+  <p class="a">Event trigger Unity butuh Rigidbody minimal di satu pihak. Rigidbody kereta di-set kinematik: terdaftar di sistem fisika (trigger terbaca), tapi posisi tetap dikontrol script. Collider kereta ada di lima anak; zona mengenalinya lewat <code class="inline">attachedRigidbody</code> (ZonaTrigger.cs:84).</p></div>
+
+  <div class="qa"><p class="q">12. "Sebutkan tiga animasi berbeda yang terlihat di gameplay."</p>
+  <p class="a">Lebih dari tiga: penari dan gigi berputar (PutarPelan) plus manusia salju bergoyang (GoyangRitmis) di S2; kepala boneka menoleh (KepalaMenatap) dan sekuens empat tahap di S3; kawanan ikan mengorbit (IkanKawanan) di S4; roket orbit dan bintang berkelip di S5; kunang menyala berurutan di S1; ditambah boneka ber-Animator (teddy piknik).</p></div>
+
+  <div class="qa"><p class="q">13. "Di kode ada PilihJalurKiri dan mode 3 'jalur kiri panggung S2' — kok tidak terpakai?"</p>
+  <p class="a">Itu percabangan versi awal di S2. Saat rebalancing rute, percabangan kami pindahkan ke S1 (jalur beruang, mode 9) dan cabang S2 dinonaktifkan cukup lewat data — jumlah waypoint kirinya nol di Inspector — tanpa mengubah kode. Kodenya generik dan tidak mengganggu, jadi dibiarkan; justru bukti fitur bisa dipasang-lepas lewat data. Hal yang sama berlaku untuk stop bertimer S3: durasinya kami nolkan saat tuning pacing.</p></div>
+</section>
+
+<!-- ============ BAB 8 ============ -->
+<section class="chapter">
+  <div class="chapno">Bab 8</div>
+  <h1 class="title">Checklist Kesiapan per Anggota</h1>
+
+  <div class="checkgroup">
+    <h2 class="sec"><span class="who">Semua anggota</span></h2>
+    <ul>
+      <li><span class="chk"></span>Bisa menceritakan alur ride dari gerbang sampai "Ride Complete" tanpa melihat catatan.</li>
+      <li><span class="chk"></span>Tahu bagian presentasi sendiri dan satu kalimat serah terima ke pemateri berikutnya.</li>
+      <li><span class="chk"></span>Hafal framing jawaban "ini dibuat pakai AI?" (Bab 5.11 dan Bab 7 nomor 8) dengan kata sendiri.</li>
+      <li><span class="chk"></span>Bisa menunjuk minimal SATU file kode bagiannya dan menjelaskan satu method di dalamnya.</li>
+      <li><span class="chk"></span>Sudah memainkan build final minimal satu kali sampai selesai.</li>
+    </ul>
+  </div>
+
+  <div class="checkgroup">
+    <h2 class="sec"><span class="who">Harry</span> (ketua — buka/tutup, rel, S1)</h2>
+    <ul>
+      <li><span class="chk"></span>Bab 5.6 (PusatWahana), 5.7 (rel 80 ke 755), 5.11 (generator + framing AI), 5.12 (WebGL).</li>
+      <li><span class="chk"></span>Latihan: "dari mana 755 waypoint?", "bagaimana replay tanpa load scene?", "kenapa build kalian ringan?"</li>
+      <li><span class="chk"></span>Sehari sebelum maju: jalankan menu audit renderer (Tools/Wahana, menu Stats) dan CATAT angka aktualnya — jangan hanya hafal budget 450.</li>
+      <li><span class="chk"></span>Demo: narasi S1 (kunang, cabang Jalur Beruang) dan lorong gua; pandu QnA di akhir (moderasi jawaban maksimal 30 detik).</li>
+    </ul>
+  </div>
+
+  <div class="checkgroup">
+    <h2 class="sec"><span class="who">Izhar</span> (dunia, onboarding, kereta, UI)</h2>
+    <ul>
+      <li><span class="chk"></span>Bab 5.1 (controller), 5.2 (KeretaMover), 5.3 (raycast), 5.4 (trigger), 5.5 (UI World Space).</li>
+      <li><span class="chk"></span>Latihan: "kenapa kereta tak bisa keluar jalur?", "mana UI utama vs meta-UI?", "kenapa kereta ber-Rigidbody?"</li>
+      <li><span class="chk"></span>Demo: pegang keyboard; pastikan ambil tiket, tuas start, dan tuas cabang terlihat kamera.</li>
+    </ul>
+  </div>
+
+  <div class="checkgroup">
+    <h2 class="sec"><span class="who">Deva</span> (S2 Kotak Musik)</h2>
+    <ul>
+      <li><span class="chk"></span>Bab 5.9 (GoyangRitmis dan kawan-kawan) + cara wind-up memicu show (mode 10, IAksiInteraksi).</li>
+      <li><span class="chk"></span>Latihan: "kenapa tiap manusia salju goyangannya beda?" (fase dari posisi, tanpa Random).</li>
+      <li><span class="chk"></span>Demo: narasi S2 — sebut gigi berputar, penari, dan wind-up dalam satu napas.</li>
+    </ul>
+  </div>
+
+  <div class="checkgroup">
+    <h2 class="sec"><span class="who">Halimah</span> (S3 Kamar Anak)</h2>
+    <ul>
+      <li><span class="chk"></span>Bab 5.8 (coroutine empat tahap) + KepalaMenatap (menoleh pelan, clamp yaw).</li>
+      <li><span class="chk"></span>Latihan: "apa itu coroutine?", "trik boneka berpindah saat blackout", dan ingat: sekuens hanya menyala untuk KERETA — saat Mode Jalan Kaki show tidak terpicu (disengaja).</li>
+      <li><span class="chk"></span>Demo: narasi S3 tepat saat sekuens menyala (kereta melambat di zona).</li>
+    </ul>
+  </div>
+
+  <div class="checkgroup">
+    <h2 class="sec"><span class="who">Dharma</span> (S4 Akuarium + audio)</h2>
+    <ul>
+      <li><span class="chk"></span>Bab 5.10 (audio dan lisensi — hafal alasan kredit CC-BY DAN peta track: yang CC-BY itu BGM S1 Hutan, bukan S4) + IkanKawanan dan SuasanaZona.</li>
+      <li><span class="chk"></span>Latihan: "kenapa musik wajib kredit?", "bagaimana suasana berubah saat masuk gua?"</li>
+      <li><span class="chk"></span>Demo: narasi S4 — tunjuk siluet anak di balik kaca (momen twist).</li>
+    </ul>
+  </div>
+
+  <div class="checkgroup">
+    <h2 class="sec"><span class="who">Dimas</span> (S5 + ending)</h2>
+    <ul>
+      <li><span class="chk"></span>Bab 5.13 (portal putih = meta-UI yang diizinkan; ending anak tertidur) + Encore.</li>
+      <li><span class="chk"></span>Latihan: "kenapa layar putih boleh Overlay?", "apa saja yang meredup saat ending dan bagaimana pulihnya?"</li>
+      <li><span class="chk"></span>Demo: narasi portal masuk S5 sampai "Ride Complete".</li>
+    </ul>
+  </div>
+
+  <p style="margin-top:18px"><b>Pegangan terakhir:</b> kuncinya bukan menghafal jawaban, tapi tenang menunjuk baris kode dan menjelaskan KENAPA-nya. Kalau lupa angka, buka buku ini — dosen menilai pemahaman, bukan hafalan.</p>
+</section>
+
+</body>
+</html>
