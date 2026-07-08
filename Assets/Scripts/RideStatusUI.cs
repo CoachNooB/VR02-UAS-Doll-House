@@ -276,6 +276,6 @@ public class RideStatusUI : MonoBehaviour
         }
 
         SetProgress(0f);
-        SetStatus("Ready");
+        SetStatus("Selamat datang di Kereta Kencana!");
     }
 }

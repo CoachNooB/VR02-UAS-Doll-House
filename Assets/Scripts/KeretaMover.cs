@@ -268,7 +268,7 @@ public class KeretaMover : MonoBehaviour
         if (playerNaik && !SedangJalan && Input.GetKeyDown(KeyCode.Q))
         {
             TurunkanPlayer();
-            KirimStatus("Turun dari kereta.");
+            KirimStatus("Kamu turun — kereta setia menunggu di sini.");
             return;
         }
 
@@ -551,7 +551,7 @@ public class KeretaMover : MonoBehaviour
 
         if (hub.StatusUI != null)
         {
-            hub.StatusUI.SetStatus("<color=green>Ride Complete</color>");
+            hub.StatusUI.SetStatus("<color=green>Ride Complete!</color> Terima kasih, Sahabat Boneka!");
         }
 
         if (hub.Ringkasan != null)
@@ -655,7 +655,7 @@ public class KeretaMover : MonoBehaviour
             tuasStartCollider.enabled = true;
         }
 
-        KirimStatus("Tarik tuas (E) untuk mulai — atau Q untuk turun.");
+        KirimStatus("Tarik tuas Berangkat (E) — atau Q kalau mau turun.");
     }
 
     /// <summary>
@@ -734,7 +734,7 @@ public class KeretaMover : MonoBehaviour
             hub.StatusUI.SetTampil(true);
         }
 
-        KirimStatus("<color=yellow>Jalan! W = cepat, S = rem/berhenti</color>");
+        KirimStatus("<color=yellow>Berangkat!</color> W = lebih cepat · S = rem");
         LaporProgress(); // progress mulai dari 0
     }
 

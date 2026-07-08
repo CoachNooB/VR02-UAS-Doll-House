@@ -115,7 +115,7 @@ public class ModeJalanKaki : MonoBehaviour
     {
         if (_teksStatus != null)
         {
-            _teksStatus.text = Aktif ? "MODE JALAN: ON" : "MODE JALAN: OFF";
+            _teksStatus.text = Aktif ? "BACKSTAGE TOUR: ON" : "BACKSTAGE TOUR: OFF";
         }
 
         if (_lampuIndikator != null)
