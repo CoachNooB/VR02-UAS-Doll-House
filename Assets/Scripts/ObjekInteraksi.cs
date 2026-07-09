@@ -5,7 +5,9 @@ using UnityEngine;
 /// Saat dilihat: highlight emission glow lembut + skala membesar 5% (pola T6).
 /// Mode menentukan aksi saat Interact():
 /// 0 = efek lokal saja (toggle objek / ubah warna / suara),
-/// 1 = naik kereta, 2 = mulai kereta, 3 = pilih jalur kiri panggung S2 (tuas),
+/// 1 = naik kereta, 2 = mulai kereta,
+/// 3 = pilih jalur kiri panggung S2 (tuas; cabang S2 versi awal — saat ini nonaktif,
+///     cabang final = mode 9 S1),
 /// 4 = papan info gambar berikutnya, 5 = gambar sebelumnya, 6 = reset semua wahana,
 /// 7 = buka/tutup pintu (toggle) — pakai _pintuTarget,
 /// 8 = ambil tiket di mesin loket (GerbangTiket kebuka otomatis setelahnya),

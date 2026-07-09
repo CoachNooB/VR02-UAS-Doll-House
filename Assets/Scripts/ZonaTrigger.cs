@@ -8,7 +8,7 @@ using UnityEngine;
 /// Mode menentukan aksi saat objek ber-tag _tagPemicu MASUK zona:
 /// 0 = stempel section, 1 = pintu buka (masuk) / tutup (keluar),
 /// 2 = kereta pelan (masuk) / normal (keluar), 3 = mulai sequence show,
-/// 4 = ubah teks status kereta, 5 = tandai sisi panggung S2 (kiri/kanan).
+/// 4 = ubah teks status kereta, 5 = tandai sisi rute S1 (utama/cabang beruang).
 /// </summary>
 [RequireComponent(typeof(Collider))]
 public class ZonaTrigger : MonoBehaviour
@@ -16,14 +16,14 @@ public class ZonaTrigger : MonoBehaviour
     [Header("Deteksi (isi \"Player\" atau \"Kereta\")")]
     [SerializeField] private string _tagPemicu = "Player";
 
-    [Header("Mode (0 stempel, 1 pintu, 2 lambat, 3 show, 4 status, 5 sisi S2)")]
+    [Header("Mode (0 stempel, 1 pintu, 2 lambat, 3 show, 4 status, 5 sisi rute S1)")]
     [Range(0, 5)]
     [SerializeField] private int _mode = 0;
 
     [Header("Pengaturan per mode")]
     [SerializeField] private int _indexStempel = 0;   // mode 0: 0..4 section S1..S5 (5 = bintang emas, nyala otomatis)
     [SerializeField] private string _statusTeks = ""; // mode 4: teks buat RideStatusUI
-    [SerializeField] private bool _sisiKiri = false;  // mode 5: true = zona di jalur sisi kiri panggung
+    [SerializeField] private bool _sisiKiri = false;  // mode 5: true = zona di cabang Jalur Beruang S1 (false = jalur utama)
 
     [Header("Referensi (opsional — auto-find di Awake)")]
     [SerializeField] private PusatWahana _wahana;     // fallback: parent, lalu GameObject.Find("Wahana")
@@ -148,7 +148,7 @@ public class ZonaTrigger : MonoBehaviour
         }
         else if (_mode == 5)
         {
-            // Kereta lewat salah satu sisi panggung S2 -> catat sisi yang sudah dilihat.
+            // Kereta lewat salah satu rute S1 -> catat rute yang sudah dilewati.
             if (_wahana == null || _wahana.StatusUI == null) { LogPeringatan("RideStatusUI null"); return; }
             _wahana.StatusUI.TandaiSisi(_sisiKiri);
         }

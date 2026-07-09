@@ -7,8 +7,9 @@ using UnityEngine.UI;
 /// <summary>
 /// UI status ride di panel kereta (UI_PanelKereta, World Space Canvas).
 /// Menampilkan teks status, 6 icon stempel (index 0..4 = section S1..S5,
-/// 5 = bintang emas: sudah melihat KEDUA sisi panggung S2 — bisa lintas ride),
-/// dan progress bar perjalanan memakai Image fillAmount (pola Latihan 6 P3-P5).
+/// 5 = bintang emas: sudah melewati KEDUA rute S1 — jalur utama & Jalur Beruang,
+/// bisa lintas ride), dan progress bar perjalanan memakai Image fillAmount
+/// (pola Latihan 6 P3-P5).
 /// </summary>
 public class RideStatusUI : MonoBehaviour
 {
@@ -32,10 +33,10 @@ public class RideStatusUI : MonoBehaviour
     // Warna awal tiap icon stempel, disimpan supaya bisa dikembalikan saat reset.
     private Color[] warnaAwalStempel = new Color[6];
 
-    // Sisi panggung S2 yang sudah pernah dilihat player.
-    // SENGAJA tidak ikut di-reset oleh ResetStempel: progres "lihat dua sisi"
-    // bertahan antar-ride (replay), jadi bintang emas tetap bisa dikejar
-    // dengan naik kereta lebih dari sekali.
+    // Rute S1 yang sudah pernah dilewati player (kiri = cabang Jalur Beruang,
+    // kanan = jalur utama). SENGAJA tidak ikut di-reset oleh ResetStempel:
+    // progres "lewati dua rute" bertahan antar-ride (replay), jadi bintang emas
+    // tetap bisa dikejar dengan naik kereta lebih dari sekali.
     private bool lihatKiri;
     private bool lihatKanan;
 
@@ -148,7 +149,7 @@ public class RideStatusUI : MonoBehaviour
 
     /// <summary>
     /// Menandai satu stempel jadi aktif (warna emas) + bunyi sfx.
-    /// Index 0..4 = section S1..S5, 5 = bintang emas dua sisi panggung S2.
+    /// Index 0..4 = section S1..S5, 5 = bintang emas dua rute S1.
     /// </summary>
     public void TandaiStempel(int index)
     {
@@ -196,8 +197,9 @@ public class RideStatusUI : MonoBehaviour
     }
 
     /// <summary>
-    /// Dipanggil ZonaTrigger mode 5 saat kereta melewati salah satu sisi panggung S2.
-    /// Kalau kedua sisi sudah pernah dilihat (boleh beda ride), bintang emas menyala.
+    /// Dipanggil ZonaTrigger mode 5 saat kereta melewati salah satu rute S1
+    /// (Z_SisiKiri = cabang Jalur Beruang, Z_SisiKanan = jalur utama).
+    /// Kalau kedua rute sudah pernah dilewati (boleh beda ride), bintang emas menyala.
     /// </summary>
     public void TandaiSisi(bool kiri)
     {
@@ -220,7 +222,7 @@ public class RideStatusUI : MonoBehaviour
     }
 
     /// <summary>
-    /// True kalau bintang emas (dua sisi panggung S2) sudah menyala.
+    /// True kalau bintang emas (dua rute S1) sudah menyala.
     /// </summary>
     public bool BintangEmasKena()
     {
@@ -259,8 +261,8 @@ public class RideStatusUI : MonoBehaviour
     /// Mengembalikan panel ke kondisi awal: warna stempel semula,
     /// penanda kena dihapus, progress 0, status "Ready".
     /// Catatan: lihatKiri/lihatKanan SENGAJA tidak disentuh — begitu kereta
-    /// melewati sisi panggung lagi, TandaiSisi otomatis menyalakan ulang
-    /// bintang emas kalau dua sisi sudah lengkap.
+    /// melewati zona sisi rute S1 lagi, TandaiSisi otomatis menyalakan ulang
+    /// bintang emas kalau dua rute sudah lengkap.
     /// </summary>
     public void ResetStempel()
     {

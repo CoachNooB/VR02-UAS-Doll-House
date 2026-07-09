@@ -2,18 +2,28 @@ using UnityEngine;
 
 /// <summary>
 /// Penggerak kereta mini wahana boneka.
-/// Kereta jalan dari waypoint ke waypoint (WP_0..WP_77) memakai Vector3.MoveTowards
-/// (pola dosen P10 MoveToPlayer). Di panggung S2 track bercabang: sisi kiri (WK_0..WK_3)
-/// kalau tuas pilihan ditarik, sisi kanan kalau tidak. Kereta berhenti nonton show
-/// di stasiun S3 Horror, dan menukik landai masuk danau di S4 (murni dari posisi waypoint).
+/// Kereta jalan dari waypoint ke waypoint memakai Vector3.MoveTowards (pola dosen
+/// P10 MoveToPlayer). Kondisi LIVE scene UAS_Main (nilai di-set lewat Inspector):
+/// jalur utama 755 waypoint (WP_0..WP_754); satu-satunya cabang AKTIF ada di hutan
+/// S1 "Jalur Beruang" (WK2_0.., 42 waypoint) — kereta berhenti menunggu pilihan di
+/// WP 73, belok di WP 77 kalau tuas ditarik, gabung lagi ke jalur utama di WP 135.
+/// Setelah itu rute lurus melewati panggung S2, stasiun S3, lalu masuk gua akuarium
+/// S4 (kereta menukik ikut posisi waypoint) — di S4 kereta BERHENTI sejenak
+/// (satu titik, _indexBerhenti + _durasiBerhenti di Inspector) supaya penumpang
+/// menikmati pemandangan akuarium — lanjut S5 sampai balik ke stasiun.
+/// CATATAN: cabang sisi kiri panggung S2 (WK_) masih fitur data-driven yang
+/// DINONAKTIFKAN lewat Inspector scene (_jumlahKiri = 0); logika & field-nya sengaja
+/// dibiarkan, tinggal isi nilainya kalau mau diaktifkan. Titik berhenti bertimer
+/// hanya SATU dan di scene live berada di S4 (bukan lagi S3). Angka default di
+/// deklarasi field bawah masih nilai versi awal dan selalu di-override oleh scene.
 /// Player naik dengan menempel ke kursi (SetParent), turun otomatis di TitikTurun saat
 /// ride selesai, atau turun manual dengan tombol Q selama duduk & kereta masih diam.
 /// </summary>
 public class KeretaMover : MonoBehaviour
 {
     [Header("Jalur (parent waypoint)")]
-    [SerializeField] private Transform _jalurUtama;    // parent WP_0..WP_77 (fallback: cari "JalurUtama")
-    [SerializeField] private Transform _jalurKiri;     // parent WK_0..WK_3 (fallback: cari "JalurKiri")
+    [SerializeField] private Transform _jalurUtama;    // parent WP_0.. (fallback: cari "JalurUtama")
+    [SerializeField] private Transform _jalurKiri;     // parent WK_0.. cabang S2 (nonaktif; fallback: cari "JalurKiri")
     [SerializeField] private int _jumlahUtama = 78;    // banyak waypoint jalur utama (termasuk sisi kanan S2)
     [SerializeField] private int _jumlahKiri = 4;      // banyak waypoint sisi kiri panggung S2
 
@@ -36,9 +46,9 @@ public class KeretaMover : MonoBehaviour
     [SerializeField] private float _kecepatanMax = 3.5f;      // batas atas saat W ditahan (koridor)
     [SerializeField] private float _akselerasi = 2.5f;        // laju ramp naik/turun kecepatan (unit/detik^2)
 
-    [Header("Berhenti di stasiun (S3 Horror)")]
-    [SerializeField] private int _indexBerhenti = 39;         // WP tempat kereta berhenti nonton show
-    [SerializeField] private float _durasiBerhenti = 14f;     // lama berhenti (detik)
+    [Header("Berhenti nikmati akuarium (S4 Gua Laut)")]
+    [SerializeField] private int _indexBerhenti = 39;         // WP tempat kereta berhenti (scene live: S4 gua akuarium)
+    [SerializeField] private float _durasiBerhenti = 14f;     // lama berhenti (detik); 0 = fitur berhenti mati
 
     [Header("Berhenti di percabangan S1 (menunggu pilihan tuas)")]
     [SerializeField] private int _indexBerhentiCabangS1 = 0;  // WP berhenti menunggu pilihan jalur (0 = nonaktif)
@@ -62,7 +72,7 @@ public class KeretaMover : MonoBehaviour
     private Transform[] waypointKiri;     // diisi di Awake dari child JalurKiri
     private Transform[] waypointKiriS1;   // diisi di Awake dari child JalurKiriS1 (cabang hutan)
     private int indexTujuan = 1;          // waypoint yang sedang dituju (mulai target WP_1, kereta parkir di WP_0)
-    private bool diJalurKiri;             // true = sedang menyusuri WK_0..WK_3 (sisi kiri panggung)
+    private bool diJalurKiri;             // true = sedang menyusuri WK_ cabang S2 sisi kiri panggung (nonaktif di scene live)
     private bool lewatKiri;               // true = tuas pilihan ditarik, belok kiri di percabangan nanti
     private bool diJalurKiriS1;           // true = sedang menyusuri WK2_ (cabang hutan S1)
     private bool lewatKiriS1;             // true = tuas S1 ditarik, belok kiri di cabang hutan nanti
@@ -278,7 +288,7 @@ public class KeretaMover : MonoBehaviour
             return;
         }
 
-        // Sedang berhenti di stasiun S3: hitung mundur, lalu lanjut jalan.
+        // Sedang berhenti di titik berhenti S4 (gua akuarium): hitung mundur, lalu lanjut jalan.
         if (sedangBerhenti)
         {
             timerBerhenti -= Time.deltaTime;
@@ -384,7 +394,7 @@ public class KeretaMover : MonoBehaviour
         // arah hadap digeser sedikit demi sedikit ke arah tujuan pakai Vector3.MoveTowards
         // (P10), lalu diubah jadi rotasi pakai Quaternion.LookRotation (P7) — belokan
         // jadi halus tanpa API di luar materi. Arah TIDAK diratakan (full 3D) supaya
-        // kereta ikut nunduk/mendongak saat menukik masuk & keluar danau S4.
+        // kereta ikut nunduk/mendongak saat menukik masuk & keluar gua akuarium S4.
         Vector3 arah = (tujuan.position - transform.position).normalized;
         if (arah != Vector3.zero)
         {
@@ -438,8 +448,9 @@ public class KeretaMover : MonoBehaviour
             return; // LanjutWaypoint dipanggil saat player menekan W
         }
 
-        // Sampai stasiun S3 (index gabung < index berhenti, jadi dua rute sama-sama kena):
-        // Sequence show dipicu ZonaTrigger terpisah, di sini kereta cuma berhenti.
+        // Sampai titik berhenti S4 gua akuarium (index gabung < index berhenti, jadi dua rute
+        // sama-sama kena): atraksi tiap section dipicu ZonaTrigger terpisah, di sini kereta
+        // cuma berhenti sejenak menikmati akuarium.
         if (!diJalurKiri && !diJalurKiriS1 && indexTujuan == _indexBerhenti)
         {
             sedangBerhenti = true;
@@ -447,6 +458,14 @@ public class KeretaMover : MonoBehaviour
             if (_suaraJalan != null)
             {
                 _suaraJalan.Stop();
+            }
+
+            // Kabari penumpang lewat panel HUD kereta kalau berhentinya beneran terasa
+            // (durasi ~0 = fitur berhenti mati, jangan kirim pesan palsu — guard sama
+            // dengan pesan "jalan lagi" di Update).
+            if (_durasiBerhenti > 0.5f)
+            {
+                KirimStatus("<color=#66D9FF>Kereta berhenti sejenak</color> — nikmati gua akuarium!");
             }
             return; // LanjutWaypoint dipanggil nanti setelah timer habis
         }
@@ -745,8 +764,10 @@ public class KeretaMover : MonoBehaviour
     }
 
     /// <summary>
-    /// Pilih sisi kiri panggung S2 (dipanggil ObjekInteraksi TuasPilihan, tombol E).
+    /// Pilih sisi kiri panggung S2 (dipanggil ObjekInteraksi mode 3, tombol E).
     /// Kereta baru benar-benar belok saat sampai waypoint percabangan.
+    /// Cabang S2 = versi awal, saat ini NONAKTIF (_jumlahKiri = 0 di Inspector);
+    /// cabang yang aktif di scene live = Jalur Beruang S1 (PilihCabangS1).
     /// </summary>
     public void PilihJalurKiri()
     {
