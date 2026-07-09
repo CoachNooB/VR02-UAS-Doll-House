@@ -46,6 +46,10 @@ public class KeretaMover : MonoBehaviour
     [SerializeField] private float _kecepatanMax = 3.5f;      // batas atas saat W ditahan (koridor)
     [SerializeField] private float _akselerasi = 2.5f;        // laju ramp naik/turun kecepatan (unit/detik^2)
 
+    [Header("Melambat di dekat interaksi (S2-S5)")]
+    [SerializeField] private float _kecepatanInteraksi = 0.7f; // cap crawl saat dekat objek interaksi raycast
+    [SerializeField] private float _radiusInteraksi = 6f;      // jarak horizontal mulai crawl dari objek interaksi
+
     [Header("Berhenti nikmati akuarium (S4 Gua Laut)")]
     [SerializeField] private int _indexBerhenti = 39;         // WP tempat kereta berhenti (scene live: S4 gua akuarium)
     [SerializeField] private float _durasiBerhenti = 14f;     // lama berhenti (detik); 0 = fitur berhenti mati
@@ -71,6 +75,7 @@ public class KeretaMover : MonoBehaviour
     private Transform[] waypointUtama;    // diisi di Awake dari child JalurUtama
     private Transform[] waypointKiri;     // diisi di Awake dari child JalurKiri
     private Transform[] waypointKiriS1;   // diisi di Awake dari child JalurKiriS1 (cabang hutan)
+    private Transform[] titikInteraksi;   // objek interaksi S2-S5 (auto-find di Awake) untuk crawl dekat interaksi
     private int indexTujuan = 1;          // waypoint yang sedang dituju (mulai target WP_1, kereta parkir di WP_0)
     private bool diJalurKiri;             // true = sedang menyusuri WK_ cabang S2 sisi kiri panggung (nonaktif di scene live)
     private bool lewatKiri;               // true = tuas pilihan ditarik, belok kiri di percabangan nanti
@@ -264,6 +269,9 @@ public class KeretaMover : MonoBehaviour
             }
         }
 
+        // Titik interaksi S2-S5 (auto-find by name) buat memicu crawl saat kereta mendekat.
+        IsiTitikInteraksi();
+
         totalRute = _jumlahUtama;
     }
 
@@ -351,7 +359,7 @@ public class KeretaMover : MonoBehaviour
             return;
         }
 
-        // Batas kecepatan (cap): cabang > zona lambat > max koridor.
+        // Batas kecepatan (cap): cabang > dekat interaksi > zona lambat > max koridor.
         float cap = _kecepatanMax;
         if (diJalurKiri)
         {
@@ -360,6 +368,10 @@ public class KeretaMover : MonoBehaviour
         else if (diJalurKiriS1)
         {
             cap = _kecepatanKiriS1;
+        }
+        else if (DekatInteraksi())
+        {
+            cap = _kecepatanInteraksi; // crawl pas di depan interaksi S2-S5 (di bawah cap zona)
         }
         else if (pelanKarenaZona)
         {
@@ -990,5 +1002,49 @@ public class KeretaMover : MonoBehaviour
         }
 
         hub.StatusUI.SetProgress(jumlahDilewati / (float)totalRute);
+    }
+
+    /// <summary>
+    /// Auto-find objek interaksi raycast S2-S5 (by name) buat memicu crawl saat kereta
+    /// mendekat — biar penumpang sempat membidik & tekan E. Pola auto-find (MCP tak bisa
+    /// isi reference). Robust ke reposisi manual: GameObject.Find dapat transform live.
+    /// </summary>
+    private void IsiTitikInteraksi()
+    {
+        string[] nama = { "KunciPemutar", "KotakMusik_S3", "BonekaHantu_Halimah", "KetukKaca", "MicEncore" };
+        var list = new System.Collections.Generic.List<Transform>();
+        for (int i = 0; i < nama.Length; i++)
+        {
+            GameObject g = GameObject.Find(nama[i]);
+            if (g != null)
+            {
+                list.Add(g.transform);
+            }
+        }
+        titikInteraksi = list.ToArray();
+    }
+
+    /// <summary>True kalau kereta dalam _radiusInteraksi (jarak horizontal) dari salah satu titik interaksi.</summary>
+    private bool DekatInteraksi()
+    {
+        if (titikInteraksi == null)
+        {
+            return false;
+        }
+
+        float r2 = _radiusInteraksi * _radiusInteraksi;
+        for (int i = 0; i < titikInteraksi.Length; i++)
+        {
+            Transform t = titikInteraksi[i];
+            if (t == null) continue;
+
+            float dx = transform.position.x - t.position.x;
+            float dz = transform.position.z - t.position.z;
+            if (dx * dx + dz * dz <= r2)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }
