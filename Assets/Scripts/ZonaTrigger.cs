@@ -133,6 +133,7 @@ public class ZonaTrigger : MonoBehaviour
         }
         else if (_mode == 2)
         {
+            _dalamZona++;                  // hitung bak kereta di zona section (buat pesan keluar)
             if (_wahana == null || _wahana.Kereta == null) { LogPeringatan("KeretaMover null"); return; }
             _wahana.Kereta.SetKecepatanLambat();
         }
@@ -201,6 +202,14 @@ public class ZonaTrigger : MonoBehaviour
         else if (_mode == 2)
         {
             if (_wahana != null && _wahana.Kereta != null) _wahana.Kereta.SetKecepatanNormal();
+
+            // Kereta keluar section: begitu SEMUA bak sudah keluar (counter 0), umumkan jeda
+            // antar-section. Caption section berikut menimpanya saat masuk zona baru.
+            _dalamZona = Mathf.Max(0, _dalamZona - 1);
+            if (_dalamZona == 0 && _wahana != null && _wahana.StatusUI != null)
+            {
+                _wahana.StatusUI.SetStatus("Siap masuk wahana baru!");
+            }
         }
     }
 

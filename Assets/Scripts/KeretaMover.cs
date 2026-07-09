@@ -533,6 +533,12 @@ public class KeretaMover : MonoBehaviour
             int diskipS1 = _indexGabungS1 - _indexCabangS1 - 1;
             totalRute = _jumlahUtama - diskipS1 + _jumlahKiriS1;
 
+            // Reward Jalur Beruang: nyalakan stempel #6 neon hijau (khas cabang beruang).
+            if (hub != null && hub.StatusUI != null)
+            {
+                hub.StatusUI.TandaiJalurBeruang();
+            }
+
             KirimStatus("<color=yellow>Jalur Beruang — dekat beruang!</color>");
             return;
         }

@@ -19,7 +19,8 @@ public class RideStatusUI : MonoBehaviour
     [SerializeField] private Image _barProgress;
 
     [Header("Pengaturan Stempel")]
-    [SerializeField] private Color _warnaStempelAktif = new Color(1f, 0.84f, 0f, 1f); // kuning emas (FFD700)
+    [SerializeField] private Color _warnaStempelAktif = new Color(1f, 0.84f, 0f, 1f);      // kuning emas (FFD700) — stempel section
+    [SerializeField] private Color _warnaJalurBeruang = new Color(0.224f, 1f, 0.078f, 1f); // neon hijau (#39FF14) — reward Jalur Beruang (stempel #6)
 
     [Header("Audio (opsional)")]
     [SerializeField] private AudioSource _sfxStempel;
@@ -197,9 +198,9 @@ public class RideStatusUI : MonoBehaviour
     }
 
     /// <summary>
-    /// Dipanggil ZonaTrigger mode 5 saat kereta melewati salah satu rute S1
-    /// (Z_SisiKiri = cabang Jalur Beruang, Z_SisiKanan = jalur utama).
-    /// Kalau kedua rute sudah pernah dilewati (boleh beda ride), bintang emas menyala.
+    /// Dipanggil ZonaTrigger mode 5 saat kereta melewati zona sisi rute S1. LEGACY:
+    /// dulu bintang emas butuh DUA rute. Sekarang stempel #6 = reward Jalur Beruang
+    /// (neon hijau) via TandaiJalurBeruang, jadi ini hanya mencatat rute (tak menyalakan apa-apa).
     /// </summary>
     public void TandaiSisi(bool kiri)
     {
@@ -211,18 +212,31 @@ public class RideStatusUI : MonoBehaviour
         {
             lihatKanan = true;
         }
+    }
 
-        // Dua sisi sudah lengkap -> nyalakan bintang emas (index 5).
-        // TandaiStempel sudah punya guard, jadi aman terpanggil berulang —
-        // termasuk menyalakan ulang icon-nya setelah ResetStempel di ride berikutnya.
-        if (lihatKiri && lihatKanan)
+    /// <summary>
+    /// Reward khusus Jalur Beruang S1: nyalakan stempel #6 (index 5) warna NEON HIJAU.
+    /// Dipanggil KeretaMover saat kereta belok ke cabang beruang — tak perlu lewat dua rute.
+    /// </summary>
+    public void TandaiJalurBeruang()
+    {
+        if (stempelKena[5]) return; // sudah kena, jangan dobel (warna & sfx)
+
+        stempelKena[5] = true;
+
+        if (_stempel[5] != null)
         {
-            TandaiStempel(5);
+            _stempel[5].color = _warnaJalurBeruang;
+        }
+
+        if (_sfxStempel != null)
+        {
+            _sfxStempel.Play();
         }
     }
 
     /// <summary>
-    /// True kalau bintang emas (dua rute S1) sudah menyala.
+    /// True kalau stempel #6 (reward Jalur Beruang, neon hijau) sudah menyala.
     /// </summary>
     public bool BintangEmasKena()
     {
