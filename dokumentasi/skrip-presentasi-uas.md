@@ -26,6 +26,12 @@
 | 14 | Kendala Teknis dan Solusinya | Harry | 0:20 |
 | 15 | Pembagian Tugas Anggota | Harry | 0:15 |
 | 16 | Demo, Link, dan Kredit | Harry (tutup) | 0:10 |
+| 17 | Pemenuhan Rubrik dan Requirement (backup) | Harry (opsional, saat QnA) | — |
+
+Slide 17 = slide checklist penutup/cadangan: tampil setelah "terima kasih", dibuka saat
+transisi ke QnA atau bila dosen menanyakan kelengkapan fitur/rubrik. Tidak dihitung ke
+target 7:15 (tidak dinarasikan penuh) — cukup "seluruh requirement Soal 2 dan keenam bonus
+terpenuhi, ringkasannya di sini" lalu lanjut demo/QnA.
 
 Alur bicara: Harry - Izhar - Harry - Deva - Halimah - Dharma - Dimas - Harry.
 Tujuh serah terima, semuanya DIHITUNG di dalam waktu blok masing-masing: pemateri

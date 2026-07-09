@@ -137,8 +137,10 @@ opsional diganti screenshot in-game (lihat `shot-list.md`).
 - **PDF buku:** ter-render 27 halaman A4 via puppeteer-core + Chrome (pipeline sama dengan
   referensi Kopi Kuliahan); cover, daftar isi, tabel fakta, jendela kode, kotak QnA, badge
   penanggung jawab semuanya utuh tanpa terpotong.
-- **PDF deck:** 16 halaman A4 diekspor dari Canva; urutan slide 1-16 sesuai `deck-uas.md`;
-  kredit CC-BY verbatim di slide 16; keenam anggota + dosen di cover.
+- **PDF deck:** 17 halaman A4 diekspor dari Canva; urutan slide 1-16 sesuai `deck-uas.md`
+  + slide 17 = checklist "Pemenuhan Rubrik dan Requirement" (Core 30 / Fitur Soal 2 60 /
+  Bonus +30) setelah slide penutup; kredit CC-BY verbatim di slide 16; keenam anggota +
+  dosen di cover.
 
 ## Risiko sisa untuk TIM (bukan cacat dokumen)
 

@@ -5,6 +5,7 @@
 > pada 2026-07-08 dan sudah melewati audit evaluator ronde 1. Tanpa emoji.
 > Gaya visual Canva: satu ide per slide, maksimal 4 bullet pendek, latar malam
 > navy/ungu tua, teks krem, aksen emas; area gambar besar (lihat `shot-list.md`).
+> Deck FINAL = 17 slide (slide 17 = checklist pemenuhan rubrik, tampil setelah "terima kasih").
 
 ## Slide 1 — Wahana Rumah Boneka
 
@@ -166,6 +167,15 @@ Bullet:
    http://creativecommons.org/licenses/by/4.0/
 3. Musik dan SFX lain: CC0 (FreePD, OpenGameArt); aset visual: paket free Unity Asset Store dan sumber free lain.
 4. Terima kasih — lanjut ke demo gameplay dan tanya jawab.
+
+## Slide 17 — Pemenuhan Rubrik dan Requirement (checklist penutup/backup)
+
+- Pemateri: Harry (ditampilkan setelah "terima kasih" / saat transisi ke QnA) · Placeholder: tidak ada · Menegaskan seluruh item wajib + bonus terpenuhi
+
+Tiga kolom checklist:
+1. Core Product — 30: Immersive Experience (20) — first-person, spatial UI, interaksi, objective flow, feedback; Tema Visual (10) — dunia malam, 5 section bertema, lighting dan audio menyatu.
+2. Fitur Soal 2 — 60: track dan layout jelas (124×106); flow dan end state Ride Complete; kereta ikut track (755 waypoint); 5 display konsep beda berurutan; interaksi raycast (11 mode); animasi berbeda (Animator dan script); trigger dan feedback (6 mode).
+3. Bonus — maks +30: section ke-4 dan ke-5; stop point / station sementara; branching track via tuas; sequence animasi 4 tahap; transisi via interaksi; ride pacing (zona lambat).
 
 ---
 
